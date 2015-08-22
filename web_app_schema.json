@@ -1,0 +1,84 @@
+{
+    "$schema": "http://json-schema.org/schema#",
+    "title": "Web_app_schema",
+    "description": "This is a schema that describes the structure of a web app",
+    "containers": {
+        "type": "array",
+        "items": {
+            "anyOf": [
+                {
+                    "$ref": "#/declarations/web"
+                },
+                {
+                    "$ref": "#/declarations/business"
+                },
+                {
+                    "$ref": "#/declarations/data"
+                }
+            ]
+        },
+        "minItems": 2
+    },
+
+    "definitions": {
+        "data": {
+            "title": "Data Container type",
+            "description": "This schema matches a data container type",
+            "type": "object",
+            "properties": {
+                "db_port": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                        "type": "integer"
+                    },
+                    "minimum": 1024,
+                    "maximum": 65535,
+                    "exclusiveMaximum": true,
+                    "exclusiveMinimum": true
+                },
+                "db_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "db_username": {
+                    "type": "string"
+                },
+                "db_password": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "db_port",
+                "db_url",
+                "db_username",
+                "db_password"
+            ]
+        },
+
+        "business": {},
+        
+        "web": {
+            "title": "Web Container type",
+            "description": "This schema matches a web container type",
+            "type": "object",
+            "properties": {
+                "ports": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": {
+                        "type": "integer"
+                    },
+                    "minimum": 1024,
+                    "maximum": 65535,
+                    "exclusiveMaximum": true,
+                    "exclusiveMinimum": true
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                }
+            }
+        }
+    }
+}
