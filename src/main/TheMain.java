@@ -17,7 +17,11 @@
 package main;
 
 import com.github.fge.jsonschema.core.exceptions.ProcessingException;
+import com.sun.codemodel.JCodeModel;
+import java.io.File;
 import java.io.IOException;
+import java.net.URL;
+import org.jsonschema2pojo.SchemaMapper;
 
 /**
  *
@@ -42,30 +46,16 @@ public class TheMain {
             System.out.println(jproc.getReport());
             System.exit(1);
         }
-        
-        
-
-        /*
-         //Dynamically create JAVA CLASS
-         jproc.generateClass(json, json, json, json);
-        
-        
-        
-        
-        
-         JCodeModel codeModel = new JCodeModel();
-        
-        
-
-         URL source = new File("/home/dio/THESIS/maestro/test_schemas/defaultSchema3.json").toURI().toURL();
-
-         new SchemaMapper().generate(codeModel, "CreatedClass", "main", source);
-
-         codeModel.build(new File("/home/dio/THESIS/maestro/src/main"));
-
-         System.out.println("New Java Class created successfully");
-                
-         */
+       
+       
+         //Dynamically create JAVA CLASS from json 
+         String inputFilePath = "/home/dio/THESIS/maestro/test_schemas/defaultSchema3.json";
+         String className = "GeneratedClass";
+         String packageName = "conf";
+         String outputFilePath = "/home/dio/THESIS/maestro/src";
+         
+         jproc.generateClass(inputFilePath, className, packageName, outputFilePath);
+         
     }
 
 }

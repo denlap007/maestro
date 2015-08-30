@@ -1,5 +1,5 @@
 
-package main;
+package conf;
 
 import javax.annotation.Generated;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -25,7 +25,7 @@ import org.apache.commons.lang.builder.ToStringBuilder;
     "postal-code",
     "country-name"
 })
-public class CreatedClass {
+public class GeneratedClass {
 
     @JsonProperty("post-office-box")
     private String postOfficeBox;
@@ -224,10 +224,10 @@ public class CreatedClass {
         if (other == this) {
             return true;
         }
-        if ((other instanceof CreatedClass) == false) {
+        if ((other instanceof GeneratedClass) == false) {
             return false;
         }
-        CreatedClass rhs = ((CreatedClass) other);
+        GeneratedClass rhs = ((GeneratedClass) other);
         return new EqualsBuilder().append(postOfficeBox, rhs.postOfficeBox).append(extendedAddress, rhs.extendedAddress).append(streetAddress, rhs.streetAddress).append(locality, rhs.locality).append(region, rhs.region).append(postalCode, rhs.postalCode).append(countryName, rhs.countryName).isEquals();
     }
 

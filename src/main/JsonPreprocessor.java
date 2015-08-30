@@ -144,7 +144,7 @@ public final class JsonPreprocessor {
                 return null;
             }
         } catch (JsonParseException ex) {
-            System.out.println("---> [ERROR] INVALID SYNTAX. Unable to load resource. Exiting...");
+            System.err.println("---> [ERROR] INVALID SYNTAX. Unable to load resource. Exiting...");
             System.exit(1);
         } catch (IOException ex) {
             Logger.getLogger(JsonPreprocessor.class.getName()).log(Level.SEVERE, null, ex);
@@ -220,7 +220,7 @@ public final class JsonPreprocessor {
 
             codeModel.build(new File(outputFilePath));
         } catch (MalformedURLException ex) {
-            System.out.println("---> [ERROR]: This is not a corrent URL form. Exiting");
+            System.err.println("---> [ERROR]: This is not a corrent URL form. Exiting");
             System.exit(1);
         } catch (IOException ex) {
             Logger.getLogger(JsonPreprocessor.class.getName()).log(Level.SEVERE, null, ex);
