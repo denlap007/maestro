@@ -16,6 +16,13 @@
                     "type": "string"
                 }
             },
+            "conf_files_paths": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                    "type": "string"
+                }
+            },
             "properties": {
                 "ports": {
                     "type": "array",
@@ -76,7 +83,10 @@
                 }
             ]
         },
-        "minItems": 2
+        "minItems": 2,
+        "number": {
+            "type": "integer"
+        }
     },
     "data": {
         "title": "Data Container type",

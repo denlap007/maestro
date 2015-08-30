@@ -28,16 +28,44 @@ public class TheMain {
     public static void main(String[] args) throws IOException, ProcessingException {
         //Create a json preprocessor
         JsonPreprocessor jproc = new JsonPreprocessor();
-        
-        //Initialize the preprocessor with a JSON schema
-        jproc.initJsonSchema();
-        
-        //Load a JSON file to validate against the loaded JSON schema 
-        jproc.loadJson();
-        
-        //Validate loaded JSON file against loaded JSON schema
-        jproc.validateJson();
 
+        String schema = "/home/dio/THESIS/maestro/test_schemas/defaultSchema4.json";
+        String json = "/home/dio/THESIS/maestro/test_schemas/json4.json";
+
+        //Validate json against json schema
+        Boolean isValid = jproc.validateJsonToSchema(json, schema);
+
+       if (isValid == true)
+            System.out.println("---> [INFO] Json is valid against schema!");
+        else{
+            System.out.println("---> [ERROR] Json is NOT a valid schema! Exiting");
+            System.out.println(jproc.getReport());
+            System.exit(1);
+        }
+        
+        
+
+        /*
+         //Dynamically create JAVA CLASS
+         jproc.generateClass(json, json, json, json);
+        
+        
+        
+        
+        
+         JCodeModel codeModel = new JCodeModel();
+        
+        
+
+         URL source = new File("/home/dio/THESIS/maestro/test_schemas/defaultSchema3.json").toURI().toURL();
+
+         new SchemaMapper().generate(codeModel, "CreatedClass", "main", source);
+
+         codeModel.build(new File("/home/dio/THESIS/maestro/src/main"));
+
+         System.out.println("New Java Class created successfully");
+                
+         */
     }
 
 }
