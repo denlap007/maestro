@@ -11,110 +11,63 @@ import org.apache.commons.lang.builder.ToStringBuilder;
 
 
 /**
- * An Address following the convention of http://microformats.org/wiki/hcard
+ * Example Schema
+ * <p>
+ * 
  * 
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Generated("org.jsonschema2pojo")
 @JsonPropertyOrder({
-    "post-office-box",
-    "extended-address",
-    "street-address",
-    "locality",
-    "region",
-    "postal-code",
-    "country-name"
+    "firstName",
+    "lastName",
+    "age"
 })
 public class GeneratedClass {
 
-    @JsonProperty("post-office-box")
-    private String postOfficeBox;
-    @JsonProperty("extended-address")
-    private String extendedAddress;
-    @JsonProperty("street-address")
-    private String streetAddress;
     /**
      * 
      * (Required)
      * 
      */
-    @JsonProperty("locality")
-    private String locality;
+    @JsonProperty("firstName")
+    private String firstName;
     /**
      * 
      * (Required)
      * 
      */
-    @JsonProperty("region")
-    private String region;
-    @JsonProperty("postal-code")
-    private String postalCode;
+    @JsonProperty("lastName")
+    private String lastName;
+    /**
+     * Age in years
+     * 
+     */
+    @JsonProperty("age")
+    private Integer age;
+
     /**
      * 
      * (Required)
      * 
-     */
-    @JsonProperty("country-name")
-    private String countryName;
-
-    /**
-     * 
      * @return
-     *     The postOfficeBox
+     *     The firstName
      */
-    @JsonProperty("post-office-box")
-    public String getPostOfficeBox() {
-        return postOfficeBox;
+    @JsonProperty("firstName")
+    public String getFirstName() {
+        return firstName;
     }
 
     /**
      * 
-     * @param postOfficeBox
-     *     The post-office-box
-     */
-    @JsonProperty("post-office-box")
-    public void setPostOfficeBox(String postOfficeBox) {
-        this.postOfficeBox = postOfficeBox;
-    }
-
-    /**
+     * (Required)
      * 
-     * @return
-     *     The extendedAddress
+     * @param firstName
+     *     The firstName
      */
-    @JsonProperty("extended-address")
-    public String getExtendedAddress() {
-        return extendedAddress;
-    }
-
-    /**
-     * 
-     * @param extendedAddress
-     *     The extended-address
-     */
-    @JsonProperty("extended-address")
-    public void setExtendedAddress(String extendedAddress) {
-        this.extendedAddress = extendedAddress;
-    }
-
-    /**
-     * 
-     * @return
-     *     The streetAddress
-     */
-    @JsonProperty("street-address")
-    public String getStreetAddress() {
-        return streetAddress;
-    }
-
-    /**
-     * 
-     * @param streetAddress
-     *     The street-address
-     */
-    @JsonProperty("street-address")
-    public void setStreetAddress(String streetAddress) {
-        this.streetAddress = streetAddress;
+    @JsonProperty("firstName")
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
     }
 
     /**
@@ -122,91 +75,45 @@ public class GeneratedClass {
      * (Required)
      * 
      * @return
-     *     The locality
+     *     The lastName
      */
-    @JsonProperty("locality")
-    public String getLocality() {
-        return locality;
+    @JsonProperty("lastName")
+    public String getLastName() {
+        return lastName;
     }
 
     /**
      * 
      * (Required)
      * 
-     * @param locality
-     *     The locality
+     * @param lastName
+     *     The lastName
      */
-    @JsonProperty("locality")
-    public void setLocality(String locality) {
-        this.locality = locality;
+    @JsonProperty("lastName")
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
     }
 
     /**
-     * 
-     * (Required)
+     * Age in years
      * 
      * @return
-     *     The region
+     *     The age
      */
-    @JsonProperty("region")
-    public String getRegion() {
-        return region;
+    @JsonProperty("age")
+    public Integer getAge() {
+        return age;
     }
 
     /**
+     * Age in years
      * 
-     * (Required)
-     * 
-     * @param region
-     *     The region
+     * @param age
+     *     The age
      */
-    @JsonProperty("region")
-    public void setRegion(String region) {
-        this.region = region;
-    }
-
-    /**
-     * 
-     * @return
-     *     The postalCode
-     */
-    @JsonProperty("postal-code")
-    public String getPostalCode() {
-        return postalCode;
-    }
-
-    /**
-     * 
-     * @param postalCode
-     *     The postal-code
-     */
-    @JsonProperty("postal-code")
-    public void setPostalCode(String postalCode) {
-        this.postalCode = postalCode;
-    }
-
-    /**
-     * 
-     * (Required)
-     * 
-     * @return
-     *     The countryName
-     */
-    @JsonProperty("country-name")
-    public String getCountryName() {
-        return countryName;
-    }
-
-    /**
-     * 
-     * (Required)
-     * 
-     * @param countryName
-     *     The country-name
-     */
-    @JsonProperty("country-name")
-    public void setCountryName(String countryName) {
-        this.countryName = countryName;
+    @JsonProperty("age")
+    public void setAge(Integer age) {
+        this.age = age;
     }
 
     @Override
@@ -216,7 +123,7 @@ public class GeneratedClass {
 
     @Override
     public int hashCode() {
-        return new HashCodeBuilder().append(postOfficeBox).append(extendedAddress).append(streetAddress).append(locality).append(region).append(postalCode).append(countryName).toHashCode();
+        return new HashCodeBuilder().append(firstName).append(lastName).append(age).toHashCode();
     }
 
     @Override
@@ -228,7 +135,7 @@ public class GeneratedClass {
             return false;
         }
         GeneratedClass rhs = ((GeneratedClass) other);
-        return new EqualsBuilder().append(postOfficeBox, rhs.postOfficeBox).append(extendedAddress, rhs.extendedAddress).append(streetAddress, rhs.streetAddress).append(locality, rhs.locality).append(region, rhs.region).append(postalCode, rhs.postalCode).append(countryName, rhs.countryName).isEquals();
+        return new EqualsBuilder().append(firstName, rhs.firstName).append(lastName, rhs.lastName).append(age, rhs.age).isEquals();
     }
 
 }

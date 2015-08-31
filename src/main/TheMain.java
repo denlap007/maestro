@@ -16,12 +16,11 @@
  */
 package main;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.fge.jsonschema.core.exceptions.ProcessingException;
-import com.sun.codemodel.JCodeModel;
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
-import org.jsonschema2pojo.SchemaMapper;
+import java.lang.reflect.InvocationTargetException;
 
 /**
  *
@@ -29,33 +28,48 @@ import org.jsonschema2pojo.SchemaMapper;
  */
 public class TheMain {
 
-    public static void main(String[] args) throws IOException, ProcessingException {
-        //Create a json preprocessor
+    public static void main(String[] args) throws IOException, ProcessingException, InstantiationException, IllegalAccessException, NoSuchMethodException, InvocationTargetException, ClassNotFoundException {
+        // Create a json preprocessor
         JsonPreprocessor jproc = new JsonPreprocessor();
 
-        String schema = "/home/dio/THESIS/maestro/test_schemas/defaultSchema4.json";
-        String json = "/home/dio/THESIS/maestro/test_schemas/json4.json";
+        String schema = "/home/dio/THESIS/maestro/test_schemas/defaultSchema2.json";
+        String json = "/home/dio/THESIS/maestro/test_schemas/json2.json";
 
-        //Validate json against json schema
+        // Validate json against json schema
         Boolean isValid = jproc.validateJsonToSchema(json, schema);
 
-       if (isValid == true)
+        if (isValid == true) {
             System.out.println("---> [INFO] Json is valid against schema!");
-        else{
+        } else {
             System.out.println("---> [ERROR] Json is NOT a valid schema! Exiting");
             System.out.println(jproc.getReport());
             System.exit(1);
         }
-       
-       
-         //Dynamically create JAVA CLASS from json 
-         String inputFilePath = "/home/dio/THESIS/maestro/test_schemas/defaultSchema3.json";
-         String className = "GeneratedClass";
-         String packageName = "conf";
-         String outputFilePath = "/home/dio/THESIS/maestro/src";
-         
-         jproc.generateClass(inputFilePath, className, packageName, outputFilePath);
-         
+
+        // Dynamically create JAVA CLASS from json 
+        ClassGenerator classGen = new ClassGenerator();
+
+        String inputFilePath = "/home/dio/THESIS/maestro/test_schemas/defaultSchema2.json";
+        String className = "GeneratedClass";
+        String packageName = "conf";
+        String outputFilePath = "/home/dio/THESIS/maestro/src";
+
+        String classPath = "/home/dio/THESIS/maestro/src/conf/";
+
+        classGen.generateClass(inputFilePath, className, packageName, outputFilePath);
+
+        // Dynamically load class
+        String classToLoadName = packageName + "." + className;
+
+        Object newClass = classGen.loadInstantiateClass(classToLoadName);
+       //Class<?> classObj = classGen.loadClass(classToLoadName);
+        // Object newClass = classGen.instantiateCLass(classObj);
+
+        // Parse Json from file and load values to class
+        ObjectMapper mapper = new ObjectMapper(); // can reuse, share globally
+        newClass = mapper.readValue(new File("/home/dio/THESIS/maestro/test_schemas/json2.json"), newClass.getClass());
+        System.out.println("---> [INFO] Initialized \'" +newClass.getClass()+ "\' object with json data! Printing object: \n"+ newClass);
+
     }
 
 }

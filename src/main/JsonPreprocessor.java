@@ -69,9 +69,9 @@ public final class JsonPreprocessor {
      */
     public Boolean validateJsonToSchema(Object json, Object schema) throws ProcessingException, IOException {
         //Load json as JsonNode resource
-        JsonNode theJson = loadJsonFile(json);
+        JsonNode theJson = loadJsonResource(json);
         //Load schema as JsonNode resource
-        JsonNode theSchema = loadJsonSchema(schema);
+        JsonNode theSchema = loadJsonResource(schema);
 
         //Get a single-schema instance validator. It is a JsonValidator 
         //initialized with a single JSON Schema
@@ -196,36 +196,4 @@ public final class JsonPreprocessor {
     public JsonNode loadResource(URL url) throws IOException {
         return JsonLoader.fromURL(url);
     }
-
-    /**
-     * Generate a new Java Class from json schema
-     *
-     * @param sourceFilePath the file path of the json schema to be used as
-     * input
-     * @param className the name of the new Java Class to be generated
-     * @param packageName the target package that should be used for generated
-     * types
-     * @param outputFilePath the file path of the generated Java Class
-     */
-    public void generateClass(String sourceFilePath, String className, String packageName, String outputFilePath) {
-        //The java code-generation context that should be used to generated new types
-        JCodeModel codeModel = new JCodeModel();
-
-        try {
-            //Create a Url resource
-            URL sourceUrl = new File(sourceFilePath).toURI().toURL();
-
-            //Read a schema and adds generated types to the given code model.
-            new SchemaMapper().generate(codeModel, className, packageName, sourceUrl);
-
-            codeModel.build(new File(outputFilePath));
-        } catch (MalformedURLException ex) {
-            System.err.println("---> [ERROR]: This is not a corrent URL form. Exiting");
-            System.exit(1);
-        } catch (IOException ex) {
-            Logger.getLogger(JsonPreprocessor.class.getName()).log(Level.SEVERE, null, ex);
-        }
-    }
-
 }
-
