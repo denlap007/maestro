@@ -68,7 +68,7 @@ public class TheMain {
         // Parse Json from file and load values to class
         ObjectMapper mapper = new ObjectMapper(); // can reuse, share globally
         newClass = mapper.readValue(new File("/home/dio/THESIS/maestro/test_schemas/json2.json"), newClass.getClass());
-        System.out.println("---> [INFO] Initialized \'" +newClass.getClass()+ "\' object with json data! Printing object: \n"+ newClass);
+        System.out.println("---> [INFO] Initialized \'" + newClass.getClass() + "\' object with json data! Printing object: \n" + newClass);
 
     }
 

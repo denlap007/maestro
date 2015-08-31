@@ -3,6 +3,7 @@
     "title": "Web_app_schema",
     "description": "This is a schema that describes the structure of a web app",
     "_commnet": "syntax of json schema validated on: jsonlint.com ",
+
     "definitions": {
         "container_type": {
             "container_name": {
@@ -47,99 +48,98 @@
             "maximum": 65535,
             "exclusiveMaximum": true,
             "exclusiveMinimum": true
-        }
-    },
-    "containers": {
-        "type": "array",
-        "items": {
-            "anyOf": [
-                {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/container_type"
-                        },
-                        {
-                            "$ref": "#/definitions/web"
-                        }
-                    ]
-                },
-                {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/container_type"
-                        },
-                        {
-                            "$ref": "#/definitions/business"
-                        }
-                    ]
-                },
-                {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/container_type"
-                        },
-                        {
-                            "$ref": "#/definitions/data"
-                        }
-                    ]
-                }
-            ]
         },
-        "minItems": 2,
-        "number": {
-            "type": "integer"
-        }
-    },
-    "data": {
-        "title": "Data Container type",
-        "description": "This schema matches a data container type",
-        "type": "object",
-        "allOf": [
-            {
-                "$ref": "#/definitions/data"
-            },
-            {
-                "properties": {
-                    "db_port": {
-                        "type": {"$ref": "#/definitions/port"}
-                    },
-                    "db_url": {
-                        "type": "string",
-                        "format": "String"
-                    },
-                    "db_name": {
-                        "type": "string"
-                    },
-                    "db_username": {
-                        "type": "string"
-                    },
-                    "db_password": {
-                        "type": "string"
+        "data": {
+            "title": "Data Container type",
+            "description": "This schema matches a data container type",
+            "type": "object",
+            "allOf": [
+                {
+                    "$ref": "#/definitions/data"
+                },
+                {
+                    "properties": {
+                        "db_port": {
+                            "$ref": "#/definitions/port"
+                        },
+                        "db_url": {
+                            "type": "string",
+                            "format": "String"
+                        },
+                        "db_name": {
+                            "type": "string"
+                        },
+                        "db_username": {
+                            "type": "string"
+                        },
+                        "db_password": {
+                            "type": "string"
+                        }
                     }
                 }
-            }
-        ],
-        "required": [
-            "db_port",
-            "db_url",
-            "db_username",
-            "db_password",
-            "db_name"
-        ]
-    },
-    "business": {},
-    "web": {
-        "title": "Web Container type",
-        "description": "This schema matches a web container type",
-        "type": "object",
-        "container_name": {
-            "type": "string"
+            ],
+            "required": [
+                "db_port",
+                "db_url",
+                "db_username",
+                "db_password",
+                "db_name"
+            ]
         },
-        "properties": {
-            "url": {
-                "type": "string",
-                "format": "string"
+        "business": {},
+        "web": {
+            "title": "Web Container type",
+            "description": "This schema matches a web container type",
+            "type": "object",
+            "container_name": {
+                "type": "string"
+            },
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "format": "string"
+                }
             }
         }
+    },
+
+    "type": "array",
+    "items": {
+        "anyOf": [
+            {
+                "allOf": [
+                    {
+                        "$ref": "#/definitions/container_type"
+                    },
+                    {
+                        "$ref": "#/definitions/web"
+                    }
+                ]
+            },
+            {
+                "allOf": [
+                    {
+                        "$ref": "#/definitions/container_type"
+                    },
+                    {
+                        "$ref": "#/definitions/business"
+                    }
+                ]
+            },
+            {
+                "allOf": [
+                    {
+                        "$ref": "#/definitions/container_type"
+                    },
+                    {
+                        "$ref": "#/definitions/data"
+                    }
+                ]
+            }
+        ]
+    },
+    "minItems": 2,
+    "plurality": {
+        "type": "integer"
     }
 }
