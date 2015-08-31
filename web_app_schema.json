@@ -27,10 +27,12 @@
                 "ports": {
                     "type": "array",
                     "uniqueItems": true,
-                    "items": {
-                        "type": {
+                     "items": {
+                        "allOf": [
+                            {
                             "$ref": "#/definitions/port"
-                        }
+                            }
+                        ]
                     }
                 }
             },
@@ -40,12 +42,12 @@
             ]
         },
         "port": {
-            "type": "integer"
-        },
-        "minimum": 1024,
-        "maximum": 65535,
-        "exclusiveMaximum": true,
-        "exclusiveMinimum": true
+            "type": "integer",
+            "minimum": 1024,
+            "maximum": 65535,
+            "exclusiveMaximum": true,
+            "exclusiveMinimum": true
+        }
     },
     "containers": {
         "type": "array",
@@ -99,9 +101,7 @@
             {
                 "properties": {
                     "db_port": {
-                        "type": {
-                            "$ref": "#/definitions/port"
-                        }
+                        "type": {"$ref": "#/definitions/port"}
                     },
                     "db_url": {
                         "type": "string",
