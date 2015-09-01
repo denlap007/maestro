@@ -23,15 +23,12 @@ import com.github.fge.jsonschema.core.exceptions.ProcessingException;
 import com.github.fge.jsonschema.core.report.ProcessingReport;
 import com.github.fge.jsonschema.main.JsonSchema;
 import com.github.fge.jsonschema.main.JsonSchemaFactory;
-import com.sun.codemodel.JCodeModel;
 import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import org.jsonschema2pojo.SchemaMapper;
 
 /**
  *
@@ -144,7 +141,7 @@ public final class JsonPreprocessor {
                 return null;
             }
         } catch (JsonParseException ex) {
-            System.err.println("---> [ERROR] INVALID SYNTAX. Unable to load resource. Exiting...");
+            System.err.println("[ERROR] loadJsonResource(): INVALID SYNTAX. Unable to load resource. Exiting...");
             System.exit(1);
         } catch (IOException ex) {
             Logger.getLogger(JsonPreprocessor.class.getName()).log(Level.SEVERE, null, ex);

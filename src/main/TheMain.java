@@ -48,34 +48,22 @@ public class TheMain {
         }
 
         // Dynamically create JAVA CLASS from json 
-        ClassGenerator classGen = new ClassGenerator();
-
         String inputFilePath = "/home/dio/THESIS/maestro/test_schemas/defaultSchema2.json";
         String className = "GeneratedClass";
         String packageName = "conf";
         String outputFilePath = "/home/dio/testClass/source"; //"/home/dio/THESIS/maestro/src";
 
-        String classPath = "/home/dio/THESIS/maestro/src/conf/";
-
+        ClassGenerator classGen = new ClassGenerator();
         classGen.generateClass(inputFilePath, className, packageName, outputFilePath);
 
-        // Dynamically load class
-        String classToLoadName = packageName + "." + className;
-
-        // Compile
-        String pathWithClasses = "/home/dio/testClass/class";
-
-        String fileToCompile = outputFilePath + java.io.File.separator + packageName + java.io.File.separator + "GeneratedClass.java";
-
+        // Compile a .java source file
         String class_path = "/home/dio/testClass/class";
         String source_path = "/home/dio/testClass/source/conf/GeneratedClass.java";
-        String java_source = "GeneratedClass.java";
-        String theClass = className + ".class";
-        String or = class_path + File.separator + packageName + File.separator + theClass;
 
         //classGen.compile(source_path, class_path);
         classGen.compile2(source_path, class_path);
 
+        // Dynamically load and instantiate classes
         ArrayList<Object> objList = classGen.loadInstantiateClass("/home/dio/testClass/class/conf/");
 
 
@@ -89,17 +77,16 @@ public class TheMain {
          }
          */
         Object newClass = null;
-        for (Object obj : objList){
-            if (obj.getClass().getSimpleName().equals("GeneratedClass"))
+        for (Object obj : objList) {
+            if (obj.getClass().getSimpleName().equals("GeneratedClass")) {
                 newClass = obj;
+            }
         }
-        
+
         ObjectMapper mapper = new ObjectMapper();
         newClass = mapper.readValue(new File("/home/dio/THESIS/maestro/test_schemas/json2.json"), newClass.getClass());
         System.out.println("[INFO] main(): Initialized an object of class \'" + newClass.getClass().getSimpleName() + "\'  with json data! Printing object: \n" + newClass);
-        
-        
-        
+
         // VALID METHOD USED NORMALLY
         //Object newClass = classGen.loadInstantiateClass(classToLoadName);
             /*  LOAD CLASS WITH TWO METHODS
