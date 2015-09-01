@@ -21,6 +21,7 @@ import com.github.fge.jsonschema.core.exceptions.ProcessingException;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 
 /**
  *
@@ -52,7 +53,7 @@ public class TheMain {
         String inputFilePath = "/home/dio/THESIS/maestro/test_schemas/defaultSchema2.json";
         String className = "GeneratedClass";
         String packageName = "conf";
-        String outputFilePath = "/home/dio/THESIS/maestro/src";
+        String outputFilePath = "/home/dio/testClass/source"; //"/home/dio/THESIS/maestro/src";
 
         String classPath = "/home/dio/THESIS/maestro/src/conf/";
 
@@ -61,15 +62,54 @@ public class TheMain {
         // Dynamically load class
         String classToLoadName = packageName + "." + className;
 
-        Object newClass = classGen.loadInstantiateClass(classToLoadName);
-       //Class<?> classObj = classGen.loadClass(classToLoadName);
-        // Object newClass = classGen.instantiateCLass(classObj);
+        // Compile
+        String pathWithClasses = "/home/dio/testClass/class";
 
-        // Parse Json from file and load values to class
-        ObjectMapper mapper = new ObjectMapper(); // can reuse, share globally
+        String fileToCompile = outputFilePath + java.io.File.separator + packageName + java.io.File.separator + "GeneratedClass.java";
+
+        String class_path = "/home/dio/testClass/class";
+        String source_path = "/home/dio/testClass/source/conf/GeneratedClass.java";
+        String java_source = "GeneratedClass.java";
+        String theClass = className + ".class";
+        String or = class_path + File.separator + packageName + File.separator + theClass;
+
+        //classGen.compile(source_path, class_path);
+        classGen.compile2(source_path, class_path);
+
+        ArrayList<Object> objList = classGen.loadInstantiateClass("/home/dio/testClass/class/conf/");
+
+
+        /* WORKS FINE but compiled file is on same folder
+         int compilationResult = compiler.run(null, null, null, fileToCompile);
+            
+         if (compilationResult == 0) {
+         System.out.println("Compilation is successful");
+         } else {
+         System.out.println("Compilation Failed");
+         }
+         */
+        Object newClass = null;
+        for (Object obj : objList){
+            if (obj.getClass().getSimpleName().equals("GeneratedClass"))
+                newClass = obj;
+        }
+        
+        ObjectMapper mapper = new ObjectMapper();
         newClass = mapper.readValue(new File("/home/dio/THESIS/maestro/test_schemas/json2.json"), newClass.getClass());
-        System.out.println("---> [INFO] Initialized \'" + newClass.getClass() + "\' object with json data! Printing object: \n" + newClass);
-
+        System.out.println("[INFO] main(): Initialized an object of class \'" + newClass.getClass().getSimpleName() + "\'  with json data! Printing object: \n" + newClass);
+        
+        
+        
+        // VALID METHOD USED NORMALLY
+        //Object newClass = classGen.loadInstantiateClass(classToLoadName);
+            /*  LOAD CLASS WITH TWO METHODS
+         Class<?> classObj = classGen.loadClass(classToLoadName);
+         Object newClass = classGen.instantiateCLass(classObj);
+         */
+        // Parse Json from file and load values to class
+        //ObjectMapper mapper = new ObjectMapper(); // can reuse, share globally
+        //newClass = mapper.readValue(new File("/home/dio/THESIS/maestro/test_schemas/json2.json"), newClass.getClass());
+        //System.out.println("---> [INFO] Initialized \'" + newClass.getClass() + "\' object with json data! Printing object: \n" + newClass);
     }
 
 }

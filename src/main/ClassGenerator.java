@@ -24,9 +24,18 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.util.Enumeration;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javax.tools.Diagnostic;
+import javax.tools.DiagnosticListener;
+import javax.tools.JavaCompiler;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardJavaFileManager;
+import javax.tools.StandardLocation;
+import javax.tools.ToolProvider;
 import org.jsonschema2pojo.SchemaMapper;
 
 /**
@@ -59,7 +68,7 @@ public class ClassGenerator {
 
             codeModel.build(new File(outputFilePath));
         } catch (MalformedURLException ex) {
-            System.err.println("---> [ERROR]: This is not a corrent URL form. Exiting");
+            System.err.println(" [ERROR] generateClass(): This is not a corrent URL form. Exiting");
             System.exit(1);
         } catch (IOException ex) {
             Logger.getLogger(JsonPreprocessor.class.getName()).log(Level.SEVERE, null, ex);
@@ -77,7 +86,7 @@ public class ClassGenerator {
     public final Class<?> loadClass(final String className) throws ClassNotFoundException {
         // Load the target class using its package name
         Class<?> loadedMyClass = Class.forName(className);
-        System.out.println("---> [INFO] Loaded Class: " + loadedMyClass.getName());
+        System.out.println("[INFO] Loaded Class: " + loadedMyClass.getName());
 
         return loadedMyClass;
     }
@@ -96,7 +105,7 @@ public class ClassGenerator {
     public final Class<?> loadClass(final String className, Boolean initialize, final ClassLoader classLoader) throws ClassNotFoundException {
         // Load the target class using its package name
         Class<?> loadedMyClass = Class.forName(className, initialize, classLoader);
-        System.out.println("---> [INFO] Loaded Class: " + loadedMyClass.getName());
+        System.out.println("[INFO] Loaded Class: " + loadedMyClass.getName());
 
         return loadedMyClass;
     }
@@ -104,7 +113,7 @@ public class ClassGenerator {
     /**
      * Instantiate a class based on default constructor.
      *
-     * @param classObj The Class object of the class to be instantiated.
+     * @param classObj the Class object of the class to be instantiated.
      * @return A new instance of a class. Type is Object because the class type
      * is unknown.
      * @throws NoSuchMethodException
@@ -120,50 +129,133 @@ public class ClassGenerator {
     }
 
     /**
-     * Dynamically load a class based on its package name using the ClassLoader
-     * of the caller and instantiate the class based on default constructor.
+     * Dynamically load and instantiate classes from .class files.
      *
-     * @param className The package name of the class to load.
-     * @return
-     * @throws ClassNotFoundException
-     * @throws InstantiationException
-     * @throws SecurityException
-     * @throws NoSuchMethodException
-     * @throws IllegalAccessException
-     * @throws IllegalArgumentException
-     * @throws InvocationTargetException
+     * @param dir the directory (package) with the .class files.
+     * @return an ArrayList of objects of the instantiated classes.
+     * @throws MalformedURLException
      */
-    public final Object loadInstantiateClass(final String className) throws ClassNotFoundException, InstantiationException, SecurityException, NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-        // Load the target class using its package name
-        Class<?> loadedMyClass = Class.forName(className);
-        System.out.println("---> [INFO] Loaded Class: " + loadedMyClass.getName());
+    public final ArrayList<Object> loadInstantiateClass(String dir) throws MalformedURLException {
+        // Initialize variables
+        ArrayList<Object> objs = new ArrayList<>();
+        File packageDir = new File(dir);
+        File parentPackageDir = new File(packageDir.getParent());
+        String packageName = packageDir.getName();
+        // Get the list of files in the package
+        File[] files = packageDir.listFiles();
+        // Convert the parent folder path to url resource
+        URL url = parentPackageDir.toURI().toURL();
+        
+        URL[] urls = {url};
+        URLClassLoader classLoader = URLClassLoader.newInstance(urls);
 
-        // Create a new instance from the loaded class
-        Constructor constructor = loadedMyClass.getConstructor();
-        System.out.println("---> [INFO] Created an object of Class: " + loadedMyClass.getName());
+        for (File file : files) {
+            if (file.isDirectory() || !file.getName().endsWith(".class")) {
+                continue;
+            }
+            // -6 because of .class extension
+            String className = file.getName().substring(0, file.getName().length() - 6);
+            // Create the final class name
+            className = packageName +"." + className;
+            try {
+                // Load class
+                Class<?> classObj = classLoader.loadClass(className);
+                System.out.println("[INFO] loadInstantiateClass(): Successfully loaded class: " + className);
 
-        return constructor.newInstance();
+                // Instantiate class with the default constructor
+                Constructor constructor = classObj.getConstructor();
+                Object obj = constructor.newInstance();
+                System.out.println("[INFO] loadInstantiateClass(): Created an object of Class: " + classObj.getName());
+                
+                // Add to list
+                objs.add(obj);
+            } catch (InstantiationException | SecurityException | NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | ClassNotFoundException ex) {
+                Logger.getLogger(ClassGenerator.class.getName()).log(Level.SEVERE, null,  ex);
+            }
+        }
+        return objs;
     }
 
-    /* public void loadClasses(String dir) throws MalformedURLException, ClassNotFoundException {
-     File folder = new File(dir);
-     File[] listOfFiles = folder.listFiles();
-        
-     URL url = folder.toURI().toURL();
+    /**
+     * Compile a .java source file from disk.
+     *
+     * @param sourcePath The path to the .java source file.
+     * @param classPath The path to save the compiled .class file.
+     * @return True, if compile was successful.
+     * @throws IOException
+     */
+    public final boolean compile(String sourcePath, String classPath) throws IOException {
+        // Create a compiler instance
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        boolean success;
 
-     URL[] urls = {url};
-     URLClassLoader cl = URLClassLoader.newInstance(urls);
+        try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null)) {
+            // Specify where to put the genereted .class files
+            fileManager.setLocation(StandardLocation.CLASS_OUTPUT,
+                    Arrays.asList(new File(classPath)));
+            // Compile the file
+            success = compiler.getTask(null, fileManager, null, null, null,
+                    fileManager.getJavaFileObjectsFromFiles(Arrays.asList(new File(sourcePath))))
+                    .call();
+        }
 
-     for (File file: listOfFiles) {
-     System.out.println(file.getName());
-     if (file.isDirectory() || !file.getName().endsWith(".java")) {
-     continue;
-     }
-     // -5 because of .java extension
-     String className = file.getName().substring(0, file.getName().length() - 5);
-     className = className.replace('/', '.');
-     System.out.println(className);
-     Class<?> c = cl.loadClass(className);
-     }
-     }*/
+        // Print msgs for compilation result
+        if (success == true) {
+            System.out.println("[INFO] compile(): \'" + new File(sourcePath).getName() + "\' compiled SUCCESSFULLY!");
+        } else {
+            System.out.println("[INFO] compile(): \'" + new File(sourcePath).getName() + "\' FAILED to compile!");
+        }
+
+        return success;
+    }
+
+    /**
+     * Compilation diagnostic message processing on compilation WARNING/ERROR
+     */
+    protected static final class MyDiagnosticListener implements DiagnosticListener<JavaFileObject> {
+
+        @Override
+        public void report(Diagnostic<? extends JavaFileObject> diagnostic) {
+            System.out.println("Line Number->" + diagnostic.getLineNumber());
+            System.out.println("code->" + diagnostic.getCode());
+            System.out.println("Message->"
+                    + diagnostic.getMessage(Locale.ENGLISH));
+            System.out.println("Source->" + diagnostic.getSource());
+            System.out.println(" ");
+        }
+    }
+
+    /**
+     * Compile your .java source files with JavaCompiler.
+     *
+     * @param sourcePath The path to the .java source file.
+     * @param classPath The path to save the compiled .class file.
+     * @return True, if compile was successful.
+     */
+    public final boolean compile2(String sourcePath, String classPath) {
+        // Get system compiler:
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+
+        // For compilation diagnostic message processing on compilation WARNING/ERROR
+        MyDiagnosticListener c = new MyDiagnosticListener();
+        StandardJavaFileManager fileManager = compiler.getStandardFileManager(c,
+                Locale.ENGLISH,
+                null);
+        // Specify classes output folder
+        Iterable<String> options = Arrays.asList("-d", classPath);
+        JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager,
+                c, options, null,
+                fileManager.getJavaFileObjectsFromFiles(Arrays.asList(new File(sourcePath))));
+        Boolean result = task.call();
+
+        // Print msgs for compilation result
+        if (result == true) {
+            System.out.println("[INFO] compile2(): \'" + new File(sourcePath).getName() + "\' compiled SUCCESSFULLY!");
+        } else {
+            System.out.println("[INFO] compile2(): \'" + new File(sourcePath).getName() + "\' FAILED to compile!");
+        }
+
+        return result;
+    }
+
 }

@@ -1,0 +1,19 @@
+[
+{
+	"container_name": "container_1",
+	"connect_with": "container_2",
+	"db_port": 3306,
+	"db_url": "jdbc://mysql/localhost:3306",
+	"db_name": "MyDB",
+	"db_username": "dio",
+	"db_password": "test"
+},
+
+{
+	"container_name": "container_1",
+	"connect_with": "container_2"
+}
+
+
+
+]
