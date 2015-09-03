@@ -61,7 +61,7 @@ public class TheMainJson {
         String source_path = "/home/dio/testClass/source/conf/GeneratedClass.java";
 
         //classGen.compile(source_path, class_path);
-        classGen.compile2(source_path, class_path);
+        //classGen.compile2(source_path, class_path);
 
         // Dynamically load and instantiate classes
         ArrayList<Object> objList = classGen.loadInstantiateClass("/home/dio/testClass/class/conf/");

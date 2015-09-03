@@ -16,21 +16,39 @@
  */
 package main;
 
+import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 
 /**
  *
  * @author Dionysis Lappas (dio@freelabs.net)
  */
 public class TheMainXml {
-    
-    public static void main(String[] args) throws IOException {
+
+    public static void main(String[] args) throws IOException, NoSuchMethodException, IllegalAccessException, IllegalArgumentException, InvocationTargetException, ClassNotFoundException, InstantiationException, Exception {
         String schemaPath = "/home/dio/THESIS/maestro/xmlSchema.xsd";
-        String packageName = "conf";
+        String xmlFilePath = "/home/dio/THESIS/maestro/xmlTest.xml";
+        String packageName = "pack";
         String outputDir = "/home/dio/testClass/source";
         
+
         ClassGenerator classGen = new ClassGenerator();
+        //Generate classes
         classGen.xmlToClass(schemaPath, packageName, outputDir);
+        //compile
+        String classpath = "/home/dio/testClass/class";
+        File src = new File("/home/dio/testClass/source/pack");
+        File[] srcFiles = src.listFiles();
+
+        classGen.compile2(classpath, srcFiles);
+
+        //classGen.loadInstantiateClass(classpath + File.separator + packageName);
+        classGen.addToClasspath("/home/dio/testClass/class");
+        classGen.bindXmlToPojo("pack", schemaPath, xmlFilePath);
+
+        //Method method = classGen.invokeMethod("main.ClassGenerator", "test", new ArrayList<>());
+        //method.invoke(classGen);
     }
-    
+
 }

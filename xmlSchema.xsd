@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 
 <!-- definition of simple types -->
@@ -72,15 +71,16 @@
 </xs:complexType>
 
 
-<xs:complexType name="containers">
-	<xs:sequence>
-		<xs:element name="webContainer" type="webContainer" maxOccurs="unbounded"/>
-		<xs:element name="dataContainer" type="dataContainer" maxOccurs="unbounded"/>
-	</xs:sequence>
-</xs:complexType>
+<!-- definition of root element -->
 
-
-<xs:element name="webApp" type="containers"/>
+<xs:element name="webApp">
+	<xs:complexType>
+		<xs:sequence>
+			<xs:element name="webContainer" type="webContainer" maxOccurs="unbounded"/>
+			<xs:element name="dataContainer" type="dataContainer" maxOccurs="unbounded"/>
+		</xs:sequence>
+	</xs:complexType>
+</xs:element>
 
 
 </xs:schema>
