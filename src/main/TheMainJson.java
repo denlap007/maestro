@@ -27,34 +27,34 @@ import java.util.ArrayList;
  *
  * Class that contains the main method.
  */
-public class TheMain {
+public class TheMainJson {
 
     public static void main(String[] args) throws IOException, ProcessingException, InstantiationException, IllegalAccessException, NoSuchMethodException, InvocationTargetException, ClassNotFoundException {
         // Create a json preprocessor
         JsonPreprocessor jproc = new JsonPreprocessor();
 
-        String schema = "/home/dio/THESIS/maestro/test_schemas/defaultSchema2.json";
-        String json = "/home/dio/THESIS/maestro/test_schemas/json2.json";
+        String schema = "/home/dio/THESIS/maestro/newSchemas/final_schema2.json";
+        String json = "/home/dio/THESIS/maestro/newSchemas/test_final_schema.json";
 
         // Validate json against json schema
         Boolean isValid = jproc.validateJsonToSchema(json, schema);
 
         if (isValid == true) {
-            System.out.println("---> [INFO] Json is valid against schema!");
+            System.out.println("[INFO] Json is valid against schema!");
         } else {
-            System.out.println("---> [ERROR] Json is NOT a valid schema! Exiting");
+            System.out.println("[ERROR] Json is NOT a valid schema! Exiting");
             System.out.println(jproc.getReport());
             System.exit(1);
         }
 
         // Dynamically create JAVA CLASS from json 
-        String inputFilePath = "/home/dio/THESIS/maestro/test_schemas/defaultSchema2.json";
+        String inputFilePath = json;
         String className = "GeneratedClass";
         String packageName = "conf";
-        String outputFilePath = "/home/dio/testClass/source"; //"/home/dio/THESIS/maestro/src";
+        String outputFilePath = "/home/dio/testClass/source"; 
 
         ClassGenerator classGen = new ClassGenerator();
-        classGen.generateClass(inputFilePath, className, packageName, outputFilePath);
+        classGen.jsonToClass(inputFilePath, className, packageName, outputFilePath);
 
         // Compile a .java source file
         String class_path = "/home/dio/testClass/class";
@@ -84,7 +84,7 @@ public class TheMain {
         }
 
         ObjectMapper mapper = new ObjectMapper();
-        newClass = mapper.readValue(new File("/home/dio/THESIS/maestro/test_schemas/json2.json"), newClass.getClass());
+        newClass = mapper.readValue(new File(json), newClass.getClass());
         System.out.println("[INFO] main(): Initialized an object of class \'" + newClass.getClass().getSimpleName() + "\'  with json data! Printing object: \n" + newClass);
 
         // VALID METHOD USED NORMALLY

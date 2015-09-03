@@ -16,8 +16,13 @@
  */
 package main;
 
+import com.sun.tools.xjc.api.*;
+import org.xml.sax.InputSource;
+
 import com.sun.codemodel.JCodeModel;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -55,7 +60,7 @@ public class ClassGenerator {
      * types.
      * @param outputFilePath the file path of the generated Java Class.
      */
-    public void generateClass(String sourceFilePath, String className, String packageName, String outputFilePath) {
+    public void jsonToClass(String sourceFilePath, String className, String packageName, String outputFilePath) {
         //The java code-generation context that should be used to generated new types
         JCodeModel codeModel = new JCodeModel();
 
@@ -145,7 +150,7 @@ public class ClassGenerator {
         File[] files = packageDir.listFiles();
         // Convert the parent folder path to url resource
         URL url = parentPackageDir.toURI().toURL();
-        
+
         URL[] urls = {url};
         URLClassLoader classLoader = URLClassLoader.newInstance(urls);
 
@@ -156,7 +161,7 @@ public class ClassGenerator {
             // -6 because of .class extension
             String className = file.getName().substring(0, file.getName().length() - 6);
             // Create the final class name
-            className = packageName +"." + className;
+            className = packageName + "." + className;
             try {
                 // Load class
                 Class<?> classObj = classLoader.loadClass(className);
@@ -166,11 +171,11 @@ public class ClassGenerator {
                 Constructor constructor = classObj.getConstructor();
                 Object obj = constructor.newInstance();
                 System.out.println("[INFO] loadInstantiateClass(): Created an object of Class: " + classObj.getName());
-                
+
                 // Add to list
                 objs.add(obj);
             } catch (InstantiationException | SecurityException | NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | ClassNotFoundException ex) {
-                Logger.getLogger(ClassGenerator.class.getName()).log(Level.SEVERE, null,  ex);
+                Logger.getLogger(ClassGenerator.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
         return objs;
@@ -256,6 +261,23 @@ public class ClassGenerator {
         }
 
         return result;
+    }
+
+    public void xmlToClass(String schemaPath, String packageName ,String outputDir) throws FileNotFoundException, IOException {
+        // Setup schema compiler
+        SchemaCompiler sc = XJC.createSchemaCompiler();
+        sc.forcePackageName(packageName);
+
+        // Setup SAX InputSource
+        File schemaFile = new File(schemaPath);
+        InputSource is = new InputSource(new FileInputStream(schemaFile));
+        is.setSystemId(schemaFile.getAbsolutePath());
+
+        // Parse & build
+        sc.parseSchema(is);
+        S2JJAXBModel model = sc.bind();
+        JCodeModel jCodeModel = model.generateCode(null, null);
+        jCodeModel.build(new File(outputDir));
     }
 
 }

@@ -1,19 +1,30 @@
 [
-{
-	"container_name": "container_1",
-	"connect_with": "container_2",
-	"db_port": 3306,
-	"db_url": "jdbc://mysql/localhost:3306",
-	"db_name": "MyDB",
-	"db_username": "dio",
-	"db_password": "test"
-},
-
-{
-	"container_name": "container_1",
-	"connect_with": "container_2"
-}
-
-
-
+  {
+    "container_type": {
+      "db_port": 3306,
+      "db_url": "jdbc:mysql://localhost:3306/test_DB?profileSQL=true",
+      "db_username": "root",
+      "db_password": "pass",
+      "db_name": "test_DB",
+      "type": "data"
+    },
+    "container_name": "mySql_server",
+    "connect_with": [
+      "glassfish"
+    ]
+  },
+  {
+    "container_type": {
+      "url": "localhost:4848",
+      "type": "web"
+    },
+    "container_name": "Glassfish",
+    "connect_with": [
+      "mySql_server"
+    ],
+    "ports": [
+      4848,
+      8080
+    ]
+  }
 ]

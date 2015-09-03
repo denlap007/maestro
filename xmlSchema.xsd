@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+
+<!-- definition of simple types -->
+
+<xs:simpleType name="port">
+  <xs:restriction base="xs:positiveInteger">
+  	<xs:maxExclusive value="65535"/>
+  	<xs:minExclusive value="1024"/>
+  </xs:restriction>
+</xs:simpleType>
+
+<xs:simpleType name="stringList">
+	<xs:list itemType="xs:string"/>
+</xs:simpleType>
+
+<xs:simpleType name="portList">
+	<xs:list itemType="port"/>
+</xs:simpleType>
+
+
+<!-- definition of attributes -->
+
+
+<!-- definition of complex types -->
+
+<xs:complexType name="containerInfo">
+	<xs:sequence>
+		<xs:element name="name" type="xs:token"/>
+		<xs:element name="connectWith" type="stringList"/>
+		<xs:element name="confFilePath" type="stringList" minOccurs="0"/>
+		<xs:element name="ports" type="portList" minOccurs="0"/>
+	</xs:sequence>
+</xs:complexType>
+
+
+<xs:complexType name="dataContainer">
+	<xs:complexContent>
+		<xs:extension base="containerInfo">
+			<xs:sequence>
+				<xs:element name="dbPort" type="port"/>
+				<xs:element name="dbUrl" type="xs:anyURI"/>
+				<xs:element name="dbUsername" type="xs:string"/>
+				<xs:element name="dbPassword" type="xs:string"/>
+				<xs:element name="dbName" type="xs:string"/>
+			</xs:sequence>
+		</xs:extension>
+	</xs:complexContent>
+</xs:complexType>
+
+
+<xs:complexType name="webContainer">
+	<xs:complexContent>
+		<xs:extension base="containerInfo">
+			<xs:sequence>
+				<xs:element name="url" type="xs:anyURI"/>
+			</xs:sequence>
+		</xs:extension>
+	</xs:complexContent>
+</xs:complexType>
+
+
+<xs:complexType name="businessContainer">
+	<xs:complexContent>
+		<xs:extension base="containerInfo">
+			<xs:sequence>
+				<xs:element name="url" type="xs:anyURI"/>
+			</xs:sequence>
+		</xs:extension>
+	</xs:complexContent>
+</xs:complexType>
+
+
+<xs:complexType name="containers">
+	<xs:sequence>
+		<xs:element name="webContainer" type="webContainer" maxOccurs="unbounded"/>
+		<xs:element name="dataContainer" type="dataContainer" maxOccurs="unbounded"/>
+	</xs:sequence>
+</xs:complexType>
+
+
+<xs:element name="webApp" type="containers"/>
+
+
+</xs:schema>

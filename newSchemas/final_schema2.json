@@ -137,15 +137,23 @@
       ]
     }
   },
-  "type": "array",
-  "items": {
-    "allOf": [
-      {
-        "$ref": "#/definitions/container"
-      }
-    ]
+  "type": "object",
+  "properties": {
+    "containers": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          {
+            "$ref": "#/definitions/container"
+          }
+        ]
+      },
+      "minItems": 1
+    }
   },
-  "minItems": 2,
+  "required": [
+    "containers"
+  ],
   "plurality": {
     "type": "integer"
   }
