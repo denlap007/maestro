@@ -20,9 +20,9 @@ import com.sun.tools.xjc.api.*;
 import org.xml.sax.InputSource;
 
 import com.sun.codemodel.JCodeModel;
+import java.io.Console;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -41,7 +41,6 @@ import javax.tools.DiagnosticListener;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
-import javax.tools.StandardLocation;
 import javax.tools.ToolProvider;
 import static javax.xml.XMLConstants.W3C_XML_SCHEMA_NS_URI;
 import javax.xml.bind.JAXBContext;
@@ -49,51 +48,19 @@ import javax.xml.bind.JAXBException;
 import javax.xml.bind.UnmarshalException;
 import javax.xml.bind.Unmarshaller;
 import javax.xml.bind.ValidationEvent;
-import javax.xml.bind.ValidationEventHandler;
 import javax.xml.bind.ValidationEventLocator;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
-import org.jsonschema2pojo.SchemaMapper;
 
 /**
- *
- * Class that provides methods to dynamically generate Java Classes from json
- * files and do dynamic Class Loading & invocation.
+ * Class that provides methods to generate classes from .xml, bind .xml to POJOs
+ * and also dynamically compile, load, instantiate Classes and invoke methods to
+ * objects through reflection.
  */
-public class ClassGenerator {
+public class ConfProcessor {
 
     /**
-     * Generate a new Java Class from json schema
-     *
-     * @param sourceFilePath the file path of the json schema to be used as
-     * input.
-     * @param className the name of the new Java Class to be generated.
-     * @param packageName the target package that should be used for generated
-     * types.
-     * @param outputFilePath the file path of the generated Java Class.
-     */
-    public void jsonToClass(String sourceFilePath, String className, String packageName, String outputFilePath) {
-        //The java code-generation context that should be used to generated new types
-        JCodeModel codeModel = new JCodeModel();
-
-        try {
-            //Create a Url resource
-            URL sourceUrl = new File(sourceFilePath).toURI().toURL();
-
-            //Read json schema and add generated types to the given code model.
-            new SchemaMapper().generate(codeModel, className, packageName, sourceUrl);
-
-            codeModel.build(new File(outputFilePath));
-        } catch (MalformedURLException ex) {
-            System.err.println(" [ERROR] generateClass(): This is not a corrent URL form. Exiting");
-            System.exit(1);
-        } catch (IOException ex) {
-            Logger.getLogger(JsonPreprocessor.class.getName()).log(Level.SEVERE, null, ex);
-        }
-    }
-
-    /**
-     * Dynamically load a class based on its binary name using the ClassLoader
+     * Dynamically loads a class based on its binary name using the ClassLoader
      * of the caller.
      *
      * @param className The binary name of the class to load.
@@ -109,7 +76,7 @@ public class ClassGenerator {
     }
 
     /**
-     * Dynamically load a class based on its package name using an external
+     * Dynamically loads a class based on its package name using an external
      * ClassLoader.
      *
      * @param className The package name of the class to load.
@@ -128,41 +95,48 @@ public class ClassGenerator {
     }
 
     /**
-     * Instantiate a class based on default constructor.
+     * Instantiates a class based on default constructor.
      *
      * @param classObj the Class object of the class to be instantiated.
      * @return A new instance of a class. Type is Object because the class type
      * is unknown.
-     * @throws NoSuchMethodException
-     * @throws InstantiationException
-     * @throws InvocationTargetException
-     * @throws IllegalAccessException
      */
-    public final Object instantiateCLass(final Class<?> classObj) throws NoSuchMethodException, InstantiationException, InvocationTargetException, IllegalAccessException {
-        // Create a new instance from the loaded class
-        Constructor constructor = classObj.getConstructor();
+    public final Object instantiateCLass(final Class<?> classObj) {
+        try {
+            // Create a new instance from the loaded class
+            Constructor constructor = classObj.getConstructor();
 
-        return constructor.newInstance();
+            return constructor.newInstance();
+        } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
+            System.err.println("[EXCEPTION] instantiateCLass(): Could not instantiate class due to exception");
+        }
+        return null;
     }
 
     /**
-     * Dynamically load and instantiate classes from .class files.
+     * Dynamically loads and instantiates class(es) from .class file(s).
      *
      * @param dir the directory (package) with the .class files.
      * @return an ArrayList of objects of the instantiated classes.
-     * @throws MalformedURLException
      */
-    public final ArrayList<Object> loadInstantiateClass(String dir) throws MalformedURLException {
+    public final ArrayList<Object> loadInstantiateClass(String dir) {
         // Initialize variables
+        URL url = null;
         ArrayList<Object> objs = new ArrayList<>();
         File packageDir = new File(dir);
         File parentPackageDir = new File(packageDir.getParent());
         String packageName = packageDir.getName();
+
         // Get the list of files in the package
         File[] files = packageDir.listFiles();
         // Convert the parent folder path to url resource
-        URL url = parentPackageDir.toURI().toURL();
+        try {
+            url = parentPackageDir.toURI().toURL();
+        } catch (MalformedURLException ex) {
+            return null;
+        }
 
+        // Get a new instance of the URLClassloader and initialize it with the urls
         URL[] urls = {url};
         URLClassLoader classLoader = URLClassLoader.newInstance(urls);
 
@@ -187,52 +161,21 @@ public class ClassGenerator {
                 // Add to list
                 objs.add(obj);
             } catch (InstantiationException | SecurityException | NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | ClassNotFoundException ex) {
-                Logger.getLogger(ClassGenerator.class.getName()).log(Level.SEVERE, null, ex);
+                Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
         return objs;
     }
 
     /**
-     * Compile a .java source file from disk.
-     *
-     * @param sourcePath The path to the .java source file.
-     * @param classPath The path to save the compiled .class file.
-     * @return True, if compile was successful.
-     * @throws IOException
-     */
-    public final boolean compile(String sourcePath, String classPath) throws IOException {
-        // Create a compiler instance
-        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        boolean success;
-
-        try (StandardJavaFileManager fileManager = compiler.getStandardFileManager(null, null, null)) {
-            // Specify where to put the genereted .class files
-            fileManager.setLocation(StandardLocation.CLASS_OUTPUT,
-                    Arrays.asList(new File(classPath)));
-            // Compile the file
-            success = compiler.getTask(null, fileManager, null, null, null,
-                    fileManager.getJavaFileObjectsFromFiles(Arrays.asList(new File(sourcePath))))
-                    .call();
-        }
-
-        // Print msgs for compilation result
-        if (success == true) {
-            System.out.println("[INFO] compile(): \'" + new File(sourcePath).getName() + "\' compiled SUCCESSFULLY!");
-        } else {
-            System.out.println("[INFO] compile(): \'" + new File(sourcePath).getName() + "\' FAILED to compile!");
-        }
-
-        return success;
-    }
-
-    /**
-     * Compilation diagnostic message processing on compilation WARNING/ERROR
+     * Class to be used with the java compiler. Provides diagnostic message
+     * processing on compilation WARNING/ERROR.
      */
     protected static final class MyDiagnosticListener implements DiagnosticListener<JavaFileObject> {
 
         @Override
         public void report(Diagnostic<? extends JavaFileObject> diagnostic) {
+            System.out.println("[Compiler report]");
             System.out.println("Line Number->" + diagnostic.getLineNumber());
             System.out.println("code->" + diagnostic.getCode());
             System.out.println("Message->"
@@ -243,26 +186,28 @@ public class ClassGenerator {
     }
 
     /**
-     * Compile your .java source files with JavaCompiler.
+     * Compiles .java source files with JavaCompiler.
      *
-     * @param srcFiles the file path(s) of .java source file(s) to compile.
+     * @param srcFiles the .java source file(s) to compile.
      * @param classPath the path to save the compiled .class file(s).
      * @return True, if compile was successful.
      */
-    public final boolean compile2(String classPath, File... srcFiles) {
+    public final boolean compile(String classPath, File... srcFiles) {
         // Get system compiler:
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
 
-        // For compilation diagnostic message processing on compilation WARNING/ERROR
+        // Diagnostic message processing on compilation
         MyDiagnosticListener c = new MyDiagnosticListener();
         StandardJavaFileManager fileManager = compiler.getStandardFileManager(c,
                 Locale.ENGLISH,
                 null);
-        // Specify classes output folder
+        // Specify output folder for compiled classes
         Iterable<String> options = Arrays.asList("-d", classPath);
+        //Initialize a compilation task
         JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager,
                 c, options, null,
                 fileManager.getJavaFileObjectsFromFiles(Arrays.asList(srcFiles)));
+        // Run the task to compile
         Boolean result = task.call();
 
         // Print msgs for compilation result
@@ -278,15 +223,14 @@ public class ClassGenerator {
     }
 
     /**
-     * Generate new java class (.java source file) from xml.
+     * Generates new java class(es) (.java source file(s)) from xml.
      *
      * @param schemaPath the path to the xml file.
      * @param packageName the package that the new class belongs to.
      * @param outputDir the directory where the generated files will be stored.
-     * @throws FileNotFoundException
      * @throws IOException
      */
-    public void xmlToClass(String schemaPath, String packageName, String outputDir) throws FileNotFoundException, IOException {
+    public void xmlToClass(String schemaPath, String packageName, String outputDir) throws IOException {
         // Setup schema compiler
         SchemaCompiler sc = XJC.createSchemaCompiler();
         sc.forcePackageName(packageName);
@@ -305,62 +249,29 @@ public class ClassGenerator {
 
     public void test() {
         System.out.println("SUCCEDDED. invoked method based on name!");
-        run(true, "test");
+        run(this, true, "test");
     }
 
-    public void run(Boolean runAgain, String methodName, Object... args) {
+    public void run(Object owner, Boolean runAgain, String methodName, Object... args) {
         if (runAgain == true) {
-            invokeMethod(methodName, args);
+            invokeMethod(owner, methodName, args);
         }
     }
 
     /**
-     * Get a Method object of a class method in order to invoke it.
+     * Invokes specified method to specified object.
      *
-     * @param className
-     * @param methodName
-     * @param params
-     * @return
+     * @param methodName the name of the method to invoke.
+     * @param params the type of the parameters of the method e.g. String, int
+     * e.t.c.
+     * @return the object returned from the invoked method.
      * @throws NoSuchMethodException
      * @throws ClassNotFoundException
      * @throws InstantiationException
      * @throws IllegalAccessException
      */
-    private void invokeMethod(String className, String methodName, Object... params) throws NoSuchMethodException, ClassNotFoundException, InstantiationException, IllegalAccessException, IllegalArgumentException, InvocationTargetException {
-        Class<?> obj;
-        ArrayList<Class<?>> parameterTypes = new ArrayList<>();
-        Class<?> cls = Class.forName(className);
-
-        // Get the Class<?> object of every parameter and add it 
-        // to a list.
-        for (Object param : params) {
-            obj = param.getClass();
-            parameterTypes.add(obj);
-        }
-
-        // Get the requested method
-        // Create an instance of the class that holds the method
-        Object classInstance = cls.newInstance();
-
-        Class<?>[] array = parameterTypes.toArray(new Class<?>[parameterTypes.size()]);
-        Method method = classInstance.getClass().getDeclaredMethod(methodName, array);
-
-        method.invoke(this);
-    }
-
-    /**
-     * Get a Method object of a class method in order to invoke it.
-     *
-     * @param className
-     * @param methodName
-     * @param params
-     * @return
-     * @throws NoSuchMethodException
-     * @throws ClassNotFoundException
-     * @throws InstantiationException
-     * @throws IllegalAccessException
-     */
-    private void invokeMethod(String methodName, Object... params) {
+    private Object invokeMethod(Object owner, String methodName, Object... params) {
+        Object returnObj = null;
         try {
             Class<?> obj;
             ArrayList<Class<?>> parameterTypes = new ArrayList<>();
@@ -374,45 +285,49 @@ public class ClassGenerator {
             //this.getClass().ge
             // Get and invoke the requested method
             Class<?>[] array = parameterTypes.toArray(new Class<?>[parameterTypes.size()]);
-            Method method = this.getClass().getDeclaredMethod(methodName, array);
+            Method method = owner.getClass().getDeclaredMethod(methodName, array);
 
-            method.invoke(this);
+            returnObj = method.invoke(owner);
         } catch (NoSuchMethodException | SecurityException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            Logger.getLogger(ClassGenerator.class.getName()).log(Level.SEVERE, null, ex);
+            System.err.println("[EXCEPTION] invokeMethod(): " + ex.getCause());
+            return null;
         }
+        return returnObj;
     }
 
     /**
-     * Add a directory to the class path.
-     * 
+     * Adds a directory to the class path.
+     *
      * @param dir the directory to be added to the class path.
-     * @throws Exception 
+     * @throws Exception
      */
     public void addToClasspath(String dir) throws Exception {
         File file = new File(dir);
         URL url = file.toURI().toURL();
         URLClassLoader urlClassLoader = (URLClassLoader) ClassLoader.getSystemClassLoader();
         Class<?> urlClass = URLClassLoader.class;
-        Method method = urlClass.getDeclaredMethod("addURL", new Class[]{URL.class});
+        Method method = urlClass.getDeclaredMethod("addURL", URL.class);
         method.setAccessible(true);
         method.invoke(urlClassLoader, new Object[]{url});
     }
 
     /**
-     * Unmarshal an .xml document to java objects and validate against .xsd.
-     * 
-     * @param packageName the name of the package 
+     * Unmarshals an .xml document to java objects and validates it against
+     * .xsd.
+     *
+     * @param packageName the name of the package where classes were generated
+     * into.
      * @param schemaPath the path of the xml schema file to validate .xml.
      * @param xmlFilePath the path of the .xml file to unmarshal.
-     * @throws MalformedURLException
-     * @throws ClassNotFoundException 
+     * @return
      */
-    public void bindXmlToPojo(String packageName, String schemaPath, String xmlFilePath) throws MalformedURLException, ClassNotFoundException {
+    public Object unmarshal(String packageName, String schemaPath, String xmlFilePath) {
+        Object unmarshalled = null;
         try {
             // create a JAXBContext capable of handling classes generated into
             // the specified package
             JAXBContext jc = JAXBContext.newInstance(packageName);
-            
+
             // For DEBUGGING.
             // To verify that you created JAXBContext correctly, call JAXBContext.
             // toString(). It will output the list of classes it knows. If a 
@@ -424,8 +339,6 @@ public class ClassGenerator {
             //easiest way to include all the classes is to specify the generated
             //ObjectFactory class(es).
             // System.out.println(jc.toString());
-            
-
             // create an Unmarshaller
             Unmarshaller u = jc.createUnmarshaller();
 
@@ -434,77 +347,92 @@ public class ClassGenerator {
             try {
                 Schema schema = sf.newSchema(new File(schemaPath));
                 u.setSchema(schema);
-                u.setEventHandler(
-                        new ValidationEventHandler() {
-                            // allow unmarshalling to continue even if there are errors
-                            public boolean handleEvent(ValidationEvent ve) {
-                                // ignore warnings
-                                if (ve.getSeverity() != ValidationEvent.WARNING) {
-                                    ValidationEventLocator vel = ve.getLocator();
-                                    System.out.println(
-                                            "Line:Col[" + vel.getLineNumber()
-                                            + ":" + vel.getColumnNumber()
-                                            + "]:" + ve.getMessage());
-                                }
+                u.setEventHandler((ValidationEvent ve) -> {
+                    // ignore warnings
+                    if (ve.getSeverity() != ValidationEvent.WARNING) {
+                        ValidationEventLocator vel = ve.getLocator();
+                        System.out.println(
+                                "Line:Col[" + vel.getLineNumber()
+                                + ":" + vel.getColumnNumber()
+                                + "]:" + ve.getMessage());
+                    }
 
-                                return true;
-                            }
-                        });
+                    return true;
+                } // allow unmarshalling to continue even if there are errors
+                );
             } catch (org.xml.sax.SAXException se) {
-                System.out.println(
+                System.err.println(
                         "Unable to validate due to following error.");
-                se.printStackTrace();
+                Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, null, se);
                 System.exit(1);
             }
-            
+
             System.out.println("File to unmarshall: " + xmlFilePath);
-            Object obj = u.unmarshal(new File(xmlFilePath));
+            unmarshalled = u.unmarshal(new File(xmlFilePath));
 
             // Check unmarhsalling
-            System.out.println(obj.toString());
-            System.out.println(myToString(obj));
-
+            //System.out.println(myToString(unmarshalled));
         } catch (UnmarshalException ue) {
             // The JAXB specification does not mandate how the JAXB provider
             // must behave when attempting to unmarshal invalid XML data.  In
             // those cases, the JAXB provider is allowed to terminate the 
             // call to unmarshal with an UnmarshalException.
-            System.out.println("Caught UnmarshalException");
+            System.err.println("[UnmarshalException] unmarshal(): Exception occured while unmarshalling. Printing stackTrace and Exiting...");
+            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, null, ue);
+            System.exit(1);
         } catch (JAXBException je) {
-            je.printStackTrace();
+            System.err.println("[JAXBException] Exception occured during validation! Printing stackTrace and Exiting...");
+            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, null, je);
+            System.exit(1);
         }
+        return unmarshalled;
     }
-    
+
     /**
-     * Prints the class name and get() methods along their values 
-     * of an object.
-     * 
+     * Prints the class name and get() methods along their values of an object.
+     *
      * @param obj the object to print info.
-     * @return 
+     * @return
      */
-    public String myToString(Object obj){
-        String className; 
+    public String myToString(Object obj) {
+        String className;
         String methodsString = "";
         List<Method> methodsList = new ArrayList<>();
-        
+
         // Get class name of object
         Class<?> classObj = obj.getClass();
         className = classObj.getName();
-        
+
         // Get public get methods from class
         Method[] methods = classObj.getMethods();
-        for (Method m : methods){
-            if (m.getName().startsWith("get"))
-            try {
-                methodsString = methodsString + m.getName() + ": " + m.invoke(obj) +", ";
-            } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-                Logger.getLogger(ClassGenerator.class.getName()).log(Level.SEVERE, null, ex);
+        for (Method m : methods) {
+            if (m.getName().startsWith("get")) {
+                try {
+                    methodsString = methodsString + m.getName() + ": " + m.invoke(obj) + ", ";
+                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
+                    System.err.println("[EXCEPTION] myToString(): Exceptino occured: " + ex.getCause());
+                    return null;
+                }
             }
         }
 
-        return (className + ": {" +methodsString+ "}");
-        
-        
+        return (className + ": {" + methodsString + "}");
+    }
+
+    /**
+     * Prints message and prompts user for a yes/no answer.
+     *
+     * @param msg the message to print.
+     * @return true, if user input is 'y'.
+     */
+    public Boolean callAgain(String msg) {
+        Console console = System.console();
+        String input = console.readLine(msg + " (y/n): ");
+        if (input.equalsIgnoreCase("y") == true || input.equalsIgnoreCase("n") == false) {
+            return input.equalsIgnoreCase("y") == true;
+        } else {
+            return false;
+        }
     }
 
 }

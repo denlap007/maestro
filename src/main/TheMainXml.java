@@ -33,7 +33,7 @@ public class TheMainXml {
         String outputDir = "/home/dio/testClass/source";
         
 
-        ClassGenerator classGen = new ClassGenerator();
+        ConfProcessor classGen = new ConfProcessor();
         //Generate classes
         classGen.xmlToClass(schemaPath, packageName, outputDir);
         //compile
@@ -41,11 +41,11 @@ public class TheMainXml {
         File src = new File("/home/dio/testClass/source/pack");
         File[] srcFiles = src.listFiles();
 
-        classGen.compile2(classpath, srcFiles);
+        classGen.compile(classpath, srcFiles);
 
         //classGen.loadInstantiateClass(classpath + File.separator + packageName);
         classGen.addToClasspath("/home/dio/testClass/class");
-        classGen.bindXmlToPojo("pack", schemaPath, xmlFilePath);
+        classGen.unmarshal("pack", schemaPath, xmlFilePath);
 
         //Method method = classGen.invokeMethod("main.ClassGenerator", "test", new ArrayList<>());
         //method.invoke(classGen);

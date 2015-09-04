@@ -23,12 +23,15 @@ import com.github.fge.jsonschema.core.exceptions.ProcessingException;
 import com.github.fge.jsonschema.core.report.ProcessingReport;
 import com.github.fge.jsonschema.main.JsonSchema;
 import com.github.fge.jsonschema.main.JsonSchemaFactory;
+import com.sun.codemodel.JCodeModel;
 import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import org.jsonschema2pojo.SchemaMapper;
 
 /**
  *
@@ -52,6 +55,36 @@ public final class JsonPreprocessor {
      * The report after validating json against json schema.
      */
     private ProcessingReport report;
+
+    /**
+     * Generate a new Java Class from json schema
+     *
+     * @param sourceFilePath the file path of the json schema to be used as
+     * input.
+     * @param className the name of the new Java Class to be generated.
+     * @param packageName the target package that should be used for generated
+     * types.
+     * @param outputFilePath the file path of the generated Java Class.
+     */
+    public void jsonToClass(String sourceFilePath, String className, String packageName, String outputFilePath) {
+        //The java code-generation context that should be used to generated new types
+        JCodeModel codeModel = new JCodeModel();
+
+        try {
+            //Create a Url resource
+            URL sourceUrl = new File(sourceFilePath).toURI().toURL();
+
+            //Read json schema and add generated types to the given code model.
+            new SchemaMapper().generate(codeModel, className, packageName, sourceUrl);
+
+            codeModel.build(new File(outputFilePath));
+        } catch (MalformedURLException ex) {
+            System.err.println(" [ERROR] generateClass(): This is not a corrent URL form. Exiting");
+            System.exit(1);
+        } catch (IOException ex) {
+            Logger.getLogger(JsonPreprocessor.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
 
     /**
      * Validate json file against json schema.

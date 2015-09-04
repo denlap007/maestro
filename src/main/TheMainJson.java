@@ -53,8 +53,8 @@ public class TheMainJson {
         String packageName = "conf";
         String outputFilePath = "/home/dio/testClass/source"; 
 
-        ClassGenerator classGen = new ClassGenerator();
-        classGen.jsonToClass(inputFilePath, className, packageName, outputFilePath);
+        ConfProcessor classGen = new ConfProcessor();
+        jproc.jsonToClass(inputFilePath, className, packageName, outputFilePath);
 
         // Compile a .java source file
         String class_path = "/home/dio/testClass/class";

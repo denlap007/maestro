@@ -15,4 +15,6 @@
         <dbPassword>pass</dbPassword>
         <dbName>test</dbName>
     </dataContainer>
+
+    <containersNum>2</containerNum>
 </webApp>
