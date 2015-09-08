@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package main;
+package json;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -37,6 +37,7 @@ import org.jsonschema2pojo.SchemaMapper;
  *
  * Class to do JSON pre-processing.
  */
+@Deprecated
 public final class JsonPreprocessor {
 
     /**

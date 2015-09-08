@@ -16,8 +16,6 @@
  */
 
 /**
- * Contains dynamically generated Java Classes from parsing json files and all 
- * the necessary configuration info.
- * 
+ * Provides Java Class for command line options.
  */
-package conf;
+package net.freelabs.maestro.cl;

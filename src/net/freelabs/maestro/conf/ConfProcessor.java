@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package main;
+package net.freelabs.maestro.conf;
 
 import com.sun.tools.xjc.api.*;
 import org.xml.sax.InputSource;
@@ -45,16 +45,13 @@ import javax.tools.ToolProvider;
 import static javax.xml.XMLConstants.W3C_XML_SCHEMA_NS_URI;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
-import javax.xml.bind.UnmarshalException;
 import javax.xml.bind.Unmarshaller;
-import javax.xml.bind.ValidationEvent;
-import javax.xml.bind.ValidationEventLocator;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 
 /**
  * Class that provides methods to generate classes from .xml, bind .xml to POJOs
- * and also dynamically compile, load, instantiate Classes and invoke methods to
+ * and also dynamically compile, load, instantiate classes and invoke methods to
  * objects through reflection.
  */
 public class ConfProcessor {
@@ -64,8 +61,8 @@ public class ConfProcessor {
      * of the caller.
      *
      * @param className The binary name of the class to load.
-     * @return A Class<?> object of the loaded class.
-     * @throws ClassNotFoundException
+     * @return A {@link java.lang.Class} object of the loaded class.
+     * @throws ClassNotFoundException if the class wasn't found.
      */
     public final Class<?> loadClass(final String className) throws ClassNotFoundException {
         // Load the target class using its package name
@@ -83,8 +80,8 @@ public class ConfProcessor {
      * @param initialize Defines weather the class should be initialized when
      * loaded.
      * @param classLoader A ClassLoader to load class.
-     * @return A Class<?> object of the loaded class.
-     * @throws ClassNotFoundException
+     * @return A {@link java.lang.Class} object of the loaded class.
+     * @throws ClassNotFoundException if the class wasn't found.
      */
     public final Class<?> loadClass(final String className, Boolean initialize, final ClassLoader classLoader) throws ClassNotFoundException {
         // Load the target class using its package name
@@ -108,9 +105,9 @@ public class ConfProcessor {
 
             return constructor.newInstance();
         } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            System.err.println("[EXCEPTION] instantiateCLass(): Could not instantiate class due to exception");
+            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getCause().toString());
+            return null;
         }
-        return null;
     }
 
     /**
@@ -168,8 +165,8 @@ public class ConfProcessor {
     }
 
     /**
-     * Class to be used with the java compiler. Provides diagnostic message
-     * processing on compilation WARNING/ERROR.
+     * Class to be used with the java compiler for diagnostic message processing
+     * on compilation WARNING/ERROR.
      */
     protected static final class MyDiagnosticListener implements DiagnosticListener<JavaFileObject> {
 
@@ -188,11 +185,21 @@ public class ConfProcessor {
     /**
      * Compiles .java source files with JavaCompiler.
      *
-     * @param srcFiles the .java source file(s) to compile.
-     * @param classPath the path to save the compiled .class file(s).
+     * @param srcPath the dir with the source files.
+     * @param classPath the path to save the compiled .class file(s). A package
+     * folder is generated automatically.
      * @return True, if compile was successful.
      */
-    public final boolean compile(String classPath, File... srcFiles) {
+    public final boolean compile(String classPath, String srcPath) {
+        File src = new File(srcPath);
+        File[] srcFiles;
+        if (src.isDirectory() == true) {
+            srcFiles = src.listFiles();
+        } else {
+            srcFiles = new File[]{src};
+        }
+
+        System.out.println("\t[Compiling classes]");
         // Get system compiler:
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
 
@@ -228,23 +235,33 @@ public class ConfProcessor {
      * @param schemaPath the path to the xml file.
      * @param packageName the package that the new class belongs to.
      * @param outputDir the directory where the generated files will be stored.
-     * @throws IOException
+     * A package folder is generated automatically.
+     * @return true, if operation succeeded.
      */
-    public void xmlToClass(String schemaPath, String packageName, String outputDir) throws IOException {
+    public Boolean xmlToClass(String schemaPath, String packageName, String outputDir) {
+        System.out.println("\t[Generating classes]");
+
         // Setup schema compiler
         SchemaCompiler sc = XJC.createSchemaCompiler();
         sc.forcePackageName(packageName);
 
         // Setup SAX InputSource
         File schemaFile = new File(schemaPath);
-        InputSource is = new InputSource(new FileInputStream(schemaFile));
-        is.setSystemId(schemaFile.getAbsolutePath());
+        try {
+            InputSource is = new InputSource(new FileInputStream(schemaFile));
+            is.setSystemId(schemaFile.getAbsolutePath());
 
-        // Parse & build
-        sc.parseSchema(is);
-        S2JJAXBModel model = sc.bind();
-        JCodeModel jCodeModel = model.generateCode(null, null);
-        jCodeModel.build(new File(outputDir));
+            // Parse & build
+            sc.parseSchema(is);
+            S2JJAXBModel model = sc.bind();
+            JCodeModel jCodeModel = model.generateCode(null, null);
+            jCodeModel.build(new File(outputDir));
+
+            return true;
+        } catch (IOException ex) {
+            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getMessage());
+        }
+        return false;
     }
 
     public void test() {
@@ -265,50 +282,49 @@ public class ConfProcessor {
      * @param params the type of the parameters of the method e.g. String, int
      * e.t.c.
      * @return the object returned from the invoked method.
-     * @throws NoSuchMethodException
-     * @throws ClassNotFoundException
-     * @throws InstantiationException
-     * @throws IllegalAccessException
      */
     private Object invokeMethod(Object owner, String methodName, Object... params) {
-        Object returnObj = null;
-        try {
-            Class<?> obj;
-            ArrayList<Class<?>> parameterTypes = new ArrayList<>();
+        Class<?> obj;
+        ArrayList<Class<?>> parameterTypes = new ArrayList<>();
 
-            // Get the Class<?> object of every parameter and add it
-            // to a list.
-            for (Object param : params) {
-                obj = param.getClass();
-                parameterTypes.add(obj);
-            }
-            //this.getClass().ge
-            // Get and invoke the requested method
-            Class<?>[] array = parameterTypes.toArray(new Class<?>[parameterTypes.size()]);
+        // Get the Class<?> object of every parameter and add it
+        // to a list.
+        for (Object param : params) {
+            obj = param.getClass();
+            parameterTypes.add(obj);
+        }
+        //this.getClass().ge
+        // Get and invoke the requested method
+        Class<?>[] array = parameterTypes.toArray(new Class<?>[parameterTypes.size()]);
+        try {
             Method method = owner.getClass().getDeclaredMethod(methodName, array);
 
-            returnObj = method.invoke(owner);
+            return method.invoke(owner);
         } catch (NoSuchMethodException | SecurityException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            System.err.println("[EXCEPTION] invokeMethod(): " + ex.getCause());
-            return null;
+            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getMessage());
         }
-        return returnObj;
+        return null;
     }
 
     /**
-     * Adds a directory to the class path.
+     * Adds a directory to the class path. The specified dir must be the parent
+     * of the package folder that holds the .java source files, as shown below:
+     * dir |--package |--classes
      *
-     * @param dir the directory to be added to the class path.
+     * @param dir the directory which holds the package with the .java src
+     * files.
      * @throws Exception
      */
     public void addToClasspath(String dir) throws Exception {
+        System.out.println("\t[Adding to classpath]");
         File file = new File(dir);
         URL url = file.toURI().toURL();
         URLClassLoader urlClassLoader = (URLClassLoader) ClassLoader.getSystemClassLoader();
-        Class<?> urlClass = URLClassLoader.class;
+        Class<URLClassLoader> urlClass = URLClassLoader.class;
         Method method = urlClass.getDeclaredMethod("addURL", URL.class);
         method.setAccessible(true);
-        method.invoke(urlClassLoader, new Object[]{url});
+        method.invoke(urlClassLoader, url);
+        System.out.println("[INFO] addToClasspath(): Added to classpath: " + dir);
     }
 
     /**
@@ -319,9 +335,13 @@ public class ConfProcessor {
      * into.
      * @param schemaPath the path of the xml schema file to validate .xml.
      * @param xmlFilePath the path of the .xml file to unmarshal.
-     * @return
+     * @return the root element of the unmarshalled xml schema. Null if .xml
+     * file's syntax is not valid, .xml schema's syntax is not valid, .xml file
+     * is not valid against .xml schema's restrictions (facets), a JAXBException
+     * for another reason is thrown.
      */
     public Object unmarshal(String packageName, String schemaPath, String xmlFilePath) {
+        System.out.println("\t[Unmarshalling .xml]");
         Object unmarshalled = null;
         try {
             // create a JAXBContext capable of handling classes generated into
@@ -334,57 +354,42 @@ public class ConfProcessor {
             // class is not in this list, the unmarshaller will never return an
             // instance of that class. Make you see all the classes you expect 
             // to be returned from the unmarshaller in the list. If you noticed 
-            //that a class is missing, explicitly specify that to JAXBContext.newInstance.
-            //If you are binding classes that are generated from XJC, then the 
-            //easiest way to include all the classes is to specify the generated
-            //ObjectFactory class(es).
+            // that a class is missing, explicitly specify that to JAXBContext.newInstance.
+            // If you are binding classes that are generated from XJC, then the 
+            // easiest way to include all the classes is to specify the generated
+            // ObjectFactory class(es).
             // System.out.println(jc.toString());
             // create an Unmarshaller
             Unmarshaller u = jc.createUnmarshaller();
 
+            // If you want to validate your document before it is unmarshalled, 
+            // JAXB lets you request validation by passing an object of the class 
+            // javax.xml.validation.Schema to the Unmarshaller object. First, you
+            // create this schema object by setting up a schema factory for the 
+            // schema language of your choice. Then you create the Schema object
+            // by calling the factory's method newSchema:
             SchemaFactory sf = SchemaFactory.newInstance(W3C_XML_SCHEMA_NS_URI);
+            Schema schema = sf.newSchema(new File(schemaPath));
 
-            try {
-                Schema schema = sf.newSchema(new File(schemaPath));
-                u.setSchema(schema);
-                u.setEventHandler((ValidationEvent ve) -> {
-                    // ignore warnings
-                    if (ve.getSeverity() != ValidationEvent.WARNING) {
-                        ValidationEventLocator vel = ve.getLocator();
-                        System.out.println(
-                                "Line:Col[" + vel.getLineNumber()
-                                + ":" + vel.getColumnNumber()
-                                + "]:" + ve.getMessage());
-                    }
+            // After the Unmarshaller object has been established, you pass it the schema.
+            u.setSchema(schema);
 
-                    return true;
-                } // allow unmarshalling to continue even if there are errors
-                );
-            } catch (org.xml.sax.SAXException se) {
-                System.err.println(
-                        "Unable to validate due to following error.");
-                Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, null, se);
-                System.exit(1);
-            }
-
-            System.out.println("File to unmarshall: " + xmlFilePath);
+            // Do the unmarshalling
             unmarshalled = u.unmarshal(new File(xmlFilePath));
 
-            // Check unmarhsalling
-            //System.out.println(myToString(unmarshalled));
-        } catch (UnmarshalException ue) {
-            // The JAXB specification does not mandate how the JAXB provider
-            // must behave when attempting to unmarshal invalid XML data.  In
-            // those cases, the JAXB provider is allowed to terminate the 
-            // call to unmarshal with an UnmarshalException.
-            System.err.println("[UnmarshalException] unmarshal(): Exception occured while unmarshalling. Printing stackTrace and Exiting...");
-            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, null, ue);
-            System.exit(1);
-        } catch (JAXBException je) {
-            System.err.println("[JAXBException] Exception occured during validation! Printing stackTrace and Exiting...");
-            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, null, je);
-            System.exit(1);
+        } catch (org.xml.sax.SAXException se) {
+            System.err.println(
+                    "Unable to validate due to the following error.");
+            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, se.getMessage());
+            return null;
+        } catch (JAXBException ex) {
+            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getCause().toString());
+            return null;
         }
+
+        // Print msgs
+        String file = new File(xmlFilePath).getName();
+        System.out.println("[INFO] unmarshal(): FIle '" + file + "' unmarshalled.");
         return unmarshalled;
     }
 
@@ -392,9 +397,8 @@ public class ConfProcessor {
      * Prints the class name and get() methods along their values of an object.
      *
      * @param obj the object to print info.
-     * @return
      */
-    public String myToString(Object obj) {
+    public void myToString(Object obj) {
         String className;
         String methodsString = "";
         List<Method> methodsList = new ArrayList<>();
@@ -410,13 +414,12 @@ public class ConfProcessor {
                 try {
                     methodsString = methodsString + m.getName() + ": " + m.invoke(obj) + ", ";
                 } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-                    System.err.println("[EXCEPTION] myToString(): Exceptino occured: " + ex.getCause());
-                    return null;
+                    Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getCause().toString());
                 }
             }
         }
 
-        return (className + ": {" + methodsString + "}");
+        System.out.println(className + ": {" + methodsString + "}");
     }
 
     /**
@@ -433,6 +436,10 @@ public class ConfProcessor {
         } else {
             return false;
         }
+    }
+
+    public void print(String msg, Object... args) {
+        System.out.println(String.format(msg, args));
     }
 
 }

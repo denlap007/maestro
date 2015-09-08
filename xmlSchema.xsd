@@ -78,7 +78,7 @@
 		<xs:sequence>
 			<xs:element name="webContainer" type="webContainer" maxOccurs="unbounded"/>
 			<xs:element name="dataContainer" type="dataContainer" maxOccurs="unbounded"/>
-			<xs:element name="containersNum" type="xs:integer"/>  
+			<xs:element name="containersNum" type="xs:integer"/>
 		</xs:sequence>
 	</xs:complexType>
 </xs:element>

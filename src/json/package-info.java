@@ -16,6 +16,7 @@
  */
 
 /**
- * Provides Java Classes for Json pre-processing.
+ * Provides classes for json pre-processing.
  */
-package main;
+@Deprecated
+package json;
