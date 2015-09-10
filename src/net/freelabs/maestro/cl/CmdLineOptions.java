@@ -69,7 +69,12 @@ public final class CmdLineOptions {
                 .longOpt("process-conf")
                 .desc("generate-compile-add to classPath classes and unmarshall .xml")
                 .build());
-        
+
+        options.addOption(Option.builder("t")
+                .longOpt("test")
+                .desc("test an implementation")
+                .build());
+
     }
 
     /**

@@ -32,7 +32,6 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -46,6 +45,8 @@ import static javax.xml.XMLConstants.W3C_XML_SCHEMA_NS_URI;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Unmarshaller;
+import javax.xml.bind.ValidationEvent;
+import javax.xml.bind.ValidationEventLocator;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 
@@ -67,7 +68,7 @@ public class ConfProcessor {
     public final Class<?> loadClass(final String className) throws ClassNotFoundException {
         // Load the target class using its package name
         Class<?> loadedMyClass = Class.forName(className);
-        System.out.println("[INFO] Loaded Class: " + loadedMyClass.getName());
+        print("[INFO] Loaded Class: %s", loadedMyClass.getName());
 
         return loadedMyClass;
     }
@@ -86,7 +87,7 @@ public class ConfProcessor {
     public final Class<?> loadClass(final String className, Boolean initialize, final ClassLoader classLoader) throws ClassNotFoundException {
         // Load the target class using its package name
         Class<?> loadedMyClass = Class.forName(className, initialize, classLoader);
-        System.out.println("[INFO] Loaded Class: " + loadedMyClass.getName());
+        print("[INFO] Loaded Class: %s", loadedMyClass.getName());
 
         return loadedMyClass;
     }
@@ -148,12 +149,12 @@ public class ConfProcessor {
             try {
                 // Load class
                 Class<?> classObj = classLoader.loadClass(className);
-                System.out.println("[INFO] loadInstantiateClass(): LOADED class: " + className);
+                print("[INFO] loadInstantiateClass(): LOADED class: %s", className);
 
                 // Instantiate class with the default constructor
                 Constructor constructor = classObj.getConstructor();
                 Object obj = constructor.newInstance();
-                System.out.println("[INFO] loadInstantiateClass(): CREATED object of class: " + classObj.getName());
+                print("[INFO] loadInstantiateClass(): CREATED object of class: %s", classObj.getName());
 
                 // Add to list
                 objs.add(obj);
@@ -178,7 +179,7 @@ public class ConfProcessor {
             System.out.println("Message->"
                     + diagnostic.getMessage(Locale.ENGLISH));
             System.out.println("Source->" + diagnostic.getSource());
-            System.out.println(" ");
+            System.out.println("\n");
         }
     }
 
@@ -199,7 +200,7 @@ public class ConfProcessor {
             srcFiles = new File[]{src};
         }
 
-        System.out.println("\t[Compiling classes]");
+        print("\t[Compiling classes]");
         // Get system compiler:
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
 
@@ -208,7 +209,7 @@ public class ConfProcessor {
         StandardJavaFileManager fileManager = compiler.getStandardFileManager(c,
                 Locale.ENGLISH,
                 null);
-        // Specify output folder for compiled classes
+        // Specify compiling options: output folder for compiled classes
         Iterable<String> options = Arrays.asList("-d", classPath);
         //Initialize a compilation task
         JavaCompiler.CompilationTask task = compiler.getTask(null, fileManager,
@@ -220,17 +221,17 @@ public class ConfProcessor {
         // Print msgs for compilation result
         if (result == true) {
             for (File file : srcFiles) {
-                System.out.println("[INFO] compile2(): \'" + file.getName() + "\' COMPILED.!");
+                print("[INFO] compile2(): \'%s\' COMPILED!", file.getName());
             }
         } else {
-            System.out.println("[INFO] compile2(): File(s) DID  NOT COMPILE!");
+            print("[INFO] compile2(): File(s) DID  NOT COMPILE!");
         }
 
         return result;
     }
 
     /**
-     * Generates new java class(es) (.java source file(s)) from xml.
+     * Generates new java classes (java source files) from xml.
      *
      * @param schemaPath the path to the xml file.
      * @param packageName the package that the new class belongs to.
@@ -239,7 +240,7 @@ public class ConfProcessor {
      * @return true, if operation succeeded.
      */
     public Boolean xmlToClass(String schemaPath, String packageName, String outputDir) {
-        System.out.println("\t[Generating classes]");
+        print("\t[Generating classes]");
 
         // Setup schema compiler
         SchemaCompiler sc = XJC.createSchemaCompiler();
@@ -265,7 +266,7 @@ public class ConfProcessor {
     }
 
     public void test() {
-        System.out.println("SUCCEDDED. invoked method based on name!");
+        print("SUCCEDDED. invoked method based on name!");
         run(this, true, "test");
     }
 
@@ -316,7 +317,7 @@ public class ConfProcessor {
      * @throws Exception
      */
     public void addToClasspath(String dir) throws Exception {
-        System.out.println("\t[Adding to classpath]");
+        print("\t[Adding to classpath]");
         File file = new File(dir);
         URL url = file.toURI().toURL();
         URLClassLoader urlClassLoader = (URLClassLoader) ClassLoader.getSystemClassLoader();
@@ -324,72 +325,89 @@ public class ConfProcessor {
         Method method = urlClass.getDeclaredMethod("addURL", URL.class);
         method.setAccessible(true);
         method.invoke(urlClassLoader, url);
-        System.out.println("[INFO] addToClasspath(): Added to classpath: " + dir);
+        print("[INFO] addToClasspath(): Added to classpath: %s", dir);
     }
 
     /**
-     * Unmarshals an .xml document to java objects and validates it against
-     * .xsd.
+     * Unmarshals an xml document to java objects (binding) and validates the
+     * xml file, the xml schema and the xml file against the xml schema.
      *
-     * @param packageName the name of the package where classes were generated
-     * into.
-     * @param schemaPath the path of the xml schema file to validate .xml.
-     * @param xmlFilePath the path of the .xml file to unmarshal.
-     * @return the root element of the unmarshalled xml schema. Null if .xml
-     * file's syntax is not valid, .xml schema's syntax is not valid, .xml file
-     * is not valid against .xml schema's restrictions (facets), a JAXBException
-     * for another reason is thrown.
+     * @param packageName the name of the package that contains the classes for
+     * the binding.
+     * @param schemaPath the path of the xml schema.
+     * @param xmlFilePath the path of the xml file to unmarshal.
+     * @return the root element of the unmarshalled xml schema. Null if xml
+     * file's syntax is not valid, xml schema's syntax is not valid, xml file is
+     * not valid against xml schema's restrictions (facets), a JAXBException for
+     * another reason is thrown.
      */
     public Object unmarshal(String packageName, String schemaPath, String xmlFilePath) {
-        System.out.println("\t[Unmarshalling .xml]");
+        print("\t[Unmarshalling .xml]");
         Object unmarshalled = null;
         try {
             // create a JAXBContext capable of handling classes generated into
             // the specified package
             JAXBContext jc = JAXBContext.newInstance(packageName);
 
-            // For DEBUGGING.
-            // To verify that you created JAXBContext correctly, call JAXBContext.
-            // toString(). It will output the list of classes it knows. If a 
-            // class is not in this list, the unmarshaller will never return an
-            // instance of that class. Make you see all the classes you expect 
-            // to be returned from the unmarshaller in the list. If you noticed 
-            // that a class is missing, explicitly specify that to JAXBContext.newInstance.
-            // If you are binding classes that are generated from XJC, then the 
-            // easiest way to include all the classes is to specify the generated
-            // ObjectFactory class(es).
-            // System.out.println(jc.toString());
+            /* For DEBUGGING.
+             To verify that you created JAXBContext correctly, call JAXBContext.
+             toString(). It will output the list of classes it knows. If a 
+             class is not in this list, the unmarshaller will never return an
+             instance of that class. Make you see all the classes you expect 
+             to be returned from the unmarshaller in the list. If you noticed 
+             that a class is missing, explicitly specify that to JAXBContext.newInstance.
+             If you are binding classes that are generated from XJC, then the 
+             easiest way to include all the classes is to specify the generated
+             ObjectFactory class(es).
+             System.out.println(jc.toString());
+             */
             // create an Unmarshaller
             Unmarshaller u = jc.createUnmarshaller();
 
-            // If you want to validate your document before it is unmarshalled, 
-            // JAXB lets you request validation by passing an object of the class 
-            // javax.xml.validation.Schema to the Unmarshaller object. First, you
-            // create this schema object by setting up a schema factory for the 
-            // schema language of your choice. Then you create the Schema object
-            // by calling the factory's method newSchema:
+            /* If you want to validate your document before it is unmarshalled, 
+             JAXB lets you request validation by passing an object of the class 
+             javax.xml.validation.Schema to the Unmarshaller object. First, you
+             create this schema object by setting up a schema factory for the 
+             schema language of your choice. Then you create the Schema object
+             by calling the factory's method newSchema:
+             */
             SchemaFactory sf = SchemaFactory.newInstance(W3C_XML_SCHEMA_NS_URI);
             Schema schema = sf.newSchema(new File(schemaPath));
 
             // After the Unmarshaller object has been established, you pass it the schema.
             u.setSchema(schema);
 
+            // Set a custom event handler to bypass WARNINGS
+            // DO NOT allow unmarshalling to continue if there are errors
+            u.setEventHandler((ValidationEvent ve) -> {
+                // show  warnings but don't halt
+                if (ve.getSeverity() == ValidationEvent.WARNING) {
+                    ValidationEventLocator vel = ve.getLocator();
+                    print("[Line: %s, Col: %s]: ", vel.getLineNumber(), 
+                            vel.getColumnNumber(), ve.getMessage());
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            );
+
             // Do the unmarshalling
             unmarshalled = u.unmarshal(new File(xmlFilePath));
 
         } catch (org.xml.sax.SAXException se) {
-            System.err.println(
-                    "Unable to validate due to the following error.");
+            System.err.println("Unable to validate due to the following error.");
             Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, se.getMessage());
             return null;
         } catch (JAXBException ex) {
-            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getCause().toString());
+            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getMessage());
             return null;
         }
 
         // Print msgs
         String file = new File(xmlFilePath).getName();
-        System.out.println("[INFO] unmarshal(): FIle '" + file + "' unmarshalled.");
+
+        print("[INFO] unmarshal(): FIle \'%s\' unmarshalled.", file);
         return unmarshalled;
     }
 
@@ -398,10 +416,10 @@ public class ConfProcessor {
      *
      * @param obj the object to print info.
      */
-    public void myToString(Object obj) {
+    public void customToString(Object obj) {
         String className;
         String methodsString = "";
-        List<Method> methodsList = new ArrayList<>();
+        ArrayList<Method> methodsList = new ArrayList<>();
 
         // Get class name of object
         Class<?> classObj = obj.getClass();
@@ -413,13 +431,15 @@ public class ConfProcessor {
             if (m.getName().startsWith("get")) {
                 try {
                     methodsString = methodsString + m.getName() + ": " + m.invoke(obj) + ", ";
+
                 } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-                    Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getCause().toString());
+                    Logger.getLogger(ConfProcessor.class
+                            .getName()).log(Level.SEVERE, ex.getCause().toString());
                 }
             }
         }
 
-        System.out.println(className + ": {" + methodsString + "}");
+        print("%s: {%s}", className, methodsString);
     }
 
     /**
@@ -431,13 +451,19 @@ public class ConfProcessor {
     public Boolean callAgain(String msg) {
         Console console = System.console();
         String input = console.readLine(msg + " (y/n): ");
-        if (input.equalsIgnoreCase("y") == true || input.equalsIgnoreCase("n") == false) {
+        if (input.equalsIgnoreCase("y") == true || input.equalsIgnoreCase("n") == true) {
             return input.equalsIgnoreCase("y") == true;
         } else {
             return false;
         }
     }
 
+    /**
+     * Prints message and varargs.
+     *
+     * @param msg the message to print.
+     * @param args the arguments to be printed.
+     */
     public void print(String msg, Object... args) {
         System.out.println(String.format(msg, args));
     }

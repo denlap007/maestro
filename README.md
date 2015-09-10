@@ -18,11 +18,11 @@ The Service Discovery and Configuration Store will help containers register and 
 A Naming Service will handle the mapping of resources to names and will be stored to the Configuration Store.
 
 #### Configuration processing pipeline
-* read .xml schema (.xsd)
+* read xml schema (.xsd)
 * generate classes based on .xml schema
 * compile generated classes
 * add classes to classpath
-* validate .xml file & .xml schema
+* check xml file & schema syntax & validate xml file against xml schema
 * unmarshall .xml file (bind to POJOs)
 
 ##### Under heavy development!

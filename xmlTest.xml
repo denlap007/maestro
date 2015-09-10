@@ -1,20 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <webApp>
-    <webContainer>
-        <name>web</name>
-        <connectWith>data</connectWith>
-        <url>localhost:4848</url>
-    </webContainer>
+    <containers>
+        <webContainer>
+            <name>web</name>
+            <connectWith>data</connectWith>
+            <url>localhost:4848</url>
+        </webContainer>
 
-    <dataContainer>
-        <name>data</name>
-        <connectWith>web</connectWith>
-        <dbPort>3306</dbPort>
-        <dbUrl>jdbc:mysql://localhost:3306/test?profileSQL=true</dbUrl>
-        <dbUsername>root</dbUsername>
-        <dbPassword>pass</dbPassword>
-        <dbName>test</dbName>
-    </dataContainer>
+        <businessContainer>
+            <name>business</name>
+            <connectWith>web, data</connectWith>
+            <url>http://something.com</url>
+
+        </businessContainer>
+
+        <dataContainer>
+            <name>data</name>
+            <connectWith>web</connectWith>
+            <dbPort>3306</dbPort>
+            <dbUrl>jdbc:mysql://localhost:3306/test?profileSQL=true</dbUrl>
+            <dbUsername>root</dbUsername>
+            <dbPassword>pass</dbPassword>
+            <dbName>test</dbName>
+        </dataContainer>
+
+
+    </containers>
 
     <containersNum>2</containersNum>
 </webApp>

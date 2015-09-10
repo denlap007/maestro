@@ -16,9 +16,14 @@
  */
 package net.freelabs.maestro.conf;
 
+import generated.Container;
+import generated.WebApp;
 import net.freelabs.maestro.cl.CmdLineOptions;
 import java.io.File;
 import java.io.IOException;
+import net.freelabs.maestro.broker.Broker;
+import net.freelabs.maestro.broker.BrokerGenerator;
+import net.freelabs.maestro.handling.ContainerTypeHandler;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -107,10 +112,43 @@ public class TheMainXml {
             String xmlFilePath = "/home/dio/THESIS/maestro/xmlTest.xml";
             classGen.unmarshal(packageName, schemaPath, xmlFilePath);
 
+        } else if (cmd.hasOption("t") || cmd.hasOption("test")) {
+      // [TEST IMPLEMENTATION]
+               // [unmarchall .xml]
+            String xmlFilePath = "/home/dio/THESIS/maestro/xmlTest.xml";
+            String schemaPath = "/home/dio/THESIS/maestro/xmlSchema.xsd";
+            
+            //-------------------- TEST --------------------
+            // Get root Object
+            WebApp webApp = (WebApp)classGen.unmarshal("generated", schemaPath, xmlFilePath);
+            // Get a handler for containers
+            ContainerTypeHandler handler = new ContainerTypeHandler(webApp.getContainers());
+            System.out.println("[Created handler]");
+            // Create a broker generator to instantiate brokers
+            BrokerGenerator bg = new BrokerGenerator();
+            System.out.println("[Created Broker Generator]");
+            
+            // while there are containers
+            while(handler.hasContainers()){
+                // get a container object
+                Container con = handler.getContainer();
+                System.out.println(con);
+                //Create a broker
+                Broker newBroker = bg.createBroker(con);
+                //Print broker
+                System.out.println("Created broker: " + newBroker.toString());
+
+            }
+            
+            
+            
+            
+            
+            
         } else if (cmd.hasOption("h") || cmd.hasOption("help")) {
             // Show help
             opt.help();
         }
 
-       }
+    }
 }
