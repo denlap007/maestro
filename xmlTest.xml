@@ -9,10 +9,15 @@
 
         <businessContainer>
             <name>business</name>
-            <connectWith>web, data</connectWith>
+            <connectWith>web data</connectWith>
             <url>http://something.com</url>
-
         </businessContainer>
+        <businessContainer>
+            <name>business</name>
+            <connectWith>web data</connectWith>
+            <url>http://something.com</url>
+        </businessContainer>
+
 
         <dataContainer>
             <name>data</name>

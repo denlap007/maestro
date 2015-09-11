@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.handling;
+package net.freelabs.maestro.handler;
 
 import generated.BusinessContainer;
 import generated.Container;
@@ -90,7 +90,8 @@ public class ContainerTypeHandler {
     }
 
     /**
-     * Returns if there are any containers in any collection.
+     * Checks if there are any containers in any collection.
+     *
      * @return true if there is at least one container in any of the collection.
      */
     public Boolean hasContainers() {
@@ -100,6 +101,33 @@ public class ContainerTypeHandler {
         Iterator<DataContainer> dataIter = ct.getDataContainer().iterator();
 
         return (webIter.hasNext() || BusinessIter.hasNext() || dataIter.hasNext());
+    }
+
+    /**
+     * Checks if there are any containers in the web container collection.
+     *
+     * @return true if there are web containers in the collection.
+     */
+    public Boolean hasWebContainers() {
+        return !ct.getWebContainer().isEmpty();
+    }
+
+    /**
+     * Checks if there are any containers in the business container collection.
+     *
+     * @return true if there are business containers in the collection.
+     */
+    public Boolean hasBusinessContainers() {
+        return !ct.getBusinessContainer().isEmpty();
+    }
+
+    /**
+     * Checks if there are any containers in the data container collection.
+     *
+     * @return true if there are data containers in the collection.
+     */
+    public Boolean hasDataContainers() {
+        return !ct.getDataContainer().isEmpty();
     }
 
     /**

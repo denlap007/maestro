@@ -21,9 +21,12 @@ import generated.WebApp;
 import net.freelabs.maestro.cl.CmdLineOptions;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import net.freelabs.maestro.broker.Broker;
 import net.freelabs.maestro.broker.BrokerGenerator;
-import net.freelabs.maestro.handling.ContainerTypeHandler;
+import net.freelabs.maestro.handler.AbstractContainerHandler;
+import net.freelabs.maestro.handler.ContainerTypeHandler;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -91,8 +94,7 @@ public class TheMainXml {
             classGen.unmarshal(packageName, schemaPath, xmlFilePath);
         } else if (cmd.hasOption("p") || cmd.hasOption("process-conf")) {
         // [PROCESS CONFIGURATION PIPELINE]
-
-            /// [generate classes]
+            // [generate classes]
             String schemaPath = "/home/dio/THESIS/maestro/xmlSchema.xsd";
             String packageName = "pack";
             String genClassDir = "/home/dio/testClass/source";
@@ -119,8 +121,8 @@ public class TheMainXml {
             String schemaPath = "/home/dio/THESIS/maestro/xmlSchema.xsd";
             
             //-------------------- TEST --------------------
-            // Get root Object
-            WebApp webApp = (WebApp)classGen.unmarshal("generated", schemaPath, xmlFilePath);
+            // Get root Object 
+            /*WebApp webApp = (WebApp)classGen.unmarshal("generated", schemaPath, xmlFilePath);
             // Get a handler for containers
             ContainerTypeHandler handler = new ContainerTypeHandler(webApp.getContainers());
             System.out.println("[Created handler]");
@@ -138,12 +140,25 @@ public class TheMainXml {
                 //Print broker
                 System.out.println("Created broker: " + newBroker.toString());
 
-            }
+            }*/
             
             
             
-            
-            
+            /*------------------------------------------------------------------
+            -------------- TEST abstract Container Handler ---------------------
+            --------------------------------------------------------------------
+            Object  obj = classGen.unmarshal("generated", schemaPath, xmlFilePath);
+            AbstractContainerHandler ach = new AbstractContainerHandler(obj);
+            ach.getContainerTypes();
+            Object one = ach.getContainers();
+            System.out.println(AbstractContainerHandler.toString(one));
+            Object two = ach.getContainers();
+            System.out.println(AbstractContainerHandler.toString(two));
+            Object three  =ach.getContainers();
+            System.out.println(AbstractContainerHandler.toString(three));
+            Object four = ach.getContainers();
+            System.out.println(AbstractContainerHandler.toString(four));
+           */
             
         } else if (cmd.hasOption("h") || cmd.hasOption("help")) {
             // Show help

@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.handling;
+package net.freelabs.maestro.handler;
 
 import generated.BusinessContainer;
 import generated.Containers;
@@ -30,6 +30,7 @@ import java.util.Collection;
  * This class provides extensibility and may be extended if any new
  * container types are to be declared.
  */
+@Deprecated
 public class ContainerType {
 
     private final Collection<WebContainer> webContainers;
