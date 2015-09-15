@@ -24,7 +24,7 @@ import generated.Container;
  */
 public class Broker implements BrokerInterface{
     
-private Container con;  
+private final Container con;  
 
     public Broker(Container con){
         this.con = con;
@@ -36,7 +36,7 @@ private Container con;
     }
 
     @Override
-    public void containerToString() {
+    public String toString() {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
     

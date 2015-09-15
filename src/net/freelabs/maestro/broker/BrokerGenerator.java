@@ -17,12 +17,15 @@
 package net.freelabs.maestro.broker;
 
 import generated.Container;
+import java.util.Collection;
 
 /**
  *
  * Class that generates and initializes all brokers.
  */
 public class BrokerGenerator {
+    
+    private Collection<Container> containerList;
     
 
     public Broker createBroker(Container con) {

@@ -14,15 +14,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.broker;
+package net.freelabs.maestro.zookeeper;
 
 /**
  *
- * @author Dionysis Lappas (dio@freelabs.net)
+ * Class that bootstraps the zookeeper process by creating the initial zNodes.
  */
-public interface BrokerInterface {
-    public void inspectContainer();
-    @Override
-    public String toString();
+public class BootstrapZookeeper {
     
 }

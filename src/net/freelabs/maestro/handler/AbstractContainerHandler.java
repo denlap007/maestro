@@ -42,32 +42,52 @@ import java.util.logging.Logger;
  * <li><li>containers</li</li> <
  * /ul>
  */
-public class AbstractContainerHandler {
+public final class AbstractContainerHandler {
 
     // The root object of the unmarshalled xml doc
     private final Object rootObj;
     // List tha maintains Collections with the container types
     private List<Collection<?>> containerTypes = new ArrayList<>();
+    // The name of the class the holds the Collections to the container types
+    private final String OBJECT_WITH_TYPES;
 
-    public AbstractContainerHandler(Object rootObj) {
+    /**
+     * Constructor initializes with the root object of the unmarshalled xml
+     * document.
+     *
+     * @param rootObj the root object of the the unmarshalled xml document.
+     * @param OBJECT_WITH_TYPES the object that holds the container types.
+     */
+    public AbstractContainerHandler(Object rootObj, String OBJECT_WITH_TYPES) {
         this.rootObj = rootObj;
+        this.OBJECT_WITH_TYPES = OBJECT_WITH_TYPES;
     }
 
+    /**
+     * Gets the declared Collections of the container types in OBJECT_WITH_TYPES 
+     * object. The declared fields in OBJECT_WITH_TYPES are Collections 
+     * of some container type.
+     *
+     * @throws NoSuchFieldException
+     * @throws IllegalArgumentException
+     * @throws IllegalAccessException
+     * @throws InvocationTargetException
+     */
     public void getContainerTypes() throws NoSuchFieldException, IllegalArgumentException, IllegalAccessException, InvocationTargetException {
         // Get the class of the root object
         Class<?> classObj = rootObj.getClass();
         // Get the field object that reflects the specified declared field 
-        // "containers" of the class represented by this Class object
-        Field fieldObj = classObj.getDeclaredField("containers");
+        // OBJECT_WITH_TYPES of the class represented by this Class object
+        Field fieldObj = classObj.getDeclaredField(OBJECT_WITH_TYPES);
         // Set field accessible
         fieldObj.setAccessible(true);
-        // Return the value of the field represented by the Field "containers", 
+        // Return the value of the field represented by the Field OBJECT_WITH_TYPES, 
         // on the specified object
         Object containers = fieldObj.get(rootObj);
         System.out.println("field value is: " + containers); //Getting the value of the field on this object
 
-        // Get the declared fields of "containers" object. The declared fields
-        // of "containers" are only Collections of container types.
+        // Get the declared fields of OBJECT_WITH_TYPES object. The declared fields
+        // of OBJECT_WITH_TYPES are only Collections of container types.
         Field[] conFields = containers.getClass().getDeclaredFields();
         //For each field which is a collection
         for (Field aField : conFields) {
@@ -120,10 +140,39 @@ public class AbstractContainerHandler {
         return false;
     }
 
-
     /**
-     * Prints object's classnamem, fields' names and values.
-     * 
+     * Gets the simple class name of the object.
+     *
+     * @param obj the object to inspect.
+     * @return the simple class name of the object.
+     */
+    public String getType(Object obj) {
+        Class<?> cls = obj.getClass();
+        return cls.getSimpleName();
+    }
+    
+    /**
+     * Gets the simple class names of the container types.
+     * @return a list with the simple class names of the container types.
+     */
+    public List<String> getConTypeNames(){
+        // Create a list to hold the simple names of the container type classes
+        List<String> typeName = new ArrayList<>();
+        // Iterate through collection of container type collections
+        for (Collection col : containerTypes){
+            Iterator<?> iter = col.iterator();
+            // If the collection has elements get an elem and find its type
+            if (iter.hasNext() == true){
+                Object obj = iter.next();
+                typeName.add(getType(obj));
+            }
+        }
+        return typeName;
+    }
+    
+    /**
+     * Prints object's classname, fields' names and values.
+     *
      * @param obj the object to print its classname, fields and values.
      * @return the descriptive string of the class.
      */
@@ -141,13 +190,13 @@ public class AbstractContainerHandler {
             try {
                 field.setAccessible(true);
                 description = description + field.getName() + ": " + field.get(obj) + ", ";
-                        
+
             } catch (IllegalArgumentException | IllegalAccessException ex) {
                 Logger.getLogger(AbstractContainerHandler.class.getName()).log(Level.SEVERE, null, ex);
             }
 
         }
-         return (cls.getSimpleName() + ": {" + description + "}");
+        return (cls.getSimpleName() + ": {" + description + "}");
     }
 
     /**

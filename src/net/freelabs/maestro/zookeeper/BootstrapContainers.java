@@ -18,8 +18,8 @@ package net.freelabs.maestro.zookeeper;
 
 /**
  *
- * Class that bootstraps the zookeeper process by creating the initial zNodes.
+ * @author Dionysis Lappas (dio@freelabs.net)
  */
-public class Bootstrap {
+public class BootstrapContainers {
     
 }
