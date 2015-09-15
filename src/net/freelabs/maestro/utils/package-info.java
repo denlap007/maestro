@@ -14,25 +14,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.broker;
-
-import generated.Container;
-import java.util.Collection;
-import net.freelabs.maestro.zookeeper.ZookeeperConfig;
 
 /**
- *
- * Class that generates and initializes all brokers.
+ * Provides a class with general purpose methods.
  */
-public class BrokerGenerator {
-    
-    private Collection<Container> containerList;
-    
-
-    public Broker createBroker(Container container, ZookeeperConfig zkConf) {
-        Broker newBroker = new Broker(container, zkConf);
-
-        return newBroker;
-    }
-
-}
+package net.freelabs.maestro.utils;

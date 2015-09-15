@@ -56,7 +56,8 @@ public final class AbstractContainerHandler {
      * document.
      *
      * @param rootObj the root object of the the unmarshalled xml document.
-     * @param OBJECT_WITH_TYPES the object that holds the container types.
+     * @param OBJECT_WITH_TYPES the name of the object that holds the container
+     * types e.g. "containers".
      */
     public AbstractContainerHandler(Object rootObj, String OBJECT_WITH_TYPES) {
         this.rootObj = rootObj;
@@ -120,7 +121,6 @@ public final class AbstractContainerHandler {
                 System.out.println("Returning:" + conObj.toString());
                 return conObj;
             }
-
         }
         System.out.println("Returning:" + null);
         return null;

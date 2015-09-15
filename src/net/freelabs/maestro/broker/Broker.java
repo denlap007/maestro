@@ -17,17 +17,24 @@
 package net.freelabs.maestro.broker;
 
 import generated.Container;
+import static net.freelabs.maestro.utils.Utils.getType;
+import net.freelabs.maestro.zookeeper.ZookeeperConfig;
 
 /**
  *
- * @author Dionysis Lappas (dio@freelabs.net)
+ * Class that defines a Broker client to the zookeeper configuration store.
+ * Must implement the BrokerInterface.
  */
 public class Broker implements BrokerInterface{
     
 private final Container con;  
+private final String parentZkNodeName;
+private final ZookeeperConfig zkConf;
 
-    public Broker(Container con){
+    public Broker(Container con, ZookeeperConfig zkConf){
         this.con = con;
+        this.zkConf = zkConf;
+        parentZkNodeName = getType(con);
     }
 
     @Override

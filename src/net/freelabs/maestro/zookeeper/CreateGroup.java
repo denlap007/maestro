@@ -17,6 +17,7 @@
 package net.freelabs.maestro.zookeeper;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.concurrent.CountDownLatch;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
@@ -31,13 +32,49 @@ import org.apache.zookeeper.ZooKeeper;
  * to a zookeeper server, create new zNodes and close the session.
  */
 public class CreateGroup implements Watcher {
+
     // The zookeeper client session time out
     private static final int SESSION_TIMEOUT = 5000;
+    // The default charset to encode data
+    private static final String CHARSET = "UTF-8";
     // The zookeeper handle.
     private ZooKeeper zk;
     // A CountDownLatch with a count of one, representing the number of events	
-    //that need	to occur before it releases all	waiting threads
+    // that need to occur before it releases all	 waiting threads
     private CountDownLatch connectedSignal = new CountDownLatch(1);
+
+    /**
+     * <p>Creates a client session to a zookeeper server, establishes connection
+     * and then creates zNodes namespace hierarchy while initializing the nodes
+     * with data if any.
+     * <p>The namespace hierarchy is defined in namespace argument which must
+     * hold an even number of arguments. As a result, the namespace argument has
+     * the following structure: 
+     * <pre>{zNode1_name, zNode1_data, zNode2_name, zNode2_data, ...}</pre>
+     * 
+     * @param hosts the list of zookeeper servers to connect along with port. 
+     * The arguments has the following format: <pre>HOST1_IP:HOST1_PORT, 
+     * HOST2_IP:HOST2_PORT, ...</pre>
+     * @param namespace the namespace hierarchy to be created.
+     * @throws IOException
+     * @throws InterruptedException
+     * @throws WrongArgNumberException if namespace arguments are not an even number.
+     * @throws KeeperException 
+     */
+    public final void init(String hosts, String... namespace) throws IOException, InterruptedException, WrongArgNumberException, KeeperException {
+        if ((namespace.length % 2) != 0) {
+            throw new WrongArgNumberException("Wrong argument number for namespace hierarchy nodes!");
+        } else {
+            // Establish connection to a zookeeper server
+            connect(hosts);
+
+            // Create zNode namespace hierarchy and initialize nodes with data
+            for (int i=0; i<namespace.length; i=i+2) {
+                create(namespace[i], namespace[i+1]);
+            }
+        }
+
+    }
 
     /**
      * Creates a new zookeeper handle and wait until connectino to a zookeeper
@@ -72,13 +109,14 @@ public class CreateGroup implements Watcher {
      * @param data the data of the new zNode.
      * @throws KeeperException
      * @throws InterruptedException
+     * @throws java.io.UnsupportedEncodingException
      */
-    public void create(String path, String data) throws KeeperException, InterruptedException {
+    public void create(String path, String data) throws KeeperException, InterruptedException, UnsupportedEncodingException {
 
         //String path = "/" + groupName;
-        String createdPath = zk.create(path, data.getBytes()/*data*/, Ids.OPEN_ACL_UNSAFE,
+        String createdPath = zk.create(path, data.getBytes(CHARSET)/*data*/, Ids.OPEN_ACL_UNSAFE,
                 CreateMode.PERSISTENT);
-        System.out.println("Created	" + createdPath);
+        System.out.println("[INFO] create(): Created	" + createdPath);
     }
 
     /**
@@ -97,6 +135,7 @@ public class CreateGroup implements Watcher {
         createGroup.create("/webApp", null);
         createGroup.create("/webApp/data", "This is a namespace for data containers");
         createGroup.create("/webApp/web", "This is a namespace for web containers");
+        createGroup.create("/webApp/business", "This is a namespace for business containers");
         createGroup.close();
     }
 }

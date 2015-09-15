@@ -33,9 +33,11 @@ import java.util.Iterator;
  * types are declared and need to be handled.
  */
 public class ContainerTypeHandler {
-
+    // The object of class Containers that holds the container types Collections
     private final Containers ct;
-
+    
+    private final String[] conTypeNames = {"WebContainers", "BusinessContainer", "DataContainer"};
+    
     public ContainerTypeHandler(Containers ct) {
         this.ct = ct;
     }
@@ -108,7 +110,7 @@ public class ContainerTypeHandler {
      *
      * @return true if there are web containers in the collection.
      */
-    public Boolean hasWebContainers() {
+    public final Boolean hasWebContainers() {
         return !ct.getWebContainer().isEmpty();
     }
 
@@ -117,7 +119,7 @@ public class ContainerTypeHandler {
      *
      * @return true if there are business containers in the collection.
      */
-    public Boolean hasBusinessContainers() {
+    public final Boolean hasBusinessContainers() {
         return !ct.getBusinessContainer().isEmpty();
     }
 
@@ -126,7 +128,7 @@ public class ContainerTypeHandler {
      *
      * @return true if there are data containers in the collection.
      */
-    public Boolean hasDataContainers() {
+    public final Boolean hasDataContainers() {
         return !ct.getDataContainer().isEmpty();
     }
 
@@ -191,5 +193,12 @@ public class ContainerTypeHandler {
         }
         // If collection is empty, there's no container to return
         return null;
+    }
+
+    /**
+     * @return the conTypeNames
+     */
+    public String[] getConTypeNames() {
+        return conTypeNames;
     }
 }

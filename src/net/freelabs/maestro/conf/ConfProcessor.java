@@ -16,11 +16,12 @@
  */
 package net.freelabs.maestro.conf;
 
+import static net.freelabs.maestro.utils.Utils.print;
+
 import com.sun.tools.xjc.api.*;
 import org.xml.sax.InputSource;
 
 import com.sun.codemodel.JCodeModel;
-import java.io.Console;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -383,7 +384,7 @@ public class ConfProcessor {
                 // show  warnings but don't halt
                 if (ve.getSeverity() == ValidationEvent.WARNING) {
                     ValidationEventLocator vel = ve.getLocator();
-                    print("[Line: %s, Col: %s]: ", vel.getLineNumber(), 
+                    print("[Line: %s, Col: %s]: ", vel.getLineNumber(),
                             vel.getColumnNumber(), ve.getMessage());
                     return true;
                 } else {
@@ -409,63 +410,6 @@ public class ConfProcessor {
 
         print("[INFO] unmarshal(): FIle \'%s\' unmarshalled.", file);
         return unmarshalled;
-    }
-
-    /**
-     * Prints the class name and get() methods along their values of an object.
-     *
-     * @param obj the object to print info.
-     */
-    public void customToString(Object obj) {
-        String className;
-        String methodsString = "";
-        ArrayList<Method> methodsList = new ArrayList<>();
-
-        // Get class name of object
-        Class<?> classObj = obj.getClass();
-        className = classObj.getName();
-
-        // Get public get methods from class
-        Method[] methods = classObj.getMethods();
-        for (Method m : methods) {
-            if (m.getName().startsWith("get")) {
-                try {
-                    methodsString = methodsString + m.getName() + ": " + m.invoke(obj) + ", ";
-
-                } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-                    Logger.getLogger(ConfProcessor.class
-                            .getName()).log(Level.SEVERE, ex.getCause().toString());
-                }
-            }
-        }
-
-        print("%s: {%s}", className, methodsString);
-    }
-
-    /**
-     * Prints message and prompts user for a yes/no answer.
-     *
-     * @param msg the message to print.
-     * @return true, if user input is 'y'.
-     */
-    public Boolean callAgain(String msg) {
-        Console console = System.console();
-        String input = console.readLine(msg + " (y/n): ");
-        if (input.equalsIgnoreCase("y") == true || input.equalsIgnoreCase("n") == true) {
-            return input.equalsIgnoreCase("y") == true;
-        } else {
-            return false;
-        }
-    }
-
-    /**
-     * Prints message and varargs.
-     *
-     * @param msg the message to print.
-     * @param args the arguments to be printed.
-     */
-    public void print(String msg, Object... args) {
-        System.out.println(String.format(msg, args));
     }
 
 }

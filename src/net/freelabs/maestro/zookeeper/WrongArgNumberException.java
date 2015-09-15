@@ -14,25 +14,16 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.broker;
-
-import generated.Container;
-import java.util.Collection;
-import net.freelabs.maestro.zookeeper.ZookeeperConfig;
+package net.freelabs.maestro.zookeeper;
 
 /**
  *
- * Class that generates and initializes all brokers.
+ * @author Dionysis Lappas (dio@freelabs.net)
  */
-public class BrokerGenerator {
-    
-    private Collection<Container> containerList;
-    
+public class WrongArgNumberException extends Throwable {
 
-    public Broker createBroker(Container container, ZookeeperConfig zkConf) {
-        Broker newBroker = new Broker(container, zkConf);
-
-        return newBroker;
+    public WrongArgNumberException(String msg) {
+        super(msg);
     }
 
 }

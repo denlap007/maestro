@@ -52,7 +52,7 @@ public class ExecuteShellComand {
 		ExecuteShellComand obj = new ExecuteShellComand();
 		String domainName = "google.com";
 		
-		String command = "ping -c 3 " + domainName;
+		String command = "ping -c 4 " + domainName;
 		String output = obj.executeCommand(command);
 		System.out.println(output);
 	}

@@ -22,7 +22,5 @@ package net.freelabs.maestro.broker;
  */
 public interface BrokerInterface {
     public void inspectContainer();
-    @Override
-    public String toString();
     
 }
