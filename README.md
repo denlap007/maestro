@@ -25,6 +25,21 @@ A Naming Service will handle the mapping of resources to names and will be store
 * check xml file & schema syntax & validate xml file against xml schema
 * unmarshall .xml file (bind to POJOs)
 
+#### Pre-zookeeper bootrastrp, processing pipeline
+* read root unmarchalled object
+* craete Handler to get containers of different container types
+* create Broker generator to generate Broker objects
+* create Zookeeper configuration: 
+    * hierarchical namespace structure
+    * hosts list
+    * timeout, data encoding charset e.t.c.
+* generate Brokers initialized with a container type from Handler and zookeeper conf
+* Bootstrap Zookeeper
+   * create client handle
+   * connect to server
+   * create hierarchical namespace defined in Zookeeper Configuration
+   * close client session.
+
 ##### Under heavy development!
 
 
