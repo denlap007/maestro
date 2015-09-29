@@ -27,7 +27,7 @@ import java.util.List;
 import net.freelabs.maestro.broker.Broker;
 import net.freelabs.maestro.broker.BrokerGenerator;
 import net.freelabs.maestro.handler.AbstractContainerHandler;
-import net.freelabs.maestro.handler.ContainerTypeHandler;
+import net.freelabs.maestro.handler.ContainerHandler;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -125,7 +125,7 @@ public class TheMainXml {
             // Get root Object 
             /*WebApp webApp = (WebApp)classGen.unmarshal("generated", schemaPath, xmlFilePath);
              // Get a handler for containers
-             ContainerTypeHandler handler = new ContainerTypeHandler(webApp.getContainers());
+             ContainerHandler handler = new ContainerHandler(webApp.getContainers());
              System.out.println("[Created handler]");
              // Create a broker generator to instantiate brokers
              BrokerGenerator bg = new BrokerGenerator();

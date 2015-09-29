@@ -21,25 +21,175 @@ import generated.Container;
 import generated.Containers;
 import generated.DataContainer;
 import generated.WebContainer;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
+import net.freelabs.maestro.utils.Utils;
 
 /**
  * <p>
  * Class the handles the container types collections. Provides methods to get
- * containers from the collection of every container type or get the containers
- * exhaustively.
+ * the declared container types, get containers from the collection of every
+ * container type or get the available containers exhaustively.
  * <p>
  * This Class may be extended to add extra functionality if any new container
  * types are declared and need to be handled.
  */
-public class ContainerTypeHandler {
-    // The object of class Containers that holds the container types Collections
+public class ContainerHandler {
+
+    /**
+     * The object of class Containers that holds the container types Collections.
+     */
     private final Containers ct;
-    
-    private final String[] conTypeNames = {"WebContainers", "BusinessContainer", "DataContainer"};
-    
-    public ContainerTypeHandler(Containers ct) {
+    /**
+     * The types of the containers.
+     */
+    private final List<String> containerTypes;
+    /**
+     * The names of the containers.
+     */ 
+    private final List<String> containerNames;
+    /**
+     * The names-types of the containers. A 2-element array. 
+     * Element [0] -> name of container. Element [1] -> type of container.
+     */
+    private final List<NameType> conNameTypeList;
+
+    /**
+     * Constructor.
+     *
+     * @param ct an object of class Containers.
+     */
+    public ContainerHandler(Containers ct) {
         this.ct = ct;
+        containerTypes = listContainerTypes();
+        containerNames = listContainerNames();
+        conNameTypeList = listconNamesTypes();
+    }
+    
+    /**
+     * This inner class defines a custom struct to hold container name-type.
+     */
+     public static final class NameType{
+        String name;
+        String type;
+        
+        public NameType(String name, String type){
+            this.name = name;
+            this.type = type;
+        }
+        
+    }
+
+    /**
+     * Lists the names and types of containers.
+     * 
+     * @return a list with 2-element Strings. 
+     * Element [0] -> name of container. Element [1] -> type of container.
+     */
+    public final List<NameType> listconNamesTypes() {
+        List<Container> containersList = listContainers();
+        
+        List<NameType> list = new ArrayList<>();
+
+        // if there are containers
+        if (containersList.isEmpty() == false) {
+            for (Container con : containersList) {
+                // Get container name 
+                String name = con.getName();
+                // Get container type
+                String type = Utils.getType(con);
+                // create a NameType object
+                NameType nameType = new NameType(name, type);
+                // Add to list
+                list.add(nameType);
+            }
+        }
+
+        return list;
+    }
+
+    /**
+     * Lists the names of containers.
+     *
+     * @return the list of the names of the containers.
+     */
+    public final List<String> listContainerNames() {
+        List<Container> containersList = listContainers();
+        List<String> names = new ArrayList<>();
+        String containerName;
+
+        // if there are containers
+        if (containersList.isEmpty() == false) {
+            // Get the container name 
+            for (Container con : containersList) {
+                containerName = con.getName();
+                names.add(containerName);
+            }
+        }
+
+        return names;
+    }
+
+    /**
+     * Lists the available container types.
+     *
+     * @return the list of the available container types.
+     */
+    public final List<String> listContainerTypes() {
+        List<Container> containersList = listContainers();
+        List<String> types = new ArrayList<>();
+
+        // for every container in the list
+        for (Container con : containersList) {
+            // get the simple class name of the container (container type)
+            String containerType = Utils.getType(con);
+            // if container type is not on the list, ADD It
+            if (types.contains(containerType) == false) {
+                types.add(containerType);
+            }
+        }
+        return types;
+    }
+
+    /**
+     * Lists the available containers.
+     *
+     * @return the list with the available containers.
+     */
+    public List<Container> listContainers() {
+        List<Container> containerList = new ArrayList<>();
+
+        // Get iterator for each container type
+        Iterator<WebContainer> webIter = ct.getWebContainer().iterator();
+        Iterator<BusinessContainer> BusinessIter = ct.getBusinessContainer().iterator();
+        Iterator<DataContainer> dataIter = ct.getDataContainer().iterator();
+
+        // while there are elements in the collection
+        while (webIter.hasNext()) {
+            // get a web container
+            WebContainer con = webIter.next();
+            // add container to list
+            containerList.add(con);
+        }
+
+        // while there are elements in the collection
+        while (BusinessIter.hasNext()) {
+            // get a web container
+            BusinessContainer con = BusinessIter.next();
+            // add container to list
+            containerList.add(con);
+        }
+
+        // while there are elements in the collection
+        while (dataIter.hasNext()) {
+            // get a web container
+            DataContainer con = dataIter.next();
+            // add container to list
+            containerList.add(con);
+        }
+
+        return containerList;
     }
 
     /**
@@ -196,9 +346,17 @@ public class ContainerTypeHandler {
     }
 
     /**
-     * @return the conTypeNames
+     * @return the containerTypes
      */
-    public String[] getConTypeNames() {
-        return conTypeNames;
+    public List<String> getContainerTypes() {
+        return containerTypes;
     }
+
+    /**
+     * @return the containerNames
+     */
+    public List<String> getContainerNames() {
+        return containerNames;
+    }
+
 }

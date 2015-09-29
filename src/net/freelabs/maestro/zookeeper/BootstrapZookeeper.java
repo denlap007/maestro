@@ -206,10 +206,10 @@ public class BootstrapZookeeper implements Watcher {
     
 
     // ------------------------------ TEST -------------------------------------
-    public static void main(String[] args) throws InterruptedException {
+    /*public static void main(String[] args) throws InterruptedException {
 
         String hosts = "127.0.0.1:2181";
-        String[] rootNode = {"/webApp", ""/*data*/};
+        String[] rootNode = {"/webApp", ""};
         String[] namespace = {"/data",
             "data namespace", "/web", "web namespace",
             "/business", "business namespace"};
@@ -229,5 +229,5 @@ public class BootstrapZookeeper implements Watcher {
             }
         }
 
-    }
+    }*/
 }

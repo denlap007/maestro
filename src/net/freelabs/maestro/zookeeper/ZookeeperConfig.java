@@ -17,56 +17,81 @@
 package net.freelabs.maestro.zookeeper;
 
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- *
  * Class that holds all the zookeeper pre-configuration.
  */
 public final class ZookeeperConfig {
 
     /**
-     * The zookeeper hierarchy namespace root AND data if any. The field's data
-     * encoding scheme is:
-     * <pre> root[0] = /rootName | root[1] = rootData</pre>
-     */
-    private final String[] root;
-    /**
      * The list of zookeepers hosts
      */
     private final String hosts;
+    /**
+     * The zookeeper client session time out
+     */
+    private final int SESSION_TIMEOUT;
     /**
      * The default charset to encode data
      */
     private static final Charset CHARSET = Charset.forName("UTF-8");
     /**
-     * The zookeeper client session time out
+     * The zookeeper root for the namespace.
      */
-    private static final int SESSION_TIMEOUT = 5000;
+    private static final String ROOT = "/";
+
     /**
-     * Root node's children along with data. The field's data encoding scheme
-     * is:
-     * <pre> rootChildren[0] = /child1_Name | rootChildren[1] = child1_Data,
-     * rootChildren[2] = /child2_Name | rootChildren[3] = child2_Data, ...
-     * </pre>
+     * A list with the zookeeper parent nodes.
      */
-    private final String[] rootChildren;
+    private List<ZookeeperNode> zkParents = new ArrayList<>();
+    private List<ZookeeperNode> zkChildren = new ArrayList<>();
 
     /**
      * Constructor.
      *
-     * @param root the zookeeper hierarchy namespace root. Must follow the
-     * format: <pre> /root, data </pre>
-     *
      * @param hosts the list of zookeeper hosts. Must follow the format: 
      * <pre> HOST1_IP:PORT, HOST2_IP:PORT, ...</pre>
      *
-     * @param rootChildren root's children with data. Must follow the format: <pre> /child, data, /child, data, ...
-     * </pre>
+     * @param SESSION_TIMEOUT the time until session is closed if the client
+     * hasn't contacted the server.
      */
-    public ZookeeperConfig(String[] root, String hosts, String[] rootChildren) {
-        this.root = root;
+    public ZookeeperConfig(String hosts, int SESSION_TIMEOUT) {
         this.hosts = hosts;
-        this.rootChildren = rootChildren;
+        this.SESSION_TIMEOUT = SESSION_TIMEOUT;
+    }
+
+    /**
+     * Initializes a parent (@link ZookeeperNode). The zookeeper path of the parent is
+     * derived from two components: the zookeeper root + the type argument.
+     * @param type container type.
+     * @param data zkNode's data.
+     */
+    public void initParentNode(String type, byte[] data) {
+        // create node's path
+        String path = ROOT + type;
+        // create a new zk node object
+        ZookeeperNode zkNode = new ZookeeperNode(path, data);
+        // add to list
+        zkParents.add(zkNode);
+    }
+
+    /**
+     * Initializes a child (@link ZookeeperNode). The zookeeper path of the child is
+     * derived from three components: the zookeeper root + the type argument + 
+     * name argument.
+     * @param name the name of a container.
+     * @param type the type of a container.
+     * @param data the data of the zkNode.
+     */
+    public void initChildNode(String name, String type, byte[] data) {
+        // create node's path
+        String path = ROOT + type + ROOT + name;
+        // create a new zk node object
+        ZookeeperNode zkNode = new ZookeeperNode(path, data);
+        // add to list
+        zkChildren.add(zkNode);
     }
 
     /**
@@ -86,39 +111,43 @@ public final class ZookeeperConfig {
     /**
      * @return the SESSION_TIMEOUT
      */
-    public static int getSESSION_TIMEOUT() {
+    public int getSESSION_TIMEOUT() {
         return SESSION_TIMEOUT;
     }
-
-    /**
-     * @return the root
-     */
-    public String[] getRoot() {
-        return root;
-    }
-
-    /**
-     * @return the rootChildren names
-     */
-    public String[] getRootChildrenNames() {
-        String[] children = null;
-        if (getRootChildren() != null) {
-            // Create a new array to return only the children names not data
-            children = new String[getRootChildren().length/2];
-            
-            for (int i=0, j=0; i < getRootChildren().length; i++, j=j+2) {
-                children[i] = getRootChildren()[j];
-            }
-        }
-
-        return children;
-    }
-
-    /**
-     * @return the rootChildren
-     */
-    public String[] getRootChildren() {
-        return rootChildren;
-    }
     
+    /**
+     * @return the zkParents
+     */
+    public List<ZookeeperNode> getZkParents() {
+        return zkParents;
+    }
+
+    /**
+     * @return the zkChildren
+     */
+    public List<ZookeeperNode> getZkChildren() {
+        return zkChildren;
+    }
+
+    
+    
+    
+    
+    /* ------------------------------ TEST -----------------------------------*/
+    public static void main(String[] args) {
+        String hosts = "127.0.0.1:2181";
+        int timeout = 5000;
+        // create zkConf
+        ZookeeperConfig zkConf = new ZookeeperConfig(hosts, timeout);
+        // create parent nodes
+        String p1 = "/web";
+        String p1Data = "web";
+        String p2 = "/business";
+        String p2Data = "business";
+        String p3 = "/data";
+        String p3Data = "data";
+
+
+    }
+
 }
