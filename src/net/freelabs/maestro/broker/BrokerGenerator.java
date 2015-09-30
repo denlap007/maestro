@@ -16,8 +16,8 @@
  */
 package net.freelabs.maestro.broker;
 
-import generated.Container;
 import java.util.Collection;
+import net.freelabs.maestro.generated.Container;
 import net.freelabs.maestro.zookeeper.ZookeeperConfig;
 
 /**

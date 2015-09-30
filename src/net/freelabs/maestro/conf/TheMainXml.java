@@ -16,18 +16,9 @@
  */
 package net.freelabs.maestro.conf;
 
-import generated.Container;
-import generated.WebApp;
 import net.freelabs.maestro.cl.CmdLineOptions;
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.util.List;
-import net.freelabs.maestro.broker.Broker;
-import net.freelabs.maestro.broker.BrokerGenerator;
-import net.freelabs.maestro.handler.AbstractContainerHandler;
-import net.freelabs.maestro.handler.ContainerHandler;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;

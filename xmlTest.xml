@@ -8,12 +8,12 @@
         </webContainer>
 
         <businessContainer>
-            <name>business</name>
+            <name>business1</name>
             <connectWith>web data</connectWith>
             <url>http://something.com</url>
         </businessContainer>
         <businessContainer>
-            <name>business</name>
+            <name>business2</name>
             <connectWith>web data</connectWith>
             <url>http://something.com</url>
         </businessContainer>

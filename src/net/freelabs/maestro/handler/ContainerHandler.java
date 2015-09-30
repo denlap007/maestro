@@ -16,14 +16,14 @@
  */
 package net.freelabs.maestro.handler;
 
-import generated.BusinessContainer;
-import generated.Container;
-import generated.Containers;
-import generated.DataContainer;
-import generated.WebContainer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import net.freelabs.maestro.generated.BusinessContainer;
+import net.freelabs.maestro.generated.Container;
+import net.freelabs.maestro.generated.Containers;
+import net.freelabs.maestro.generated.DataContainer;
+import net.freelabs.maestro.generated.WebContainer;
 import net.freelabs.maestro.utils.Utils;
 
 /**
@@ -85,7 +85,7 @@ public class ContainerHandler {
      * Lists the names and types of containers.
      * 
      * @return a list with 2-element Strings. 
-     * Element [0] -> name of container. Element [1] -> type of container.
+     * Element [0] - name of container. Element [1] - type of container.
      */
     public final List<NameType> listconNamesTypes() {
         List<Container> containersList = listContainers();

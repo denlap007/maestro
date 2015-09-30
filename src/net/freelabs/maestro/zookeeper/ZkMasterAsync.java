@@ -23,8 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
-import java.util.logging.Level;
-import net.freelabs.maestro.serialize.Serializer;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
 import org.apache.zookeeper.AsyncCallback.StatCallback;
 import org.apache.zookeeper.AsyncCallback.StringCallback;
@@ -41,7 +39,9 @@ import org.apache.zookeeper.data.Stat;
 
 /**
  *
- * Class that bootstraps zookeeper, creates hierarchical namespace.
+ * Class that provides methods to create a master process to initializes zookeeper, 
+ * create hierarchical namespace and set configuration data to zkNodes declared 
+ * in the zookeeper configuration.
  */
 public class ZkMasterAsync implements Watcher {
 
@@ -62,17 +62,24 @@ public class ZkMasterAsync implements Watcher {
      * The path of master to the zookeeper hierarchical namespace.
      */
     private static final String MASTER_PATH = "/master";
-
+    /**
+     * A boolean value indicating if the master is running.
+     */
     private static boolean isRunning = false;
-
+    /**
+     * A Logger object.
+     */
     private static final Logger LOG = LoggerFactory.getLogger(ZkMasterAsync.class);
-
+    /**
+     * The parent created Zk nodes.
+     */
     private List<String> createdZkNodes = new ArrayList<>();
     /**
      * Data for the master node.
      */
     private static final String masterId = Long.toString(new Random().nextLong());
 
+    
     /**
      * Constructor
      *
@@ -93,7 +100,7 @@ public class ZkMasterAsync implements Watcher {
      * java.util.concurrent package) to block until the ZooKeeper instance is
      * ready.
      *
-     * @throws IOException if connection cannot be established.
+     * @throws IOException  in cases of network failure
      * @throws InterruptedException if thread is interrupted while waiting.
      */
     public void connect() throws InterruptedException, IOException {
@@ -101,6 +108,11 @@ public class ZkMasterAsync implements Watcher {
         connectedSignal.await();
     }
 
+    /**
+     * Processes a watched event when a {@link ZkMasterAsync ZkMasterAsync} 
+     * object is passed as a watcher. 
+     * @param event a watched event.
+     */
     @Override
     public void process(WatchedEvent event) {
         if (event.getState() == Watcher.Event.KeeperState.SyncConnected) {
@@ -110,21 +122,18 @@ public class ZkMasterAsync implements Watcher {
     }
 
     /**
-     * Closes the client session of a zookeeper handle.
+     * Closes the client session of a {@link org.apache.zookeeper.ZooKeeper 
+     * zookeeper handle}.
      *
-     * @throws Exception
+     * @throws java.lanConnectionWatcherg.InterruptedException if thread is interrupted.
      */
-    public void stopZK() throws Exception {
+    public void stopZK() throws InterruptedException {
         zk.close();
-    }
-
-    synchronized public void updateNodeData(String path, byte[] data) {
-
     }
 
     // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     /**
-     * Creates the master zkNode. The node is EPHEMERAL with masterID data.
+     * Creates the master zkNode. The node is EPHEMERAL with masterID as data.
      */
     public void runMaster() {
         zk.create(MASTER_PATH, masterId.getBytes(), OPEN_ACL_UNSAFE,
@@ -210,7 +219,7 @@ public class ZkMasterAsync implements Watcher {
                 bootstrap(zkConf.getZkParents());
 
                 LOG.info("REGISTERING watches for children namespace!");
-                registerChildrenWatches();
+                registerChildWatches();
             }
         }
     };
@@ -237,7 +246,7 @@ public class ZkMasterAsync implements Watcher {
     /**
      * Creates zookeeper namespace.
      *
-     * @param parentNodes
+     * @param parentNodes the parent zk noes to be created.
      */
     public void bootstrap(List<ZookeeperNode> parentNodes) {
         // Create the parent zkNodes
@@ -319,6 +328,7 @@ public class ZkMasterAsync implements Watcher {
             LOG.warn("Deleted node: " + path);
         } catch (ConnectionLossException ex) {
             LOG.warn("Connection loss was detected");
+            // a timeout will occur if conloss continues - no infinite recursion
             deleteNodeSync(path, version);
         } catch (KeeperException ex) {
             LOG.error("Something went wrong", ex);
@@ -356,7 +366,10 @@ public class ZkMasterAsync implements Watcher {
     };
 
     // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-    public void registerChildrenWatches() {
+    /**
+     * Registers watches for zkChildren nodes
+     */
+    public void registerChildWatches() {
         // Get the list with the children nodes
         List<ZookeeperNode> children = zkConf.getZkChildren();
 
@@ -369,7 +382,7 @@ public class ZkMasterAsync implements Watcher {
     }
 
     /**
-     * Register watch for a child.
+     * Registers a watch for a child.
      *
      * @param path the path to be checked.
      */

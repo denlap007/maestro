@@ -39,8 +39,8 @@ import java.util.logging.Logger;
  * Current schema structure:
  * <ul>
  * <li>webApp</li>
- * <li><li>containers</li</li> <
- * /ul>
+ * <li>containers</li> 
+ * </ul>
  */
 public final class AbstractContainerHandler {
 
@@ -205,7 +205,7 @@ public final class AbstractContainerHandler {
      *
      * @param fields the retrieved fields from the class and its superclass.
      * @param type the Class object of the class to retrieve the fields.
-     * @return
+     * @return the fields of a class and its superclass
      */
     public static Collection<Field> getAllFields(Collection<Field> fields, Class<?> type) {
         fields.addAll(Arrays.asList(type.getDeclaredFields()));

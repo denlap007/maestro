@@ -109,7 +109,7 @@ public class ZkMasterSync implements Watcher {
     /**
      * Creates the master zkNode. The node is EPHEMERAL with NO data.
      *
-     * @throws java.lang.InterruptedException
+     * @throws java.lang.InterruptedException if thread is interrupted.
      */
     public void runMaster() throws InterruptedException {
         while (true) {

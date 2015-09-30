@@ -16,7 +16,7 @@
  */
 package net.freelabs.maestro.broker;
 
-import generated.Container;
+import net.freelabs.maestro.generated.Container;
 import static net.freelabs.maestro.utils.Utils.getType;
 import net.freelabs.maestro.zookeeper.ZookeeperConfig;
 

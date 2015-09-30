@@ -45,10 +45,10 @@ public class Serializer {
      * De-serialize an object.
      * @param bytes the bytes representation of the object.
      * @return the de-serialized object.
-     * @throws IOException
-     * @throws ClassNotFoundException 
+     * @throws IOException if an I/O error occurs while reading stream header.
+     * @throws java.lang.ClassNotFoundException Class of a serialized object cannot be found.
      */
-    public static Object deserialize(byte[] bytes) throws IOException, ClassNotFoundException {
+    public static Object deserialize(byte[] bytes) throws IOException, ClassNotFoundException  {
         ByteArrayInputStream b = new ByteArrayInputStream(bytes);
         ObjectInputStream o = new ObjectInputStream(b);
         return o.readObject();
