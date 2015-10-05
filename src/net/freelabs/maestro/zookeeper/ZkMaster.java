@@ -32,6 +32,7 @@ import org.apache.zookeeper.KeeperException.Code;
 import org.apache.zookeeper.KeeperException.ConnectionLossException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
+import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 import org.apache.zookeeper.data.Stat;
 
@@ -41,7 +42,8 @@ import org.apache.zookeeper.data.Stat;
  * zookeeper, create hierarchical namespace and set configuration data to
  * zkNodes declared in the zookeeper configuration.
  */
-public final class ZkMaster extends ConnectionWatcher {
+public final class ZkMaster extends ConnectionWatcher implements Runnable {
+
     /**
      * Zookeeper configuration.
      */
@@ -72,9 +74,28 @@ public final class ZkMaster extends ConnectionWatcher {
      */
     private Map<String, CONTAINER_STATE> containerState = new HashMap<>();
     /**
+     * The node that signals the shutdown of the master
+     */
+    private final String shutDownNode;
+
+    @Override
+    public void run() {
+        try {
+            // Run the master process
+            runMaster();
+        } catch (InterruptedException ex) {
+            // log the event
+            LOG.warn("Interruption attempted: ", ex);
+            // set the interrupt status
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
      * The state of a container.
      */
     private static enum CONTAINER_STATE {
+
         NOT_RUNNING, RUNNING
     };
 
@@ -88,6 +109,7 @@ public final class ZkMaster extends ConnectionWatcher {
         super(zkConf.getHosts(), zkConf.getSESSION_TIMEOUT());
         this.zkConf = zkConf;
         MASTER_PATH = zkConf.getZK_ROOT() + "-master";
+        shutDownNode = zkConf.getZK_ROOT() + "-shutdown";
     }
 
     /**
@@ -98,7 +120,7 @@ public final class ZkMaster extends ConnectionWatcher {
      */
     public void runMaster() throws InterruptedException {
         // watch for a cleanup zNode to cleanUp and shutdown
-        setCleanUpWatch();
+        setShutDownWatch();
         // create zk root node if present
         createZkRoot();
         // create master zNode
@@ -471,7 +493,7 @@ public final class ZkMaster extends ConnectionWatcher {
 
             // If there in NO container at RUNNING state INITIATE MASTER SHUTDOWN
             if (isAnyContainerRunning == false) {
-                shutdownMaster();
+                shutdown();
             }
         } else if (event.getType() == Watcher.Event.EventType.NodeDataChanged) {
             // If node had its data changed re-register the watch
@@ -551,19 +573,19 @@ public final class ZkMaster extends ConnectionWatcher {
         shutdownSignal.await();
     }
 
-    public void shutdownMaster() {
+    public void shutdown() {
         shutdownSignal.countDown();
         LOG.info("Initiating master shutdown.");
     }
 
-    public void setCleanUpWatch() {
-        zk.exists("/" + "cleanUp", cleanUpWatcher, cleanUpCallback, zk);
+    public void setShutDownWatch() {
+        zk.exists(shutDownNode, cleanUpWatcher, cleanUpCallback, zk);
     }
 
     private final StatCallback cleanUpCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (Code.get(rc)) {
             case CONNECTIONLOSS:
-                setCleanUpWatch();
+                setShutDownWatch();
                 break;
             case NONODE:
                 LOG.info("Watch registered on: " + path);
@@ -580,12 +602,18 @@ public final class ZkMaster extends ConnectionWatcher {
     private final Watcher cleanUpWatcher = (WatchedEvent event) -> {
         LOG.info(event.getType() + ", " + event.getPath());
 
-        try {
-            cleanUp();
-            shutdownMaster();
-        } catch (InterruptedException ex) {
-            LOG.error("Something went wrong: ", ex);
+        if (event.getType() == NodeCreated) {
+            try {
+                cleanUp();
+                shutdown();
+            } catch (InterruptedException ex) {
+                // log the event
+                LOG.warn("Interruption attempted: ", ex);
+                // set the interrupt status
+                Thread.currentThread().interrupt();
+            }
         }
+
     };
 
 }

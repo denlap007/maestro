@@ -22,7 +22,8 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooKeeper;
-
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 /**
  *
  * Class that establishes a zookeeper connection.
@@ -54,7 +55,7 @@ public class ConnectionWatcher implements Watcher {
     }
     /**
      * A CountDownLatch with a count of one, representing the number of events
-     * that need to occur before it releases all	 waiting threads.
+     * that need to occur before it releases all	waiting threads.
      */
     private final CountDownLatch connectedSignal = new CountDownLatch(1);
 
@@ -94,10 +95,16 @@ public class ConnectionWatcher implements Watcher {
     /**
      * Closes the client session of a {@link org.apache.zookeeper.ZooKeeper
      * zookeeper handle}.
-     *
-     * @throws InterruptedException if thread is interrupted.
      */
-    public void stop() throws InterruptedException {
-        zk.close();
+    public void stop() {
+        // A Logger object.
+        Logger LOG = LoggerFactory.getLogger(ConnectionWatcher.class);
+
+        try {
+            zk.close();
+        } catch (InterruptedException ex) {
+            LOG.warn("Interruption attempted: ", ex);
+            Thread.currentThread().interrupt();
+        }
     }
 }

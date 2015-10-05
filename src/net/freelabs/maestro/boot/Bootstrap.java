@@ -24,6 +24,7 @@ import net.freelabs.maestro.handler.ContainerHandler;
 import net.freelabs.maestro.serialize.Serializer;
 import net.freelabs.maestro.utils.Utils;
 import net.freelabs.maestro.zookeeper.ZkMaster;
+import net.freelabs.maestro.zookeeper.ZkNamingService;
 import net.freelabs.maestro.zookeeper.ZookeeperConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -193,12 +194,24 @@ public final class Bootstrap {
      * @throws IOException in cases of network failure.
      */
     public void initZk(ZookeeperConfig zkConf) throws InterruptedException, IOException {
-        // Create master object
+        // create naming service
+        ZkNamingService services = new ZkNamingService(zkConf);
+        // create a session and connect to zookeeper
+        services.connect();
+        // Create a new thread to run the naming service
+        Thread servicesThread = new Thread(services, "namingServiceThread");
+        // start the naming service
+        servicesThread.start();
+        
+        
+        // Create master
         master = new ZkMaster(zkConf);
         // create a session
         master.connect();
+        // Create a new thread to run the master code
+        Thread masterThread = new Thread(master, "masterThread");
         // create and run master zkNode
-        master.runMaster();
+        masterThread.start();
     }
 
     /**
