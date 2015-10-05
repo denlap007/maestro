@@ -86,6 +86,7 @@
             <xs:sequence>
                 <xs:element name="containers" type="containers"/>
                 <xs:element name="containersNum" type="xs:integer"/>
+                <xs:element name="webAppName" type="xs:string"/>
             </xs:sequence>
         </xs:complexType>
     </xs:element>

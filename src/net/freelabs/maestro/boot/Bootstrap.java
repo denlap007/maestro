@@ -23,7 +23,7 @@ import net.freelabs.maestro.generated.WebApp;
 import net.freelabs.maestro.handler.ContainerHandler;
 import net.freelabs.maestro.serialize.Serializer;
 import net.freelabs.maestro.utils.Utils;
-import net.freelabs.maestro.zookeeper.ZkMasterAsync;
+import net.freelabs.maestro.zookeeper.ZkMaster;
 import net.freelabs.maestro.zookeeper.ZookeeperConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +31,12 @@ import org.slf4j.LoggerFactory;
 /**
  * Class that starts and configures program's components.
  */
-public final class Bootstrap implements Runnable {
+public final class Bootstrap {
+
+    /**
+     * The master zk process.
+     */
+    private ZkMaster master;
 
     /**
      * A Logger object.
@@ -44,10 +49,12 @@ public final class Bootstrap implements Runnable {
             ProgramConf conf = new ProgramConf();
             // unmarshall xml file into a top-level object
             WebApp webApp = unmarshalXml(conf.getXmlSchemaPath(), conf.getXmlFilePath());
+            // get the name of the webApp
+            String webAppName = webApp.getWebAppName();
             // create a handler to query container information
             ContainerHandler handler = createConHandler(webApp);
             // create zk configuration
-            ZookeeperConfig zkConf = createZkConf(conf.getZkHosts(), conf.getZkSessionTimeout(), handler);
+            ZookeeperConfig zkConf = createZkConf(conf.getZkHosts(), conf.getZkSessionTimeout(), handler, webAppName);
             // initialize zk and start master process
             initZk(zkConf);
         } catch (Exception ex) {
@@ -112,7 +119,7 @@ public final class Bootstrap implements Runnable {
      * object that holds all the configuration for zookeeper.
      * @throws IOException if serialization of Container object fails.
      */
-    public ZookeeperConfig createZkConf(String hosts, int timeout, ContainerHandler handler) throws IOException {
+    public ZookeeperConfig createZkConf(String hosts, int timeout, ContainerHandler handler, String webAppName) throws IOException {
         /*
          Create a zookeeper configuration object. This object holds all the
          necessary configuration information needed for zookeeper to boostrap-
@@ -123,7 +130,7 @@ public final class Bootstrap implements Runnable {
          paths and data of children zookeeper nodes that correspond to the children 
          of parent nodes based on declared Containers e.t.c.
          */
-        ZookeeperConfig zkConf = new ZookeeperConfig(hosts, timeout);
+        ZookeeperConfig zkConf = new ZookeeperConfig(hosts, timeout, webAppName);
 
         /* 
          Initialize zookeeper parent nodes. The zookeeper namespace has an 
@@ -139,7 +146,7 @@ public final class Bootstrap implements Runnable {
          */
         for (String type : handler.getContainerTypes()) {
             LOG.info("Container type: " + type);
-            zkConf.initParentNode(type, new byte[0]);
+            zkConf.initZkContainerTypes(type, new byte[0]);
         }
 
         /*
@@ -160,7 +167,7 @@ public final class Bootstrap implements Runnable {
             String type = Utils.getType(con);
             // initialize child node
             LOG.info("Container name,type: " + name + ", " + type);
-            zkConf.initChildNode(name, type, data);
+            zkConf.initZkContainers(name, type, data);
         }
 
         return zkConf;
@@ -168,18 +175,16 @@ public final class Bootstrap implements Runnable {
 
     /**
      * <p>
-     * Starts a {@link net.freelabs.maestro.zookeeper.ZkMasterAsync Master}
-     * process that connects to the zookeeper servers, initializes the zookeeper
+     * Starts a {@link net.freelabs.maestro.zookeeper.ZkMaster Master} process
+     * that connects to the zookeeper servers, initializes the zookeeper
      * namespace, registers NodeCreated watch events for new zNodes created by a
      * {@link net.freelabs.maestro.broker.Broker Broker} and when the new zNodes
      * are created, initializes them with data.
      * <p>
      * This method starts a Master process to initialize zk. The master
      * establishes a session with the zookeeper servers. After the session is
-     * established, it registers a {@link org.apache.zookeeper.Watcher.Event.EventType
-     * NodeCreated} watch event for itself (/master path). When the Master is
-     * created, the watched event is processed and bootstraps the creation of
-     * the namespace from the
+     * established, the Master is created, the watched event is processed and 
+     * bootstraps the creation of the namespace from the
      * {@link net.freelabs.maestro.zookeeper.ZookeeperConfig ZookeeperConfig}
      * object.
      *
@@ -189,17 +194,9 @@ public final class Bootstrap implements Runnable {
      */
     public void initZk(ZookeeperConfig zkConf) throws InterruptedException, IOException {
         // Create master object
-        ZkMasterAsync master = new ZkMasterAsync(zkConf);
+        master = new ZkMaster(zkConf);
         // create a session
         master.connect();
-        /*
-         Register watch for NodeCreated event. When master node is created, it 
-         bootstraps the process of creating zk namespace, registers NodeCreated 
-         watch events for child nodes according to the configuration found to the
-         ZookeeperConfig object. Then, when the new nodes are created, initializes
-         them with the data from the configuration.
-         */
-        master.masterExists();
         // create and run master zkNode
         master.runMaster();
     }
@@ -209,25 +206,23 @@ public final class Bootstrap implements Runnable {
      */
     private void exitProgram(Exception ex) {
         LOG.error("Something went wrong! The program will exit!", ex);
+        try {
+            master.cleanUp();
+            master.stop();
+        } catch (InterruptedException ex1) {
+            LOG.error("Thread Interrupted", ex1);
+        }
         System.exit(1);
     }
 
-    @Override
-    public void run() {
+    // ------------------------------ MAIN -------------------------------------
+    public static void main(String[] args) throws InterruptedException {
+
         // create the bootstrap object to boot the program
         Bootstrap starter = new Bootstrap();
 
         // boot the program
         starter.boot();
-    }
-
-    // ------------------------------ MAIN -------------------------------------
-    public static void main(String[] args) throws InterruptedException {
-        
-        Thread thread = new Thread(new Bootstrap());
-        thread.start();
-        thread.join();
-
     }
 
 }

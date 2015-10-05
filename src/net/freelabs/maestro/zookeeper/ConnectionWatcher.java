@@ -28,25 +28,76 @@ import org.apache.zookeeper.ZooKeeper;
  * Class that establishes a zookeeper connection.
  */
 public class ConnectionWatcher implements Watcher {
-  
-  private static final int SESSION_TIMEOUT = 5000;
 
-  protected ZooKeeper zk;
-  private final CountDownLatch connectedSignal = new CountDownLatch(1);
+    /**
+     * A zookeeper handler.
+     */
+    protected ZooKeeper zk;
+    /**
+     * The zookeeper host:port list.
+     */
+    private final String zkHosts;
+    /**
+     * The zookeeper client session timeout.
+     */
+    private final int zkSessionTimeout;
 
-  public void connect(String hosts) throws IOException, InterruptedException {
-    zk = new ZooKeeper(hosts, SESSION_TIMEOUT, this);
-    connectedSignal.await();
-  }
-  
-  @Override
-  public void process(WatchedEvent event) {
-    if (event.getState() == KeeperState.SyncConnected) {
-      connectedSignal.countDown();
+    /**
+     * Constructor.
+     *
+     * @param zkHosts the zookeeper host:port list.
+     * @param zkSessionTimeout the client session timeout.
+     */
+    public ConnectionWatcher(String zkHosts, int zkSessionTimeout) {
+        this.zkHosts = zkHosts;
+        this.zkSessionTimeout = zkSessionTimeout;
     }
-  }
-  
-  public void stop() throws InterruptedException {
-    zk.close();
-  }
+    /**
+     * A CountDownLatch with a count of one, representing the number of events
+     * that need to occur before it releases all	 waiting threads.
+     */
+    private final CountDownLatch connectedSignal = new CountDownLatch(1);
+
+    /**
+     * <p>
+     * Creates a new zookeeper handle and waits until connection to the
+     * zookeeper server is established.
+     * <p>
+     * The call to the constructor returns immediately, so it is important to
+     * wait for the connection to be established before using the ZooKeeper
+     * object. We make use of Java’s CountDownLatch class (in the
+     * java.util.concurrent package) to block until the ZooKeeper instance is
+     * ready.
+     *
+     * @throws IOException in cases of network failure
+     * @throws InterruptedException if thread is interrupted while waiting.
+     */
+    public void connect() throws IOException, InterruptedException {
+        zk = new ZooKeeper(zkHosts, zkSessionTimeout, this);
+        connectedSignal.await();
+    }
+
+    /**
+     * Processes a watched event when a
+     * {@link ConnectionWatcher ConnectionWatcher} object is passed as a
+     * watcher.
+     *
+     * @param event a watched event.
+     */
+    @Override
+    public void process(WatchedEvent event) {
+        if (event.getState() == KeeperState.SyncConnected) {
+            connectedSignal.countDown();
+        }
+    }
+
+    /**
+     * Closes the client session of a {@link org.apache.zookeeper.ZooKeeper
+     * zookeeper handle}.
+     *
+     * @throws InterruptedException if thread is interrupted.
+     */
+    public void stop() throws InterruptedException {
+        zk.close();
+    }
 }

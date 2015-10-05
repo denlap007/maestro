@@ -33,4 +33,6 @@
     </containers>
 
     <containersNum>2</containersNum>
+
+    <webAppName>TestWebApp</webAppName>
 </webApp>

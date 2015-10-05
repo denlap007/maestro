@@ -26,27 +26,31 @@ import java.util.List;
 public final class ZookeeperConfig {
 
     /**
-     * The list of zookeepers hosts
+     * The list of zookeepers hosts.
      */
     private final String hosts;
     /**
-     * The zookeeper client session time out
+     * The zookeeper client session time out.
      */
     private final int SESSION_TIMEOUT;
     /**
-     * The default charset to encode data
+     * The default charset to encode data.
      */
     private static final Charset CHARSET = Charset.forName("UTF-8");
     /**
      * The zookeeper root for the namespace.
      */
-    private static final String ROOT = "/";
+    private final String ZK_ROOT;
 
     /**
-     * A list with the zookeeper parent nodes.
+     * A list with the zookeeper container type nodes.
      */
-    private List<ZookeeperNode> zkParents = new ArrayList<>();
-    private List<ZookeeperNode> zkChildren = new ArrayList<>();
+    private List<ZookeeperNode> zkContainerTypes = new ArrayList<>();
+    /**
+     * A list with the zookeeper container nodes.
+     */
+    private List<ZookeeperNode> zkContainers = new ArrayList<>();
+    
 
     /**
      * Constructor.
@@ -56,10 +60,13 @@ public final class ZookeeperConfig {
      *
      * @param SESSION_TIMEOUT the time until session is closed if the client
      * hasn't contacted the server.
+     * @param ZK_ROOT the root of the zookeeper namespace where application's node
+     * hierarchy will be created.
      */
-    public ZookeeperConfig(String hosts, int SESSION_TIMEOUT) {
+    public ZookeeperConfig(String hosts, int SESSION_TIMEOUT, String ZK_ROOT) {
         this.hosts = hosts;
         this.SESSION_TIMEOUT = SESSION_TIMEOUT;
+        this.ZK_ROOT = "/" + ZK_ROOT;
     }
 
     /**
@@ -68,13 +75,13 @@ public final class ZookeeperConfig {
      * @param type container type.
      * @param data zkNode's data.
      */
-    public void initParentNode(String type, byte[] data) {
+    public void initZkContainerTypes(String type, byte[] data) {
         // create node's path
-        String path = ROOT + type;
+        String path = getZK_ROOT() + "/" + type;
         // create a new zk node object
         ZookeeperNode zkNode = new ZookeeperNode(path, data);
         // add to list
-        zkParents.add(zkNode);
+        getZkContainerTypes().add(zkNode);
     }
 
     /**
@@ -85,13 +92,13 @@ public final class ZookeeperConfig {
      * @param type the type of a container.
      * @param data the data of the zkNode.
      */
-    public void initChildNode(String name, String type, byte[] data) {
+    public void initZkContainers(String name, String type, byte[] data) {
         // create node's path
-        String path = ROOT + type + ROOT + name;
+        String path = getZK_ROOT() + "/" + type + "/" + name;
         // create a new zk node object
         ZookeeperNode zkNode = new ZookeeperNode(path, data);
         // add to list
-        zkChildren.add(zkNode);
+        getZkContainers().add(zkNode);
     }
 
     /**
@@ -116,38 +123,25 @@ public final class ZookeeperConfig {
     }
     
     /**
-     * @return the zkParents
+     * @return the zkContainerTypes
      */
-    public List<ZookeeperNode> getZkParents() {
-        return zkParents;
+    public List<ZookeeperNode> getZkContainerTypes() {
+        return zkContainerTypes;
     }
 
     /**
-     * @return the zkChildren
+     * @return the zkContainers
      */
-    public List<ZookeeperNode> getZkChildren() {
-        return zkChildren;
+    public List<ZookeeperNode> getZkContainers() {
+        return zkContainers;
     }
 
-    
-    
-    
-    
-    /* ------------------------------ TEST -----------------------------------*/
-    public static void main(String[] args) {
-        String hosts = "127.0.0.1:2181";
-        int timeout = 5000;
-        // create zkConf
-        ZookeeperConfig zkConf = new ZookeeperConfig(hosts, timeout);
-        // create parent nodes
-        String p1 = "/web";
-        String p1Data = "web";
-        String p2 = "/business";
-        String p2Data = "business";
-        String p3 = "/data";
-        String p3Data = "data";
-
-
+    /**
+     * @return the ZK_ROOT
+     */
+    public String getZK_ROOT() {
+        return ZK_ROOT;
     }
+
 
 }
