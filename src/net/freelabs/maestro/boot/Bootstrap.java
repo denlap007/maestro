@@ -17,11 +17,13 @@
 package net.freelabs.maestro.boot;
 
 import java.io.IOException;
+import net.freelabs.maestro.broker.Broker;
 import net.freelabs.maestro.conf.ConfProcessor;
+import net.freelabs.maestro.container.ContainerLauncher;
 import net.freelabs.maestro.generated.Container;
 import net.freelabs.maestro.generated.WebApp;
 import net.freelabs.maestro.handler.ContainerHandler;
-import net.freelabs.maestro.serialize.Serializer;
+import net.freelabs.maestro.serializer.Serializer;
 import net.freelabs.maestro.utils.Utils;
 import net.freelabs.maestro.zookeeper.ZkMaster;
 import net.freelabs.maestro.zookeeper.ZkNamingService;
@@ -52,16 +54,27 @@ public final class Bootstrap {
             WebApp webApp = unmarshalXml(conf.getXmlSchemaPath(), conf.getXmlFilePath());
             // get the name of the webApp
             String webAppName = webApp.getWebAppName();
-            // create a handler to query container information
+            // create a handler to query for container information
             ContainerHandler handler = createConHandler(webApp);
             // create zk configuration
             ZookeeperConfig zkConf = createZkConf(conf.getZkHosts(), conf.getZkSessionTimeout(), handler, webAppName);
-            // initialize zk and start master process
+            // initialize zk and start master process and naming service process
             initZk(zkConf);
+            // launch containers
+            //launchContainers(zkConf);
+            
+            // launch broker to test
+            initBroker(conf.getZkHosts(), conf.getZkSessionTimeout(), zkConf.getZkContainers().get(0).getPath(), zkConf.getNamingServicePath(), zkConf.getShutDownPath());
         } catch (Exception ex) {
             exitProgram(ex);
         }
-
+    }
+    
+    public void initBroker(String hosts, int sessionTimeout, String containerName, String namingService, String shutdownNode) throws IOException, InterruptedException{
+        Broker broker = new Broker(hosts, sessionTimeout, containerName, namingService, shutdownNode);
+        broker.connect();
+        Thread thread = new Thread(broker, "BrokerThread");
+        thread.start();
     }
 
     /**
@@ -184,7 +197,7 @@ public final class Bootstrap {
      * <p>
      * This method starts a Master process to initialize zk. The master
      * establishes a session with the zookeeper servers. After the session is
-     * established, the Master is created, the watched event is processed and 
+     * established, the Master is created, the watched event is processed and
      * bootstraps the creation of the namespace from the
      * {@link net.freelabs.maestro.zookeeper.ZookeeperConfig ZookeeperConfig}
      * object.
@@ -196,22 +209,28 @@ public final class Bootstrap {
     public void initZk(ZookeeperConfig zkConf) throws InterruptedException, IOException {
         // create naming service
         ZkNamingService services = new ZkNamingService(zkConf);
-        // create a session and connect to zookeeper
+        // connect to zookeeper and create a session
         services.connect();
         // Create a new thread to run the naming service
-        Thread servicesThread = new Thread(services, "namingServiceThread");
+        Thread servicesThread = new Thread(services, "NamingServiceThread");
         // start the naming service
         servicesThread.start();
-        
-        
+
         // Create master
         master = new ZkMaster(zkConf);
-        // create a session
+        // connect to zookeeper and create a session
         master.connect();
-        // Create a new thread to run the master code
-        Thread masterThread = new Thread(master, "masterThread");
-        // create and run master zkNode
+        // Create a new thread to run the master 
+        Thread masterThread = new Thread(master, "MasterThread");
+        // start the master process
         masterThread.start();
+    }
+
+    public void launchContainers(ZookeeperConfig zkConf) {
+        // Create a new thread to run the container launcher 
+        Thread conLauncherThread = new Thread(new ContainerLauncher(zkConf), "containerLauncherThread");
+        // start the container launcher 
+        conLauncherThread.start();
     }
 
     /**

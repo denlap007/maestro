@@ -25,9 +25,9 @@ import java.io.InputStreamReader;
  * Class that provides method to get a Runtime object in order to run 
  * shell commands.
  */
-public class ExecuteShellComand {
+public class ShellCommandExecutor {
 
-    private String executeCommand(String command) throws IOException, InterruptedException {
+    public String executeCommand(String command) throws IOException, InterruptedException {
         // Declare - Initialize valiables
         StringBuilder output = new StringBuilder();
         String line;
@@ -49,12 +49,11 @@ public class ExecuteShellComand {
     
     //------------------------------ TEST --------------------------------------
     public static void main(String[] args) throws IOException, InterruptedException {
-		ExecuteShellComand obj = new ExecuteShellComand();
-		String domainName = "google.com";
-		
-		String command = "ping -c 4 " + domainName;
+		ShellCommandExecutor obj = new ShellCommandExecutor();
+		String command = "docker run --name maestroContainer busybox";
 		String output = obj.executeCommand(command);
 		System.out.println(output);
+                Thread.sleep(15000);
 	}
 
 }

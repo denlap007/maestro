@@ -17,10 +17,36 @@
 package net.freelabs.maestro.broker;
 
 /**
- *
- * @author Dionysis Lappas (dio@freelabs.net)
+ * This interface defines the methods to be instantiated from a 
+ * {@link net.freelabs.maestro.broker.Broker Broker}.
  */
 public interface BrokerInterface {
-    public void inspectContainer();
+    /**
+     * Gets the Container configuration after container is started.
+     * @param cmdExec an object to execute the docker command.
+     * @param containerName the name of the container to inspect as declared in 
+     * the docker namespace.
+     */
+    public void inspectContainer(ShellCommandExecutor cmdExec, String containerName);
+    /**
+     * Registers a Broker to the naming service.
+     * @param namingService the path of the Naming Service to the zookeeper 
+     * hierarchical namespace.
+     */
+    public void registerContainer(String namingService);
+    /**
+     * Create the zNode for the Broker.
+     * @param zkPath the path of the zNode to the zookeeper hierarchical namespace.
+     */
+    public void createContainer(String zkPath);
+    /**
+     * Runs and initializes Broker. This is a top-level method. It is used to run
+     * Broker's methods in order to initialize and start.
+     */
+    public void runBroker();
+    /**
+     * Gets the container's initial configuration.
+     */
+    public void getInitConf();
     
 }

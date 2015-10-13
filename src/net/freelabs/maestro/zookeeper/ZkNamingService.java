@@ -39,13 +39,17 @@ public class ZkNamingService extends ConnectionWatcher implements Runnable {
      */
     private final String namingServicePath;
     /**
+     * A boolean value indicating if the naming service is running.
+     */
+    private volatile static boolean isRunning = false;
+    /**
      * An object with the zookeeper configuration.
      */
     private final ZookeeperConfig zkConf;
     /**
      * A Logger object.
      */
-    private static final Logger LOG = LoggerFactory.getLogger(ZkMaster.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ZkNamingService.class);
     /**
      * Data for the naming service node.
      */
@@ -69,8 +73,8 @@ public class ZkNamingService extends ConnectionWatcher implements Runnable {
         // call the constructor of the superclass
         super(zkConf.getHosts(), zkConf.getSESSION_TIMEOUT());
         // initialize the name of the naming service node
-        namingServicePath = zkConf.getZK_ROOT() + "-services";
-        shutDownNode = zkConf.getZK_ROOT() + "-shutdown";
+        namingServicePath = zkConf.getNamingServicePath();
+        shutDownNode = zkConf.getShutDownPath();
         this.zkConf = zkConf;
     }
 
@@ -80,7 +84,7 @@ public class ZkNamingService extends ConnectionWatcher implements Runnable {
         createNamingService();
         // set watch for shutdown
         setShutDownWatch();
-        
+
         try {
             waitForShutdown();
         } catch (InterruptedException ex) {
@@ -89,7 +93,7 @@ public class ZkNamingService extends ConnectionWatcher implements Runnable {
             // set the interrupt status
             Thread.currentThread().interrupt();
         }
-        
+
         // close session
         stop();
     }
@@ -116,6 +120,7 @@ public class ZkNamingService extends ConnectionWatcher implements Runnable {
                 break;
             case OK:
                 LOG.info("NAMING SERVICE started: " + path);
+                isRunning = true;
                 break;
             default:
                 LOG.error("Something went wrong: ",
@@ -147,6 +152,7 @@ public class ZkNamingService extends ConnectionWatcher implements Runnable {
                 // check if this is the master node
                 if (nodeId.equals(NAMING_SERVICE_ID) == true) {
                     LOG.info("NAMING SERVICE started: " + path);
+                    isRunning = true;
                 } else {
                     LOG.error("Node already exists: " + path);
                 }
@@ -159,6 +165,7 @@ public class ZkNamingService extends ConnectionWatcher implements Runnable {
 
     /**
      * Sets a latch so that the thread waits for shutdown.
+     *
      * @throws InterruptedException if thread is interrupted.
      */
     public void waitForShutdown() throws InterruptedException {
@@ -202,7 +209,7 @@ public class ZkNamingService extends ConnectionWatcher implements Runnable {
      */
     private final Watcher shutDownWatcher = (WatchedEvent event) -> {
         LOG.info(event.getType() + ", " + event.getPath());
-        
+
         if (event.getType() == NodeCreated) {
             shutdown();
         }

@@ -18,7 +18,6 @@ package net.freelabs.maestro.broker;
 
 import java.util.Collection;
 import net.freelabs.maestro.generated.Container;
-import net.freelabs.maestro.zookeeper.ZookeeperConfig;
 
 /**
  *
@@ -29,10 +28,5 @@ public class BrokerGenerator {
     private Collection<Container> containerList;
     
 
-    public Broker createBroker(Container container, ZookeeperConfig zkConf) {
-        Broker newBroker = new Broker(container, zkConf);
-
-        return newBroker;
-    }
 
 }

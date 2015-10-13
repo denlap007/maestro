@@ -50,6 +50,19 @@ public final class ZookeeperConfig {
      * A list with the zookeeper container nodes.
      */
     private List<ZookeeperNode> zkContainers = new ArrayList<>();
+    /**
+     * The naming service zNode path in the zookeeper namespace.
+     */
+    private final String namingServicePath;
+    /**
+     * The master zNode path in the zookeeper namespace.
+     */
+    private final String masterPath;
+    /**
+     * The shutdown zNode path in the zookeeper namespace. This zNode is used to 
+     * initiate the application shutdown process.
+     */
+    private final String shutDownPath;
     
 
     /**
@@ -67,6 +80,9 @@ public final class ZookeeperConfig {
         this.hosts = hosts;
         this.SESSION_TIMEOUT = SESSION_TIMEOUT;
         this.ZK_ROOT = "/" + ZK_ROOT;
+        namingServicePath = this.ZK_ROOT + "-services";
+        masterPath = this.ZK_ROOT + "-master";
+        shutDownPath = this.ZK_ROOT + "-shutdown";
     }
 
     /**
@@ -141,6 +157,27 @@ public final class ZookeeperConfig {
      */
     public String getZK_ROOT() {
         return ZK_ROOT;
+    }
+
+    /**
+     * @return the namingServicePath
+     */
+    public String getNamingServicePath() {
+        return namingServicePath;
+    }
+
+    /**
+     * @return the masterPath
+     */
+    public String getMasterPath() {
+        return masterPath;
+    }
+
+    /**
+     * @return the shutDownPath
+     */
+    public String getShutDownPath() {
+        return shutDownPath;
     }
 
 

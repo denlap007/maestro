@@ -55,7 +55,7 @@ public final class ZkMaster extends ConnectionWatcher implements Runnable {
     /**
      * A boolean value indicating if the master is running.
      */
-    private static boolean isRunning = false;
+    private volatile static boolean isRunning = false;
     /**
      * A Logger object.
      */
@@ -108,8 +108,8 @@ public final class ZkMaster extends ConnectionWatcher implements Runnable {
         // initialize super class
         super(zkConf.getHosts(), zkConf.getSESSION_TIMEOUT());
         this.zkConf = zkConf;
-        MASTER_PATH = zkConf.getZK_ROOT() + "-master";
-        shutDownNode = zkConf.getZK_ROOT() + "-shutdown";
+        MASTER_PATH = zkConf.getMasterPath();
+        shutDownNode = zkConf.getShutDownPath();
     }
 
     /**
@@ -131,6 +131,8 @@ public final class ZkMaster extends ConnectionWatcher implements Runnable {
         setContainerWatches();
         // Sets the thread to wait until its time to shutdown
         waitForShutdown();
+        // delete nanespace
+        cleanUp();
         // close session
         stop();
     }
@@ -603,17 +605,8 @@ public final class ZkMaster extends ConnectionWatcher implements Runnable {
         LOG.info(event.getType() + ", " + event.getPath());
 
         if (event.getType() == NodeCreated) {
-            try {
-                cleanUp();
                 shutdown();
-            } catch (InterruptedException ex) {
-                // log the event
-                LOG.warn("Interruption attempted: ", ex);
-                // set the interrupt status
-                Thread.currentThread().interrupt();
-            }
         }
-
     };
 
 }
