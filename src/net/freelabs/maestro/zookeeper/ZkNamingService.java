@@ -45,7 +45,7 @@ public class ZkNamingService extends ConnectionWatcher implements Runnable {
     /**
      * An object with the zookeeper configuration.
      */
-    private final ZookeeperConfig zkConf;
+    private final ZkConfig zkConf;
     /**
      * A Logger object.
      */
@@ -69,13 +69,13 @@ public class ZkNamingService extends ConnectionWatcher implements Runnable {
      *
      * @param zkConf an object with the zookeeper configuration.
      */
-    public ZkNamingService(ZookeeperConfig zkConf) {
+    public ZkNamingService(ZkConfig zkConf) {
         // call the constructor of the superclass
         super(zkConf.getHosts(), zkConf.getSESSION_TIMEOUT());
         // initialize the name of the naming service node
+        this.zkConf = zkConf;
         namingServicePath = zkConf.getNamingServicePath();
         shutDownNode = zkConf.getShutDownPath();
-        this.zkConf = zkConf;
     }
 
     @Override
@@ -103,7 +103,7 @@ public class ZkNamingService extends ConnectionWatcher implements Runnable {
      */
     public void createNamingService() {
         zk.create(namingServicePath, NAMING_SERVICE_ID.getBytes(), OPEN_ACL_UNSAFE,
-                CreateMode.EPHEMERAL, createNamingServiceCallback, null);
+                CreateMode.PERSISTENT, createNamingServiceCallback, null);
     }
 
     /**

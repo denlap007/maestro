@@ -17,6 +17,7 @@
 package net.freelabs.maestro.boot;
 
 import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.broker.Broker;
 import net.freelabs.maestro.conf.ConfProcessor;
 import net.freelabs.maestro.container.ContainerLauncher;
@@ -26,8 +27,7 @@ import net.freelabs.maestro.handler.ContainerHandler;
 import net.freelabs.maestro.serializer.Serializer;
 import net.freelabs.maestro.utils.Utils;
 import net.freelabs.maestro.zookeeper.ZkMaster;
-import net.freelabs.maestro.zookeeper.ZkNamingService;
-import net.freelabs.maestro.zookeeper.ZookeeperConfig;
+import net.freelabs.maestro.zookeeper.ZkConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,21 +57,22 @@ public final class Bootstrap {
             // create a handler to query for container information
             ContainerHandler handler = createConHandler(webApp);
             // create zk configuration
-            ZookeeperConfig zkConf = createZkConf(conf.getZkHosts(), conf.getZkSessionTimeout(), handler, webAppName);
+            ZkConfig zkConf = createZkConf(conf.getZkHosts(), conf.getZkSessionTimeout(), handler, webAppName);
             // initialize zk and start master process and naming service process
             initZk(zkConf);
             // launch containers
             //launchContainers(zkConf);
-            
+
             // launch broker to test
-            initBroker(conf.getZkHosts(), conf.getZkSessionTimeout(), zkConf.getZkContainers().get(0).getPath(), zkConf.getNamingServicePath(), zkConf.getShutDownPath());
+            String confNode = zkConf.getInitConfPath() + zkConf.getZkContainers().get(0).getName();
+            initBroker(conf.getZkHosts(), conf.getZkSessionTimeout(), zkConf.getZkContainers().get(0).getPath(), zkConf.getNamingServicePath(), zkConf.getShutDownPath(), confNode);
         } catch (Exception ex) {
             exitProgram(ex);
         }
     }
-    
-    public void initBroker(String hosts, int sessionTimeout, String containerName, String namingService, String shutdownNode) throws IOException, InterruptedException{
-        Broker broker = new Broker(hosts, sessionTimeout, containerName, namingService, shutdownNode);
+
+    public void initBroker(String hosts, int sessionTimeout, String containerName, String namingService, String shutdownNode, String confNode) throws IOException, InterruptedException {
+        Broker broker = new Broker(hosts, sessionTimeout, containerName, namingService, shutdownNode, confNode);
         broker.connect();
         Thread thread = new Thread(broker, "BrokerThread");
         thread.start();
@@ -116,9 +117,9 @@ public final class Bootstrap {
      * start.
      * <p>
      * The Zookeeper configuration is stored at a
-     * {@link net.freelabs.maestro.zookeeper.ZookeeperConfig ZookeeperConfig}
-     * object. The object stores zk connection configuration along with the zk
-     * namespace nodes that need to be created for the application.
+     * {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConfig} object. The
+     * object stores zk connection configuration along with the zk namespace
+     * nodes that need to be created for the application.
      * <p>
      * A handler is passed to retrieve information from/and containers in order
      * to initialize the configuration. The Container Types are the parent nodes
@@ -128,12 +129,11 @@ public final class Bootstrap {
      * @param timeout the client session timeout.
      * @param handler a Container handler object to query for container
      * information.
-     * @return a
-     * {@link net.freelabs.maestro.zookeeper.ZookeeperConfig ZookeeperConfig}
-     * object that holds all the configuration for zookeeper.
+     * @return a {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConfig} object
+     * that holds all the configuration for zookeeper.
      * @throws IOException if serialization of Container object fails.
      */
-    public ZookeeperConfig createZkConf(String hosts, int timeout, ContainerHandler handler, String webAppName) throws IOException {
+    public ZkConfig createZkConf(String hosts, int timeout, ContainerHandler handler, String webAppName) throws IOException {
         /*
          Create a zookeeper configuration object. This object holds all the
          necessary configuration information needed for zookeeper to boostrap-
@@ -144,7 +144,7 @@ public final class Bootstrap {
          paths and data of children zookeeper nodes that correspond to the children 
          of parent nodes based on declared Containers e.t.c.
          */
-        ZookeeperConfig zkConf = new ZookeeperConfig(hosts, timeout, webAppName);
+        ZkConfig zkConf = new ZkConfig(hosts, timeout, webAppName);
 
         /* 
          Initialize zookeeper parent nodes. The zookeeper namespace has an 
@@ -199,34 +199,33 @@ public final class Bootstrap {
      * establishes a session with the zookeeper servers. After the session is
      * established, the Master is created, the watched event is processed and
      * bootstraps the creation of the namespace from the
-     * {@link net.freelabs.maestro.zookeeper.ZookeeperConfig ZookeeperConfig}
-     * object.
+     * {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConfig} object.
      *
      * @param zkConf an object with the zk configuration.
      * @throws InterruptedException if thread is interrupted.
      * @throws IOException in cases of network failure.
      */
-    public void initZk(ZookeeperConfig zkConf) throws InterruptedException, IOException {
-        // create naming service
-        ZkNamingService services = new ZkNamingService(zkConf);
-        // connect to zookeeper and create a session
-        services.connect();
-        // Create a new thread to run the naming service
-        Thread servicesThread = new Thread(services, "NamingServiceThread");
-        // start the naming service
-        servicesThread.start();
-
-        // Create master
+    public void initZk(ZkConfig zkConf) throws InterruptedException, IOException {
+        // create a latch with a count of one (1). When the master process is
+        // initialized the latch is released
+        CountDownLatch masterReadySignal = new CountDownLatch(1);
+        // create a master object and initialize it with zk configuration
         master = new ZkMaster(zkConf);
         // connect to zookeeper and create a session
         master.connect();
+        // set latch to wait for initialization
+        master.setMasterReadySignal(masterReadySignal);
         // Create a new thread to run the master 
         Thread masterThread = new Thread(master, "MasterThread");
         // start the master process
         masterThread.start();
+        // wait for initialization
+        LOG.info("WAITING FOR MASTER INITIALIZATION");
+        masterReadySignal.await();
+        
     }
 
-    public void launchContainers(ZookeeperConfig zkConf) {
+    public void launchContainers(ZkConfig zkConf) {
         // Create a new thread to run the container launcher 
         Thread conLauncherThread = new Thread(new ContainerLauncher(zkConf), "containerLauncherThread");
         // start the container launcher 
@@ -238,12 +237,8 @@ public final class Bootstrap {
      */
     private void exitProgram(Exception ex) {
         LOG.error("Something went wrong! The program will exit!", ex);
-        try {
-            master.cleanUp();
-            master.stop();
-        } catch (InterruptedException ex1) {
-            LOG.error("Thread Interrupted", ex1);
-        }
+        master.cleanZkNamespace();
+        master.stop();
         System.exit(1);
     }
 

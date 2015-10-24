@@ -36,9 +36,8 @@ public interface BrokerInterface {
     public void registerContainer(String namingService);
     /**
      * Create the zNode for the Broker.
-     * @param zkPath the path of the zNode to the zookeeper hierarchical namespace.
      */
-    public void createContainer(String zkPath);
+    public void createContainer();
     /**
      * Runs and initializes Broker. This is a top-level method. It is used to run
      * Broker's methods in order to initialize and start.

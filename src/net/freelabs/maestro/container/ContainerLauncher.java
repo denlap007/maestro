@@ -19,7 +19,7 @@ package net.freelabs.maestro.container;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.broker.ShellCommandExecutor;
-import net.freelabs.maestro.zookeeper.ZookeeperConfig;
+import net.freelabs.maestro.zookeeper.ZkConfig;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
@@ -31,7 +31,7 @@ public class ContainerLauncher implements Runnable {
 
     private final ShellCommandExecutor exec = new ShellCommandExecutor();
 
-    private final ZookeeperConfig zkConf;
+    private final ZkConfig zkConf;
 
     /**
      * A CountDownLatch with a count of one, representing the number of events
@@ -41,7 +41,7 @@ public class ContainerLauncher implements Runnable {
     
     private final Logger LOG = LoggerFactory.getLogger(ContainerLauncher.class);
 
-    public ContainerLauncher(ZookeeperConfig zkConf) {
+    public ContainerLauncher(ZkConfig zkConf) {
         this.zkConf = zkConf;
     }
 

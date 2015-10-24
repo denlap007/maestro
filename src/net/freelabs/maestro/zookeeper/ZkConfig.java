@@ -23,7 +23,7 @@ import java.util.List;
 /**
  * Class that holds all the zookeeper pre-configuration.
  */
-public final class ZookeeperConfig {
+public final class ZkConfig {
 
     /**
      * The list of zookeepers hosts.
@@ -45,11 +45,11 @@ public final class ZookeeperConfig {
     /**
      * A list with the zookeeper container type nodes.
      */
-    private List<ZookeeperNode> zkContainerTypes = new ArrayList<>();
+    private List<ZkNode> zkContainerTypes = new ArrayList<>();
     /**
      * A list with the zookeeper container nodes.
      */
-    private List<ZookeeperNode> zkContainers = new ArrayList<>();
+    private List<ZkNode> zkContainers = new ArrayList<>();
     /**
      * The naming service zNode path in the zookeeper namespace.
      */
@@ -59,11 +59,17 @@ public final class ZookeeperConfig {
      */
     private final String masterPath;
     /**
-     * The shutdown zNode path in the zookeeper namespace. This zNode is used to 
+     * The shutdown zNode path in the zookeeper namespace. This zNode is used to
      * initiate the application shutdown process.
      */
     private final String shutDownPath;
-    
+    /**
+     * The initial configuration zNode path in the zookeepers namespace. This
+     * zNode is used to hold the initial configuration of the container. When a
+     * container is started it will read the configuration and then delete the
+     * zNode.
+     */
+    private final String initConfPath;
 
     /**
      * Constructor.
@@ -73,37 +79,42 @@ public final class ZookeeperConfig {
      *
      * @param SESSION_TIMEOUT the time until session is closed if the client
      * hasn't contacted the server.
-     * @param ZK_ROOT the root of the zookeeper namespace where application's node
-     * hierarchy will be created.
+     * @param ZK_ROOT the root of the zookeeper namespace where application's
+     * node hierarchy will be created.
      */
-    public ZookeeperConfig(String hosts, int SESSION_TIMEOUT, String ZK_ROOT) {
+    public ZkConfig(String hosts, int SESSION_TIMEOUT, String ZK_ROOT) {
         this.hosts = hosts;
         this.SESSION_TIMEOUT = SESSION_TIMEOUT;
         this.ZK_ROOT = "/" + ZK_ROOT;
-        namingServicePath = this.ZK_ROOT + "-services";
-        masterPath = this.ZK_ROOT + "-master";
-        shutDownPath = this.ZK_ROOT + "-shutdown";
+        namingServicePath = this.ZK_ROOT + "/services";
+        masterPath = this.ZK_ROOT + "/master";
+        shutDownPath = this.ZK_ROOT + "/shutdown";
+        initConfPath = this.ZK_ROOT + "/conf";
     }
 
     /**
-     * Initializes a parent (@link ZookeeperNode). The zookeeper path of the parent is
+     * Initializes a parent (@link ZkNode). The zookeeper path of the parent is
      * derived from two components: the zookeeper root + the type argument.
+     *
      * @param type container type.
      * @param data zkNode's data.
      */
     public void initZkContainerTypes(String type, byte[] data) {
         // create node's path
         String path = getZK_ROOT() + "/" + type;
+        // craete node's name
+        String name = "/" + type;
         // create a new zk node object
-        ZookeeperNode zkNode = new ZookeeperNode(path, data);
+        ZkNode zkNode = new ZkNode(path, data, name);
         // add to list
-        getZkContainerTypes().add(zkNode);
+        zkContainerTypes.add(zkNode);
     }
 
     /**
-     * Initializes a child (@link ZookeeperNode). The zookeeper path of the child is
-     * derived from three components: the zookeeper root + the type argument + 
+     * Initializes a child (@link ZkNode). The zookeeper path of the child is
+     * derived from three components: the zookeeper root + the type argument +
      * name argument.
+     *
      * @param name the name of a container.
      * @param type the type of a container.
      * @param data the data of the zkNode.
@@ -111,10 +122,12 @@ public final class ZookeeperConfig {
     public void initZkContainers(String name, String type, byte[] data) {
         // create node's path
         String path = getZK_ROOT() + "/" + type + "/" + name;
+        // craete node's name
+        String zkName = "/" + name;
         // create a new zk node object
-        ZookeeperNode zkNode = new ZookeeperNode(path, data);
+        ZkNode zkNode = new ZkNode(path, data, zkName);
         // add to list
-        getZkContainers().add(zkNode);
+        zkContainers.add(zkNode);
     }
 
     /**
@@ -137,18 +150,18 @@ public final class ZookeeperConfig {
     public int getSESSION_TIMEOUT() {
         return SESSION_TIMEOUT;
     }
-    
+
     /**
      * @return the zkContainerTypes
      */
-    public List<ZookeeperNode> getZkContainerTypes() {
+    public List<ZkNode> getZkContainerTypes() {
         return zkContainerTypes;
     }
 
     /**
      * @return the zkContainers
      */
-    public List<ZookeeperNode> getZkContainers() {
+    public List<ZkNode> getZkContainers() {
         return zkContainers;
     }
 
@@ -180,5 +193,11 @@ public final class ZookeeperConfig {
         return shutDownPath;
     }
 
+    /**
+     * @return the initConfPath
+     */
+    public String getInitConfPath() {
+        return initConfPath;
+    }
 
 }
