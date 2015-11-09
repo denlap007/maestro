@@ -1,0 +1,104 @@
+<?xml version="1.0"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>net.freelabs.maestro</groupId>
+        <artifactId>maestro</artifactId>
+        <version>0.1-SNAPSHOT</version>
+    </parent>
+    <groupId>net.freelabs.maestro</groupId>
+    <artifactId>broker</artifactId>
+    <version>0.1-SNAPSHOT</version>
+    <name>broker</name>
+   
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>1.4.0</version>
+                <configuration>
+                    <mainClass>net.freelabs.maestro.broker.Broker</mainClass>
+                    <arguments>
+                        <argument>127.0.0.1:2181</argument>
+                        <argument>5000</argument>
+                        <argument>/TestWebApp/WebContainer/web</argument>
+                        <argument>/TestWebApp/services</argument>
+                        <argument>/TestWebApp/shutdown</argument>
+                        <argument>/TestWebApp/conf/web</argument>
+                    </arguments>
+                </configuration>
+            </plugin>
+            
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>2.10</version>
+                <executions>
+                    <execution>
+                        <id>copy</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>net.freelabs.maestro</groupId>
+                                    <artifactId>broker</artifactId>
+                                    <version>0.1-SNAPSHOT</version>
+                                    <type>jar</type>
+                                    <overWrite>true</overWrite>
+                                    <outputDirectory>/home/dio/THESIS/maestroModular/core/src/main/resources/</outputDirectory>
+                                    <destFileName>broker.jar</destFileName>
+                                </artifactItem>
+                            </artifactItems>
+                            <outputDirectory>${basedir}/target</outputDirectory>
+                            <overWriteReleases>true</overWriteReleases>
+                            <overWriteSnapshots>true</overWriteSnapshots>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>2.6</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>net.freelabs.meastro.broker.Broker</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+            
+         
+    
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+    
+    <dependencies>
+        <dependency>
+            <groupId>org.apache.zookeeper</groupId>
+            <artifactId>zookeeper</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>net.freelabs.maestro</groupId>
+            <artifactId>core</artifactId>
+            <version>0.1-SNAPSHOT</version>
+            <type>jar</type>
+        </dependency>
+        
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+        </dependency>
+    </dependencies>
+</project>
