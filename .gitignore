@@ -2,3 +2,5 @@
 /core/target/
 /broker/target/
 zookeeper.out
+/core/src/main/resources/dependency-jars/
+/core/src/main/resources/broker.jar
