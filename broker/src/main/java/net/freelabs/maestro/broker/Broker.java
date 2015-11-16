@@ -17,9 +17,11 @@
 package net.freelabs.maestro.broker;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.serializer.Serializer;
 import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
 import org.apache.zookeeper.AsyncCallback;
@@ -70,6 +72,8 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
 
     private final String confNode;
 
+    private String containerConf;
+
     /**
      * Constructor
      *
@@ -108,7 +112,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         // wait for the configuration 
         waitForInitConf();
         // deserialize configuration
-        deserializeConf();
+        deserializeConf2();
         // wait for shutdown
         waitForShutdown();
         // close zk client session
@@ -186,8 +190,8 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     }
 
     @Override
-    public void registerContainer(String namingService) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public void registerToNamingService(String namingService) {
+        
     }
 
     @Override
@@ -203,7 +207,6 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
                 break;
             case OK:
                 LOG.info("Container initialized with configuration: " + path);
-                initConf = data;
                 unwaitForInitConf();
                 break;
             default:
@@ -288,24 +291,36 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         try {
             con = (Container) Serializer.deserialize(initConf);
             LOG.info("Configuration deserialized");
-            
+
             //LOG.info("URL field of container: " + con.getUrl());
         } catch (IOException | ClassNotFoundException ex) {
             LOG.error("Something went wrong: ", ex);
         }
     }
-    
+
+    public void deserializeConf2() {
+        try {
+            containerConf = JsonSerializer.deserialize(initConf);
+        } catch (UnsupportedEncodingException ex) {
+            LOG.error("Something went wrong: ", ex);
+        }
+        LOG.info("Configuration deserialized! Printing json: " + containerConf);
+    }
+
     public static void main(String[] args) throws IOException, InterruptedException {
+        // Create and initialize broker
         Broker broker = new Broker(args[0], // zkHosts
                 Integer.parseInt(args[1]), // zkSessionTimeout
                 args[2], // zkContainerPath
                 args[3], // namingService
                 args[4], // shutdownNode
-                args[5]  // confNode
+                args[5] // confNode
         );
         
+        // connect to zookeeper
         broker.connect();
-        Thread thread = new Thread(broker, "BrokerThread"+args[2]);
+        // create a new thread and start broker
+        Thread thread = new Thread(broker, "BrokerThread" + args[2]);
         thread.start();
     }
 

@@ -2,14 +2,17 @@
 <project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <modelVersion>4.0.0</modelVersion>
+    
     <parent>
         <groupId>net.freelabs.maestro</groupId>
         <artifactId>maestro</artifactId>
         <version>0.1-SNAPSHOT</version>
     </parent>
+    
     <groupId>net.freelabs.maestro</groupId>
     <artifactId>broker</artifactId>
     <version>0.1-SNAPSHOT</version>
+    <packaging>jar</packaging>
     <name>broker</name>
    
     <build>
@@ -36,21 +39,22 @@
                 <artifactId>maven-dependency-plugin</artifactId>
                 <version>2.10</version>
                 <executions>
+                    <!-- Copy broker dependency -->
                     <execution>
-                        <id>copy</id>
-                        <phase>package</phase>
+                        <id>copy-install</id>
+                        <phase>install</phase>
                         <goals>
                             <goal>copy</goal>
                         </goals>
                         <configuration>
                             <artifactItems>
                                 <artifactItem>
-                                    <groupId>net.freelabs.maestro</groupId>
-                                    <artifactId>broker</artifactId>
-                                    <version>0.1-SNAPSHOT</version>
-                                    <type>jar</type>
+                                    <groupId>${project.groupId}</groupId>
+                                    <artifactId>${project.artifactId}</artifactId>
+                                    <version>${project.version}</version>
+                                    <type>${project.packaging}</type>
                                     <overWrite>true</overWrite>
-                                    <outputDirectory>/home/dio/THESIS/maestroModular/core/src/main/resources/</outputDirectory>
+                                    <outputDirectory>/home/dio/THESIS/maestro/core/src/main/resources/</outputDirectory>
                                     <destFileName>broker.jar</destFileName>
                                 </artifactItem>
                             </artifactItems>
@@ -59,9 +63,50 @@
                             <overWriteSnapshots>true</overWriteSnapshots>
                         </configuration>
                     </execution>
+                    
+                    <!-- Copy project dependency jars to dependency folder-->
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <!-- exclude junit, we need runtime dependency only -->
+                            <includeScope>runtime</includeScope>
+                            <outputDirectory>${project.build.directory}/dependency-jars</outputDirectory>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>2.7</version>
+                <executions>
+                    <!-- Copy folder with dependencies-->
+                    <execution>
+                        <id>copy-resources</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>/home/dio/THESIS/maestro/core/src/main/resources/dependency-jars</outputDirectory>
+                            <resources>          
+                                <resource>
+                                    <directory>${project.build.directory}/dependency-jars</directory>
+                                </resource>
+                            </resources>              
+                        </configuration>            
+                    </execution>
+                </executions>
+            </plugin>
+                    
+                    
+            
+            <!-- Make this jar executable -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
@@ -69,11 +114,14 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>net.freelabs.meastro.broker.Broker</mainClass>
+                            <addClasspath>true</addClasspath>
+                            <mainClass>net.freelabs.maestro.broker.Broker</mainClass>
+                            <classpathPrefix>dependency-jars/</classpathPrefix>
                         </manifest>
                     </archive>
                 </configuration>
             </plugin>
+            
         </plugins>
     </build>
             
@@ -88,17 +136,15 @@
             <groupId>org.apache.zookeeper</groupId>
             <artifactId>zookeeper</artifactId>
         </dependency>
-
-        <dependency>
-            <groupId>net.freelabs.maestro</groupId>
-            <artifactId>core</artifactId>
-            <version>0.1-SNAPSHOT</version>
-            <type>jar</type>
-        </dependency>
         
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>core</artifactId>
+            <version>${project.version}</version>
         </dependency>
     </dependencies>
 </project>

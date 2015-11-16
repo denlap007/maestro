@@ -33,7 +33,7 @@ public interface BrokerInterface {
      * @param namingService the path of the Naming Service to the zookeeper 
      * hierarchical namespace.
      */
-    public void registerContainer(String namingService);
+    public void registerToNamingService(String namingService);
     /**
      * Create the zNode for the Broker.
      */
