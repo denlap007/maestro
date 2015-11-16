@@ -1,2 +1,2 @@
 #!/bin/sh
-java -jar /broker/broker.jar
+java -jar /broker/broker.jar $ZK_HOSTS $ZK_SESSION_TIMEOUT $ZK_CONTAINER_PATH $ZK_NAMING_SERVICE $SHUTDOWN_NODE $CONF_NODE

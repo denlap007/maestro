@@ -152,11 +152,13 @@ public final class ZkMaster extends ConnectionWatcher implements Runnable {
         createNode(zkConf.getInitConfPath(), MASTER_ID.getBytes());
 
         // create zk container configuration nodes
-        zkConf.getZkContainers().stream().forEach((node) -> {
+        HashMap<String, ZkNode> map = zkConf.getZkContainers();
+        for (Map.Entry pair : map.entrySet()) {
+            ZkNode node = (ZkNode) pair.getValue();
             String confNode = zkConf.getInitConfPath() + node.getName();
             zkNamespaceState.put(confNode, STATE.NOT_INITIALIZED);
             createNode(confNode, node.getData());
-        });
+        }
 
         // craete zk naming service node
         zkNamespaceState.put(zkConf.getNamingServicePath(), STATE.NOT_INITIALIZED);

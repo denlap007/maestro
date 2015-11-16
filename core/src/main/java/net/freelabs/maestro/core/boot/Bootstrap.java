@@ -19,9 +19,11 @@ package net.freelabs.maestro.core.boot;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.conf.ConfProcessor;
+import net.freelabs.maestro.core.container.ContainerLauncher;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.WebApp;
 import net.freelabs.maestro.core.handler.ContainerHandler;
+import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.serializer.Serializer;
 import net.freelabs.maestro.core.utils.Utils;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
@@ -47,19 +49,19 @@ public final class Bootstrap {
     public void boot() {
         try {
             // Read configuration
-            ProgramConf conf = new ProgramConf();
+            ProgramConf progConf = new ProgramConf();
             // unmarshall xml file into a top-level object
-            WebApp webApp = unmarshalXml(conf.getXmlSchemaPath(), conf.getXmlFilePath());
+            WebApp webApp = unmarshalXml(progConf.getXmlSchemaPath(), progConf.getXmlFilePath());
             // get the name of the webApp
             String webAppName = webApp.getWebAppName();
             // create a handler to query for container information
             ContainerHandler handler = createConHandler(webApp);
             // create zk configuration
-            ZkConfig zkConf = createZkConf(conf.getZkHosts(), conf.getZkSessionTimeout(), handler, webAppName);
+            ZkConfig zkConf = createZkConf(progConf.getZkHosts(), progConf.getZkSessionTimeout(), handler, webAppName);
             // initialize zk and start master process and naming service process
             initZk(zkConf);
             // launch containers
-            //launchContainers(zkConf);
+            launchContainers(zkConf, handler, progConf.getDockerURI());
 
             // launch broker to test
             //String confNode = zkConf.getInitConfPath() + zkConf.getZkContainers().get(0).getName();
@@ -166,13 +168,19 @@ public final class Bootstrap {
          */
         for (Container con : handler.listContainers()) {
             // get the data for the child node
-            byte[] data = Serializer.serialize(con);
+            //byte[] data = Serializer.serialize(con);
+            
+            // generate JSON from container and return the generated JSON as a byte array
+           String json = JsonSerializer.toJson(con);
+           LOG.info("Container converted to json: " +json);
+
+            byte[] data = JsonSerializer.serialize(json);
             // get the name for the child node
             String name = con.getName();
             // get the container type
             String type = Utils.getType(con);
             // initialize child node
-            LOG.info("Container name,type: " + name + ", " + type);
+            LOG.info("Container name:type: " + name + ":" + type + ". Data size: "+data.length);
             zkConf.initZkContainers(name, type, data);
         }
 
@@ -181,8 +189,8 @@ public final class Bootstrap {
 
     /**
      * <p>
-     * Starts a {@link net.freelabs.maestro.core.zookeeper.ZkMaster Master} process
-     * that connects to the zookeeper servers, initializes the zookeeper
+     * Starts a {@link net.freelabs.maestro.core.zookeeper.ZkMaster Master}
+     * process that connects to the zookeeper servers, initializes the zookeeper
      * namespace, registers NodeCreated watch events for new zNodes created by a
      * {@link net.freelabs.maestro.broker.Broker Broker} and when the new zNodes
      * are created, initializes them with data.
@@ -214,14 +222,14 @@ public final class Bootstrap {
         // wait for initialization
         LOG.info("WAITING FOR MASTER INITIALIZATION");
         masterReadySignal.await();
-        
+
     }
 
-    public void launchContainers(ZkConfig zkConf) {
+    public void launchContainers(ZkConfig zkConf, ContainerHandler handler, String dockerUri) {
         // Create a new thread to run the container launcher 
-        //Thread conLauncherThread = new Thread(new ContainerLauncher(zkConf), "containerLauncherThread");
+        Thread conLauncherThread = new Thread(new ContainerLauncher(zkConf, handler, dockerUri), "containerLauncherThread");
         // start the container launcher 
-        //conLauncherThread.start();
+        conLauncherThread.start();
     }
 
     /**

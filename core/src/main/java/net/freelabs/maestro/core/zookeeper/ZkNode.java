@@ -20,9 +20,9 @@ import java.io.Serializable;
 
 /**
  *
- * Class that represents a zookeeper Node. 
+ * Class that represents a zookeeper Node.
  */
-public class ZkNode implements Serializable{
+public class ZkNode implements Serializable {
 
     /**
      * The path of the zookeeper node.
@@ -36,18 +36,23 @@ public class ZkNode implements Serializable{
      * The name of the zookeeper node.
      */
     private final String name;
+    /**
+     * The path of the zookeeper node with the configuration for this node.
+     */
+    private final String confNodePath;
 
     /**
      * Constructor.
+     *
      * @param path the path of the zookeeper node.
      * @param data the data of the zookeeper node.
      * @param name the name of the zookeeper node.
      */
-    public ZkNode(String path, byte[] data, String name) {
+    public ZkNode(String path, byte[] data, String name, String confNodePath) {
         this.path = path;
         this.data = data;
         this.name = name;
-
+        this.confNodePath = confNodePath;
     }
 
     /**
@@ -70,6 +75,12 @@ public class ZkNode implements Serializable{
     public String getName() {
         return name;
     }
-    
+
+    /**
+     * @return the confNodePath
+     */
+    public String getConfNodePath() {
+        return confNodePath;
+    }
 
 }

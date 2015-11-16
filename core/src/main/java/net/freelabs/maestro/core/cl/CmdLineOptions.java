@@ -24,6 +24,7 @@ import org.apache.commons.cli.Options;
  *
  * @author Dionysis Lappas (dio@freelabs.net)
  */
+@Deprecated
 public final class CmdLineOptions {
 
     private Options options;

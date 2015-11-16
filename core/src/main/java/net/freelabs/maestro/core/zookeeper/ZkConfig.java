@@ -18,6 +18,7 @@ package net.freelabs.maestro.core.zookeeper;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -49,7 +50,7 @@ public final class ZkConfig {
     /**
      * A list with the zookeeper container nodes.
      */
-    private List<ZkNode> zkContainers = new ArrayList<>();
+    private HashMap<String, ZkNode> zkContainers = new HashMap<>();
     /**
      * The naming service zNode path in the zookeeper namespace.
      */
@@ -105,7 +106,7 @@ public final class ZkConfig {
         // craete node's name
         String name = "/" + type;
         // create a new zk node object
-        ZkNode zkNode = new ZkNode(path, data, name);
+        ZkNode zkNode = new ZkNode(path, data, name, null);
         // add to list
         zkContainerTypes.add(zkNode);
     }
@@ -125,9 +126,10 @@ public final class ZkConfig {
         // craete node's name
         String zkName = "/" + name;
         // create a new zk node object
-        ZkNode zkNode = new ZkNode(path, data, zkName);
+        String zkConfNode = initConfPath + "/" + name;
+        ZkNode zkNode = new ZkNode(path, data, zkName, zkConfNode);
         // add to list
-        zkContainers.add(zkNode);
+        zkContainers.put(name, zkNode);
     }
 
     /**
@@ -161,7 +163,7 @@ public final class ZkConfig {
     /**
      * @return the zkContainers
      */
-    public List<ZkNode> getZkContainers() {
+    public HashMap<String, ZkNode> getZkContainers() {
         return zkContainers;
     }
 

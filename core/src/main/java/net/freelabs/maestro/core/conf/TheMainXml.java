@@ -28,6 +28,7 @@ import org.apache.commons.cli.ParseException;
  *
  * Class that holds the main method for testing.
  */
+@Deprecated
 public class TheMainXml {
 
     public static void main(String[] args) throws IOException, Exception {

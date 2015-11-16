@@ -288,7 +288,7 @@ public class ContainerHandler {
      *
      * @return a container of web container type.
      */
-    public final Container getWebContainer() {
+    public final WebContainer getWebContainer() {
         // Get iterator for web container type
         Iterator<WebContainer> webIter = ct.getWebContainer().iterator();
         // while there are elements in the collection
@@ -309,7 +309,7 @@ public class ContainerHandler {
      *
      * @return a container of business container type.
      */
-    public final Container getBusinessContainer() {
+    public final BusinessContainer getBusinessContainer() {
         // Get iterator for business container type
         Iterator<BusinessContainer> BusinessIter = ct.getBusinessContainer().iterator();
         // while there are elements in the collection
@@ -330,7 +330,7 @@ public class ContainerHandler {
      *
      * @return a container of data container type.
      */
-    public final Container getDataContainer() {
+    public final DataContainer getDataContainer() {
         // Get iterator for data container type
         Iterator<DataContainer> DataIter = ct.getDataContainer().iterator();
         // while there are elements in the collection
