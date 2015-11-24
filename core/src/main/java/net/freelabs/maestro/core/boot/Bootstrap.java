@@ -16,15 +16,17 @@
  */
 package net.freelabs.maestro.core.boot;
 
+import com.github.dockerjava.api.DockerClient;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
+import net.freelabs.maestro.core.broker.CoreBroker;
 import net.freelabs.maestro.core.conf.ConfProcessor;
 import net.freelabs.maestro.core.container.ContainerLauncher;
+import net.freelabs.maestro.core.docker.DockerInitializer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.WebApp;
 import net.freelabs.maestro.core.handler.ContainerHandler;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
-import net.freelabs.maestro.core.serializer.Serializer;
 import net.freelabs.maestro.core.utils.Utils;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
@@ -61,11 +63,20 @@ public final class Bootstrap {
             // initialize zk and start master process and naming service process
             initZk(zkConf);
             // launch containers
-            launchContainers(zkConf, handler, progConf.getDockerURI());
-
-            // launch broker to test
-            //String confNode = zkConf.getInitConfPath() + zkConf.getZkContainers().get(0).getName();
-            //initBroker(conf.getZkHosts(), conf.getZkSessionTimeout(), zkConf.getZkContainers().get(0).getPath(), zkConf.getNamingServicePath(), zkConf.getShutDownPath(), confNode);
+            //launchContainers(zkConf, handler, progConf.getDockerURI());
+            
+            // create a docker client customized for the app
+            DockerInitializer appDocker = new DockerInitializer(progConf.getDockerURI());
+            DockerClient docker = appDocker.getDockerClient();
+            
+            //get a container
+            Container con = handler.getDataContainer();
+            // launch Core Broker
+            CoreBroker cb = new CoreBroker(zkConf, con, docker);
+            cb.connect();
+            // create new Thread and start it
+            Thread cbThread = new Thread(cb, "CoreBroker-thread");
+            cbThread.start();
         } catch (Exception ex) {
             exitProgram(ex);
         }
@@ -171,8 +182,8 @@ public final class Bootstrap {
             //byte[] data = Serializer.serialize(con);
             
             // generate JSON from container and return the generated JSON as a byte array
-           String json = JsonSerializer.toJson(con);
-           LOG.info("Container converted to json: " +json);
+            String json = JsonSerializer.toJson(con);
+            LOG.info("Container converted to json: " +json);
 
             byte[] data = JsonSerializer.serialize(json);
             // get the name for the child node
@@ -216,7 +227,7 @@ public final class Bootstrap {
         // set latch to wait for initialization
         master.setMasterReadySignal(masterReadySignal);
         // Create a new thread to run the master 
-        Thread masterThread = new Thread(master, "MasterThread");
+        Thread masterThread = new Thread(master, "Master-thread");
         // start the master process
         masterThread.start();
         // wait for initialization
@@ -227,7 +238,7 @@ public final class Bootstrap {
 
     public void launchContainers(ZkConfig zkConf, ContainerHandler handler, String dockerUri) {
         // Create a new thread to run the container launcher 
-        Thread conLauncherThread = new Thread(new ContainerLauncher(zkConf, handler, dockerUri), "containerLauncherThread");
+        Thread conLauncherThread = new Thread(new ContainerLauncher(zkConf, handler, dockerUri), "containerLauncher-thread");
         // start the container launcher 
         conLauncherThread.start();
     }

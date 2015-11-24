@@ -57,7 +57,7 @@ public class ContainerLauncher extends ConnectionWatcher implements Watcher, Run
      */
     private final ZkConfig zkConf;
     /**
-     * The docker socket uri.
+     * The docker uri.
      */
     private final String dockerURI;
     /**
@@ -107,11 +107,10 @@ public class ContainerLauncher extends ConnectionWatcher implements Watcher, Run
         System.out.println(info);
     }
 
-
     public void startContainer() {
         String ZK_HOSTS = "127.0.0.1:2181";
         String ZK_SESSION_TIMEOUT = "5000";
-        String DOCKER_SOCKET_URI = "unix:///var/run/docker.sock";
+        String DOCKER_URI = "unix:///var/run/docker.sock";
         String ZK_CONTAINER_PATH = "/TestWebApp/WebContainer/web";
         String ZK_NAMING_SERVICE = "/TestWebApp/services";
         String SHUTDOWN_NODE = "/TestWebApp/shutdown";
@@ -122,7 +121,7 @@ public class ContainerLauncher extends ConnectionWatcher implements Watcher, Run
         script = String.format("export DOCKER_SOCKET_URI=%s; export ZK_HOSTS=%s; "
                 + "export ZK_SESSION_TIMEOUT=%s;  export  ZK_CONTAINER_PATH=%s; "
                 + "export ZK_NAMING_SERVICE=%s; export SHUTDOWN_NODE=%s;"
-                + "export CONF_NODE=%s; %s;", DOCKER_SOCKET_URI, ZK_HOSTS,
+                + "export CONF_NODE=%s; %s;", DOCKER_URI, ZK_HOSTS,
                 ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH, ZK_NAMING_SERVICE,
                 SHUTDOWN_NODE, CONF_NODE, newCmd);
 
@@ -150,8 +149,8 @@ public class ContainerLauncher extends ConnectionWatcher implements Watcher, Run
      * <li>BUSINESS container</li>
      * <li>WEB container</li>
      * </ul>
-     * All DATA containers are launched first, then all BUSINESS containers and 
-     * finally all WEB containers. 
+     * All DATA containers are launched first, then all BUSINESS containers and
+     * finally all WEB containers.
      */
     private void launchContainer() {
         // if there is a DATA cotnainer
@@ -161,23 +160,22 @@ public class ContainerLauncher extends ConnectionWatcher implements Watcher, Run
             // launch the cotnainer
             launchContainer(dataCon);
         } else if (handler.hasBusinessContainers() == true) {
-            BusinessContainer businessCon =  handler.getBusinessContainer();
+            BusinessContainer businessCon = handler.getBusinessContainer();
             launchContainer(businessCon);
         } else if (handler.hasWebContainers() == true) {
             WebContainer webCon = handler.getWebContainer();
             launchContainer(webCon);
         }
     }
-    
 
     private void launchContainer(Container con) {
         String containerName = con.getName();
         ZkNode node = zkConf.getZkContainers().get(containerName);
-        
+
         String ZK_HOSTS = zkConf.getHosts();
         String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSESSION_TIMEOUT());
-        String DOCKER_SOCKET_URI = dockerURI;    
-        String ZK_CONTAINER_PATH = node.getName(); 
+        String DOCKER_URI = dockerURI;
+        String ZK_CONTAINER_PATH = node.getName();
         String ZK_NAMING_SERVICE = zkConf.getNamingServicePath();
         String SHUTDOWN_NODE = zkConf.getShutDownPath();
         String CONF_NODE = node.getConfNodePath();
@@ -187,7 +185,7 @@ public class ContainerLauncher extends ConnectionWatcher implements Watcher, Run
         script = String.format("export DOCKER_SOCKET_URI=%s; export ZK_HOSTS=%s; "
                 + "export ZK_SESSION_TIMEOUT=%s;  export  ZK_CONTAINER_PATH=%s; "
                 + "export ZK_NAMING_SERVICE=%s; export SHUTDOWN_NODE=%s;"
-                + "export CONF_NODE=%s; %s;", DOCKER_SOCKET_URI, ZK_HOSTS,
+                + "export CONF_NODE=%s; %s;", DOCKER_URI, ZK_HOSTS,
                 ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH, ZK_NAMING_SERVICE,
                 SHUTDOWN_NODE, CONF_NODE, newCmd);
 
@@ -203,13 +201,14 @@ public class ContainerLauncher extends ConnectionWatcher implements Watcher, Run
                 .withNetworkMode("host")
                 .exec();
 
-         LOG.info("STARTING CONTAINER: " + containerName);
-         
-         dockerClient.startContainerCmd(container.getId()).exec();
-         InspectContainerResponse response = dockerClient.inspectContainerCmd(container.getId()).exec();
-         NetworkSettings settings = response.getNetworkSettings();
-         String containerIp = settings.getIpAddress();
+        LOG.info("STARTING CONTAINER: " + containerName);
+        dockerClient.startContainerCmd(container.getId()).exec();
+        InspectContainerResponse response = dockerClient.inspectContainerCmd(container.getId()).exec();
+        NetworkSettings settings = response.getNetworkSettings();
+        String containerIp = settings.getIpAddress();
+        
     }
+
 
     @Override
     public void run() {

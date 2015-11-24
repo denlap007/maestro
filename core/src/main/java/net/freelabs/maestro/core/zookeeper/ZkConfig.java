@@ -46,11 +46,11 @@ public final class ZkConfig {
     /**
      * A list with the zookeeper container type nodes.
      */
-    private List<ZkNode> zkContainerTypes = new ArrayList<>();
+    private final List<ZkNode> zkContainerTypes = new ArrayList<>();
     /**
      * A list with the zookeeper container nodes.
      */
-    private HashMap<String, ZkNode> zkContainers = new HashMap<>();
+    private final HashMap<String, ZkNode> zkContainers = new HashMap<>();
     /**
      * The naming service zNode path in the zookeeper namespace.
      */
@@ -70,7 +70,7 @@ public final class ZkConfig {
      * container is started it will read the configuration and then delete the
      * zNode.
      */
-    private final String initConfPath;
+    private final String userConfPath;
 
     /**
      * Constructor.
@@ -90,7 +90,7 @@ public final class ZkConfig {
         namingServicePath = this.ZK_ROOT + "/services";
         masterPath = this.ZK_ROOT + "/master";
         shutDownPath = this.ZK_ROOT + "/shutdown";
-        initConfPath = this.ZK_ROOT + "/conf";
+        userConfPath = this.ZK_ROOT + "/conf";
     }
 
     /**
@@ -126,7 +126,7 @@ public final class ZkConfig {
         // craete node's name
         String zkName = "/" + name;
         // create a new zk node object
-        String zkConfNode = initConfPath + "/" + name;
+        String zkConfNode = userConfPath + "/" + name;
         ZkNode zkNode = new ZkNode(path, data, zkName, zkConfNode);
         // add to list
         zkContainers.put(name, zkNode);
@@ -196,10 +196,10 @@ public final class ZkConfig {
     }
 
     /**
-     * @return the initConfPath
+     * @return the userConfPath
      */
-    public String getInitConfPath() {
-        return initConfPath;
+    public String getUserConfPath() {
+        return userConfPath;
     }
 
 }

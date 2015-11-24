@@ -8,7 +8,9 @@ package net.freelabs.maestro.core.serializer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import static com.fasterxml.jackson.databind.SerializationFeature.FAIL_ON_EMPTY_BEANS;
-import java.io.UnsupportedEncodingException;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
+import java.nio.charset.Charset;
 import net.freelabs.maestro.core.generated.Container;
 
 /**
@@ -17,7 +19,9 @@ import net.freelabs.maestro.core.generated.Container;
  */
 public class JsonSerializer {
     // set the default encoding to be used
-    private static final String ENCODING = "UTF-8";
+    private static final Charset UTF8_CHARSET = Charset.forName("UTF-8");
+    
+    private static final ObjectMapper MAPPER = new ObjectMapper();
     
     /**
      * Create json from container.
@@ -26,26 +30,31 @@ public class JsonSerializer {
      * @throws JsonProcessingException if there is an exception during processing.
      */
     public static String toJson(Container con) throws JsonProcessingException{
-        ObjectMapper objMapper = new ObjectMapper();
-        objMapper.configure(FAIL_ON_EMPTY_BEANS, false);
+        MAPPER.configure(FAIL_ON_EMPTY_BEANS, false);
         
         // create json from container and save it to string 
-        return objMapper.writeValueAsString(con);
+        return MAPPER.writeValueAsString(con);
+    }
+    
+ 
+    public static String addNewKV(String json, String key, String value) throws JsonProcessingException, IOException {
+        ObjectNode objNode = (ObjectNode) MAPPER.readTree(json);
+        objNode.put(key, value);
+        return MAPPER.writeValueAsString(objNode);
     }
 
     /**
      * Serialize a string to byte array based on the default encoding.
      * @param json the json to serialize.
      * @return a byte array of the serialized string.
-     * @throws UnsupportedEncodingException if the encoding is not supported.
      */
-    public static byte[] serialize(String json) throws UnsupportedEncodingException {
+    public static byte[] serialize(String json) {
         // convert string to bytes with default encoding
-        return json.getBytes(ENCODING);
+        return json.getBytes(UTF8_CHARSET);
     }
 
-    public static String deserialize(byte[] data) throws UnsupportedEncodingException {
-        String jsonString = new String(data, ENCODING);
+    public static String deserialize(byte[] data) {
+        String jsonString = new String(data, UTF8_CHARSET);
         
         return jsonString;
     }

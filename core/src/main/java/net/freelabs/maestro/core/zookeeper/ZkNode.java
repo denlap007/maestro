@@ -31,7 +31,7 @@ public class ZkNode implements Serializable {
     /**
      * The data of the zookeeper node.
      */
-    private final byte[] data;
+    private byte[] data;
     /**
      * The name of the zookeeper node.
      */
@@ -47,6 +47,8 @@ public class ZkNode implements Serializable {
      * @param path the path of the zookeeper node.
      * @param data the data of the zookeeper node.
      * @param name the name of the zookeeper node.
+     * @param confNodePath the path of the zookeeper node with the user configuration
+     * for this container-node.
      */
     public ZkNode(String path, byte[] data, String name, String confNodePath) {
         this.path = path;
@@ -83,4 +85,12 @@ public class ZkNode implements Serializable {
         return confNodePath;
     }
 
+    /**
+     * @param data the data to set
+     */
+    public void setData(byte[] data) {
+        this.data = data;
+    }
+
+    
 }
