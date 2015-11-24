@@ -17,15 +17,13 @@
 package net.freelabs.maestro.broker;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
-import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
-import net.freelabs.maestro.core.serializer.Serializer;
 import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
 import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
+import org.apache.zookeeper.AsyncCallback.StatCallback;
 import org.apache.zookeeper.AsyncCallback.StringCallback;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
@@ -45,11 +43,6 @@ import org.slf4j.LoggerFactory;
 public class Broker extends ConnectionWatcher implements BrokerInterface, Runnable {
 
     /**
-     * A {@link net.freelabs.maestro.generated.Container Container} object that
-     * holds the initial configuration.
-     */
-    private Container con;
-    /**
      * The path of the Container to the zookeeper namespace.
      */
     private final String zkContainerPath;
@@ -61,17 +54,22 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(Broker.class);
-
-    private final CountDownLatch initConfSetSignal = new CountDownLatch(1);
-
+    /**
+     * Latch Object with a count of one.
+     */
     private final CountDownLatch shutdownSignal = new CountDownLatch(1);
-
+    /**
+     * The path of the zNode that indicates the applications shutdown.
+     */
     private final String shutdownNode;
-
-    private byte[] initConf;
-
-    private final String confNode;
-
+    /**
+     * The path of the zNode that holds the user configuration for the
+     * container.
+     */
+    private final String userConfNode;
+    /**
+     * The user configuration for the container.
+     */
     private String containerConf;
 
     /**
@@ -84,13 +82,13 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      * @param namingService the path of the naming service to the zookeeper
      * namespace.
      * @param shutdownNode the node the signals the shutdown.
-     * @param confNode the node with the initial container configuration.
+     * @param userConfNode the node with the initial container configuration.
      */
-    public Broker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String namingService, String shutdownNode, String confNode) {
+    public Broker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String namingService, String shutdownNode, String userConfNode) {
         super(zkHosts, zkSessionTimeout);
         this.zkContainerPath = zkContainerPath;
         this.shutdownNode = shutdownNode;
-        this.confNode = confNode;
+        this.userConfNode = userConfNode;
     }
 
     /**
@@ -106,13 +104,9 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         // set watch for shutdown zNode
         setShutDownWatch();
         // create container zNode
-        createContainer();
-        // get initial container configuration from configuration zNode
-        getInitConf();
-        // wait for the configuration 
-        waitForInitConf();
-        // deserialize configuration
-        deserializeConf2();
+        createZkNode();
+        // set watch for container configuration
+        setConfWatch();
         // wait for shutdown
         waitForShutdown();
         // close zk client session
@@ -123,7 +117,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      * Creates the Container zkNode. The node is EPHEMERAL.
      */
     @Override
-    public void createContainer() {
+    public void createZkNode() {
         zk.create(zkContainerPath, BROKER_ID.getBytes(), OPEN_ACL_UNSAFE,
                 CreateMode.EPHEMERAL, createBrokerCallback, null);
     }
@@ -136,13 +130,13 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
                 LOG.warn("Connection loss was detected");
-                checkBroker();
+                checkContainerNode();
                 break;
             case NODEEXISTS:
                 LOG.error("Node already exists: " + path);
                 break;
             case OK:
-                LOG.info("Container started: " + path);
+                LOG.info("Created zNode: " + path);
                 break;
             default:
                 LOG.error("Something went wrong: ",
@@ -153,7 +147,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     /**
      * Checks weather the container is created or not.
      */
-    public void checkBroker() {
+    private void checkContainerNode() {
         zk.getData(zkContainerPath, false, checkBrokerCallback, null);
     }
 
@@ -164,18 +158,18 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
                 LOG.warn("Connection loss was detected");
-                checkBroker();
+                checkContainerNode();
                 break;
             case NONODE:
-                createContainer();
+                createZkNode();
                 break;
             case OK:
                 String nodeId = new String(data);
                 // check if this is the container node
                 if (nodeId.equals(BROKER_ID) == true) {
-                    LOG.info("Container started: " + path);
+                    LOG.info("Created zNode: " + path);
                 } else {
-                    LOG.error("Cannot start container. Node already exists: " + path);
+                    LOG.error("Cannot create zNode. Node already exists: " + path);
                 }
                 break;
             default:
@@ -185,29 +179,30 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     };
 
     @Override
-    public void inspectContainer(ShellCommandExecutor cmdExec, String containerName) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public void registerToServices(String namingService) {
+
     }
 
     @Override
-    public void registerToNamingService(String namingService) {
-        
+    public void getUserConf() {
+        zk.getData(userConfNode, false, getUserConfCallback, null);
     }
 
-    @Override
-    public void getInitConf() {
-        zk.getData(confNode, false, getInitConfCallback, null);
-    }
-
-    private final DataCallback getInitConfCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
+    private final DataCallback getUserConfCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
                 LOG.warn("Connection loss was detected");
-                getInitConf();
+                getUserConf();
+                break;
+            case NONODE:
+                LOG.error("Node does NOT EXIST: " + path);
                 break;
             case OK:
-                LOG.info("Container initialized with configuration: " + path);
-                unwaitForInitConf();
+                LOG.info("ZkNode initialized with configuration: " + path);
+                // deserialize configuration
+                containerConf = deserializeConf(data);
+                // set data to container zNode 
+                setNodeData(data);
                 break;
             default:
                 LOG.error("Something went wrong: ",
@@ -215,43 +210,54 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         }
     };
 
-    private void unwaitForInitConf() {
-        initConfSetSignal.countDown();
+    /**
+     * Checks if configuration for this container exists and sets a watch.
+     */
+    private void setConfWatch() {
+        zk.exists(userConfNode, setConfWatchWatcher, setConfWatchCallback, null);
     }
+
+    private final AsyncCallback.StatCallback setConfWatchCallback = (int rc, String path, Object ctx, Stat stat) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                setConfWatch();
+                break;
+            case NONODE:
+                LOG.info("Watch registered on: " + path);
+                break;
+            case OK:
+                LOG.info("Configuration Node found: " + path);
+                // get the configuration from the configuration zNode
+                getUserConf();
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
+        }
+    };
 
     /**
-     * Waits until the initial configuration is set from the master.
+     * A watcher to process a watch notification for configuration node.
      */
-    public void waitForInitConf() {
-        try {
-            initConfSetSignal.await();
-        } catch (InterruptedException ex) {
-            // log the event
-            LOG.warn("Interruption attemplted", ex);
-            // set interrupted flag
-            Thread.currentThread().interrupt();
-        }
-    }
+    private final Watcher setConfWatchWatcher = (WatchedEvent event) -> {
+        LOG.info(event.getType() + ", " + event.getPath());
 
-    public void waitForShutdown() {
-        try {
-            shutdownSignal.await();
-        } catch (InterruptedException ex) {
-            // log the event
-            LOG.warn("Interruption attemplted", ex);
-            // set interrupted flag
-            Thread.currentThread().interrupt();
+        if (event.getType() == NodeCreated) {
+            getUserConf();
         }
-    }
+    };
 
     /**
      * Sets a watch on the zookeeper shutdown node.
      */
-    public void setShutDownWatch() {
-        zk.exists(shutdownNode, shutDownWatcher, shutDownCallback, zk);
+    private void setShutDownWatch() {
+        zk.exists(shutdownNode, shutDownWatcher, shutDownCallback, null);
     }
-
-    private final AsyncCallback.StatCallback shutDownCallback = (int rc, String path, Object ctx, Stat stat) -> {
+    /**
+     * Callback to be used with {@link #setShutDownWatch() setShutDownWatch()}
+     * method.
+     */
+    private final StatCallback shutDownCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
                 setShutDownWatch();
@@ -269,7 +275,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     };
 
     /**
-     * A watcher to process a watch notification.
+     * A watcher to process a watch notification for shutdown node.
      */
     private final Watcher shutDownWatcher = (WatchedEvent event) -> {
         LOG.info(event.getType() + ", " + event.getPath());
@@ -280,33 +286,68 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     };
 
     /**
+     * Sets a latch to wait for shutdown.
+     */
+    private void waitForShutdown() {
+        try {
+            shutdownSignal.await();
+        } catch (InterruptedException ex) {
+            // log the event
+            LOG.warn("Interruption attemplted", ex);
+            // set interrupted flag
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
      * Releases the latch to initiate shutdown.
      */
-    public void shutdown() {
+    private void shutdown() {
         shutdownSignal.countDown();
-        LOG.info("Initiating Container shutdown " + zkContainerPath);
+        LOG.info("Initiating Broker shutdown " + zkContainerPath);
     }
 
-    public void deserializeConf() {
-        try {
-            con = (Container) Serializer.deserialize(initConf);
-            LOG.info("Configuration deserialized");
+    /**
+     * Deserializes configuration.
+     *
+     * @param data the data to be deserialized.
+     * @return the deserialized data as String.
+     */
+    private String deserializeConf(byte[] data) {
+        String str = JsonSerializer.deserialize(data);
+        LOG.info("Configuration deserialized! Printing: " + str);
+        return str;
+    }
 
-            //LOG.info("URL field of container: " + con.getUrl());
-        } catch (IOException | ClassNotFoundException ex) {
-            LOG.error("Something went wrong: ", ex);
+    /**
+     * Sets data to container's zNode.
+     */
+    private void setNodeData(byte[] data) {
+        zk.setData(zkContainerPath, data, -1, setNodeDataCallback, data);
+    }
+
+    /**
+     * Callback to be used with {@link #setNodeData(byte[]) setNodeData(byte[])} method.
+     */
+    private final StatCallback setNodeDataCallback = (int rc, String path, Object ctx, Stat stat) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                setNodeData((byte[]) ctx);
+                break;
+            case NONODE:
+                LOG.error("Cannot set data to node. NODE DOES NOT EXITST: " + path);
+                break;
+            case OK:
+                LOG.info("Data set to node: " + path);
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
         }
-    }
 
-    public void deserializeConf2() {
-        try {
-            containerConf = JsonSerializer.deserialize(initConf);
-        } catch (UnsupportedEncodingException ex) {
-            LOG.error("Something went wrong: ", ex);
-        }
-        LOG.info("Configuration deserialized! Printing json: " + containerConf);
-    }
+    };
 
+    // ------------------------------- MAIN ------------------------------------
     public static void main(String[] args) throws IOException, InterruptedException {
         // Create and initialize broker
         Broker broker = new Broker(args[0], // zkHosts
@@ -314,13 +355,13 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
                 args[2], // zkContainerPath
                 args[3], // namingService
                 args[4], // shutdownNode
-                args[5] // confNode
+                args[5] // userConfNode
         );
-        
+
         // connect to zookeeper
         broker.connect();
         // create a new thread and start broker
-        Thread thread = new Thread(broker, "BrokerThread" + args[2]);
+        Thread thread = new Thread(broker, "BrokerThread-" + args[2]);
         thread.start();
     }
 
