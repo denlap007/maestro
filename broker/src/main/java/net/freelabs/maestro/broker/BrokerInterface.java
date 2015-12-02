@@ -23,14 +23,14 @@ package net.freelabs.maestro.broker;
 public interface BrokerInterface {
     /**
      * Registers a Broker to the naming service.
-     * @param namingService the path of the Naming Service to the zookeeper 
-     * hierarchical namespace.
      */
-    public void registerToServices(String namingService);
+    public void registerToServices();
     /**
-     * Create the zNode for the Broker.
+     * Create a zNode.
+     * @param path
+     * @param data
      */
-    public void createZkNode();
+    public void createZkNodeEphemeral(String path, byte[] data);
     /**
      * Runs and initializes Broker. This is a top-level method. It is used to run
      * Broker's methods in order to initialize and start.
