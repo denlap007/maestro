@@ -35,7 +35,7 @@ public interface BrokerInterface {
      * Runs and initializes Broker. This is a top-level method. It is used to run
      * Broker's methods in order to initialize and start.
      */
-    public void runBroker();
+    public void bootstrap();
     /**
      * Gets the container's user configuration.
      */

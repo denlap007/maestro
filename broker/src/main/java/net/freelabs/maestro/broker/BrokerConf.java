@@ -25,10 +25,10 @@ import java.io.File;
 public class BrokerConf {
     public static final String BROKER_WORK_DIR_NAME = "broker";
     public static final String CONTAINER_CONF_FILE_NAME = "conf.json";
-    public static final String BROKER_WORK_DIR_PATH = File.separator + BROKER_WORK_DIR_NAME;
-    public static final String CONTAINER_CONF_FILE_PATH = BROKER_WORK_DIR_PATH + File.separator + CONTAINER_CONF_FILE_NAME;
+    public static final String BROKER_BASE_DIR_PATH = File.separator + BROKER_WORK_DIR_NAME;
+    public static final String CONTAINER_CONF_FILE_PATH = BROKER_BASE_DIR_PATH + File.separator + CONTAINER_CONF_FILE_NAME;
     
     public static final String BROKER_SERVICE_SCRIPT_NAME = "service.sh";
-    public static final String BROKER_SERVICE_SCRIPT_PATH = BROKER_WORK_DIR_PATH + File.separator + BROKER_SERVICE_SCRIPT_NAME;
+    public static final String BROKER_SERVICE_SCRIPT_PATH = BROKER_BASE_DIR_PATH + File.separator + BROKER_SERVICE_SCRIPT_NAME;
     
 }

@@ -24,12 +24,17 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.lang.ProcessBuilder.Redirect;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.logging.Level;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
@@ -42,6 +47,7 @@ import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
+import static org.apache.zookeeper.Watcher.Event.EventType.NodeDataChanged;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
@@ -94,6 +100,28 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     private static final Charset CHARSET = Charset.forName("UTF-8");
 
     /**
+     * The state of a service required by the container.
+     */
+    private static enum SERVICE_STATE {
+        NOT_RUNNING, RUNNING
+    };
+    /**
+     * A map of services (Key) and their STATE (Value).
+     */
+    private final Map<String, SERVICE_STATE> serviceState = new HashMap<>();
+    /**
+     * An object to handle execution of operations on another thread.
+     */
+    private final ExecutorService executorService = Executors.newFixedThreadPool(3);
+    /**
+     * The name of the container associated with the broker.
+     */
+    private String containerName;
+
+    private String containerType;
+    
+    private String BROKER_WORK_DIR_PATH;
+    /**
      * Constructor
      *
      * @param zkHosts the zookeeper hosts list.
@@ -111,6 +139,9 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         this.zkNamingService = zkNamingService;
         this.shutdownNode = shutdownNode;
         this.userConfNode = userConfNode;
+        containerName = zkContainerPath.substring(zkContainerPath.lastIndexOf("/")+1, zkContainerPath.length());
+        containerType = zkContainerPath.substring(zkContainerPath.indexOf("/")+1, zkContainerPath.lastIndexOf("/")-1);
+        BROKER_WORK_DIR_PATH = BrokerConf.BROKER_BASE_DIR_PATH + File.separator + containerName +"-broker";
     }
 
     /**
@@ -118,11 +149,11 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      */
     @Override
     public void run() {
-        runBroker();
+        bootstrap();
     }
 
     @Override
-    public void runBroker() {
+    public void bootstrap() {
         // set watch for shutdown zNode
         setShutDownWatch();
         // create container zNode
@@ -294,7 +325,14 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
                 break;
             case OK:
                 LOG.info("ZkNode initialized with configuration: " + path);
-                startProcessing(data);
+                // process configuration
+                processUserConf(data);
+
+                executorService.execute(() -> {
+                    // create conf file for container associated with the broker
+                    createConfFile(getContainerConf(), "/".concat(containerName));
+                });
+
                 break;
             default:
                 LOG.error("Something went wrong: ",
@@ -307,19 +345,23 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      *
      * @param data
      */
-    private void startProcessing(byte[] data) {
-        // deserialize configuration FOR DEBUG
-        containerConf = deserializeConf(data);
-        // set data to container zNode 
+    private void processUserConf(byte[] data) {
+        // deserialize configuration 
+        setContainerConf(deserializeConf(data));
+        // set data to the container zNode 
         setNodeData(data);
-        //register to naming service
+        // register container as service to the naming service
         registerToServices();
-        // query for service - get the configurarion of needed containers
-        queryForService("web");
-        // get container name
-        String containerName = getConfValue("name");
-        //create conf file for container associated with the broker
-        createConfFile(containerConf, "/".concat(containerName));
+        /* query for service - get the configurarion of needed containers
+        A service is offered by a container. The needed services are retrieved
+        from the current cotnainer configuration from "connectWith" field.
+         */
+        for (String service : getConfArrayValues("connectWith")) {
+            // set the service status to NOT_RUNNING
+            serviceState.put(service, SERVICE_STATE.NOT_RUNNING);
+            // query tha naming service for the required service
+            queryForService(service);
+        }
     }
 
     /**
@@ -348,18 +390,15 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
                 LOG.error("Something went wrong: ",
                         KeeperException.create(KeeperException.Code.get(rc), path));
         }
-
     };
 
     @Override
     public void registerToServices() {
-        // get the name of the container
-        String containerName = getConfValue("name");
-        // create the path to the naming service
-        String path = zkNamingService + "/" + containerName;
-        // get the zk path of the container
-        byte[] data = zkContainerPath.getBytes(Charset.forName("UTF-8"));
-        // create the zNode to tha naming service
+        // get the zk path of the container and encode it to byte array
+        byte[] data = encodeUTF8(zkContainerPath);
+        // create the service path to the naming service
+        String path = resolveServiceName(containerName);
+        // create the zNode of the service to the naming service
         createZkNodeEphemeral(path, data);
     }
 
@@ -376,7 +415,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     private void queryForService(String name) {
         LOG.info("Querying for service: " + name);
         // create the path of the service to query the naming service
-        String servicePath = zkNamingService + "/" + name;
+        String servicePath = resolveServiceName(name);
         // check if service has started
         serviceExists(servicePath);
     }
@@ -435,7 +474,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      *
      * @param zkPath the path of the container to the zookeeper namespace.
      */
-    public void getServiceData(String zkPath) {
+    private void getServiceData(String zkPath) {
         zk.getData(zkPath, false, getServiceDataCallback, null);
     }
 
@@ -479,7 +518,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         // decode byte array into String
         String containerPath = decodeUTF8(data);
         // print data
-        LOG.info("Retrieved data from: {}. Data: {} ", path, containerPath);
+        LOG.info("Retrieved from: {}. Data: {} ", path, containerPath);
         // GET CONDIGURATION DATA FROM the container of the retrieved zkPath.
         getContainerData(containerPath);
     }
@@ -510,7 +549,11 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
             case OK:
                 LOG.info("Getting data from container: " + path);
                 // process retrieved data from requested service zNode
-                processContainerData(data, path);
+                executorService.execute(() -> {
+                    processContainerData(data, path);
+                });
+
+                setServiceWatch(path);
                 break;
             default:
                 LOG.error("Something went wrong: ",
@@ -528,8 +571,85 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         LOG.info("Processing container data: {}", path);
         // deserialize container data to string
         String containerData = deserializeConf(data);
-        // save configuration to file
-        createConfFile(containerData, path);
+        // get cotnainer name
+        String filePath = path.substring(path.lastIndexOf("/"), path.length());
+        // save configuration to file named after the container
+        createConfFile(containerData, filePath);
+    }
+
+    /**
+     * Registers watches for updates to a service required by the container.
+     *
+     * @param service a servicer required by the container.
+     */
+    private void watchServiceUpdates(String serviceName) {
+        String servicePath = resolveServiceName(serviceName);
+        setServiceWatch(servicePath);
+    }
+
+    /**
+     * Sets a watch to a service node to monitor for updates.
+     *
+     * @param servicePath the path of the service to the zookeeper namespace.
+     */
+    private void setServiceWatch(String servicePath) {
+        zk.exists(servicePath, setServiceWatchWatcher, setServiceWatchCallback, null);
+    }
+
+    /**
+     * Callback to be used in
+     * {@link  #setServiceWatch(java.lang.String) setServiceWatch(String)}
+     * method.
+     */
+    private final StatCallback setServiceWatchCallback = (int rc, String path, Object ctx, Stat stat) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                LOG.warn("Connection loss was detected");
+                setServiceWatch(path);
+                break;
+            case NONODE:
+                LOG.error("Service node NOT FOUND: " + path);
+                break;
+            case OK:
+                LOG.info("Setting Watch for updates to: " + path);
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
+        }
+    };
+
+    /**
+     * Watcher to be used in
+     * {@link  #setServiceWatch(java.lang.String) setServiceWatch(String)}
+     * method.
+     */
+    private final Watcher setServiceWatchWatcher = (WatchedEvent event) -> {
+        LOG.info(event.getType() + ", " + event.getPath());
+
+        if (event.getType() == NodeDataChanged) {
+            LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
+            /**
+             *
+             * CODE FOR RETRIEVING UPDATED CONFIGURATION
+             *
+             *
+             */
+
+            // RE-SET WATCH TO KEEP MONITORING THE SERVICE
+            setServiceWatch(event.getPath());
+        }
+    };
+
+    /**
+     * Resolves a service name to the service path in the zookeeper namepsace in
+     * order to access the zNode.
+     *
+     * @param service the service name.
+     * @return the service path to the zookeeper namespace.
+     */
+    private String resolveServiceName(String service) {
+        return zkNamingService.concat("/").concat(service);
     }
 
     /**
@@ -544,8 +664,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      */
     private void createConfFile(String data, String path) {
         // create final path
-        String containerName = getConfValue("name");
-        path = BrokerConf.BROKER_WORK_DIR_PATH + File.separator + containerName + "-broker" + path;
+        path = BROKER_WORK_DIR_PATH + File.separator + path;
         ObjectMapper mapper = new ObjectMapper();
         // set to write json indented
         mapper.enable(SerializationFeature.INDENT_OUTPUT);
@@ -569,24 +688,44 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     }
 
     /**
-     * Starts the main service of the started container.
+     * Starts the main service of the associated container.
      */
-    private void startContainerService() {
-
+    private void startContainerService(String containerData) {
+        // get the list with the required containers by the this container
+        List<String> requiredContainers = getConfArrayValues("connectWith");
+        
+        for (String container : requiredContainers){
+            
+        }
+        
+        
+        // create a new process builder to initialize the process
+        ProcessBuilder pb = new ProcessBuilder("/bin/sh", "-c", getConfValue("serviceScriptPath"));
+        // get the environment 
+        Map<String, String> env = pb.environment();
+        // initialize the environment
+        switch (containerType) {
+            case "WebContainer":
+                break;
+            default:
+        }
+        env.put("VAR1", "myValue");
+        /*System.out.println("Working directory for process: " + pb.directory());
+        pb.directory(new File("myDir"));
+        File log = new File("log");
+        pb.redirectErrorStream(true);
+        pb.redirectOutput(Redirect.appendTo(log));*/
+        pb.redirectOutput(Redirect.INHERIT);
+        try {
+            Process p = pb.start();
+        } catch (IOException ex) {
+            LOG.error("Something sent wrong: {}", ex);
+        }
     }
 
-    private void getConfFromContainers() throws IOException {
-        List<String> containersList = new ArrayList<>();
+    private void findContainerType(String containerPath) {
+        if (containerPath.contains("WebContainer")) {
 
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode rootNode = mapper.readTree(containerConf);
-        JsonNode connectWithNode = rootNode.path("connectWith");
-        Iterator<JsonNode> iterator = connectWithNode.elements();
-
-        while (iterator.hasNext()) {
-            JsonNode container = iterator.next();
-            LOG.info("Needed configuration from: " + container.asText());
-            containersList.add(container.asText());
         }
     }
 
@@ -645,7 +784,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         String value = null;
 
         try {
-            JsonNode rootNode = mapper.readTree(containerConf);
+            JsonNode rootNode = mapper.readTree(getContainerConf());
             JsonNode elem = rootNode.path(key);
             value = elem.asText();
             LOG.info("Retrieved KV pair: " + key + ":" + value);
@@ -654,6 +793,35 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         }
 
         return value;
+    }
+
+    /**
+     * Returns a value that corresponds to the key contained in the container
+     * configuration.
+     *
+     * @param key the key which binded value is retrieved.
+     * @return the value of the specified key.
+     */
+    private List<String> getConfArrayValues(String key) {
+        ObjectMapper mapper = new ObjectMapper();
+        String value;
+        List<String> returnedValues = new ArrayList<>();
+
+        try {
+            JsonNode rootNode = mapper.readTree(getContainerConf());
+            JsonNode elem = rootNode.path(key);
+            Iterator<JsonNode> iter = elem.elements();
+            while (iter.hasNext()) {
+                JsonNode node = iter.next();
+                value = node.asText();
+                returnedValues.add(value);
+                LOG.info("Retrieved KV pair: {}:{}", key, value);
+            }
+        } catch (IOException ex) {
+            LOG.error("Something went wrong: {}", ex);
+        }
+
+        return returnedValues;
     }
 
     /**
@@ -675,7 +843,23 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      */
     private void shutdown() {
         shutdownSignal.countDown();
+        // shut down then executorService to free resources
+        executorService.shutdownNow();
         LOG.info("Initiating Broker shutdown " + zkContainerPath);
+    }
+
+    /**
+     * @return the containerConf
+     */
+    private synchronized String getContainerConf() {
+        return containerConf;
+    }
+
+    /**
+     * @param containerConf the containerConf to set
+     */
+    private synchronized void setContainerConf(String containerConf) {
+        this.containerConf = containerConf;
     }
 
     // ------------------------------- MAIN ------------------------------------
