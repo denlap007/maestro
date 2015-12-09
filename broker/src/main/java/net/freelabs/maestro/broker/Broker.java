@@ -16,19 +16,15 @@
  */
 package net.freelabs.maestro.broker;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.ProcessBuilder.Redirect;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -92,18 +88,13 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     /**
      * The user configuration for the container.
      */
-    private String containerConf;
-    /**
-     * The default charset to be used with encoding/decoding string to/from byte
-     * array.
-     */
-    private static final Charset CHARSET = Charset.forName("UTF-8");
+    private Map<String, Object> containerConf;
 
     /**
      * The state of a service required by the container.
      */
     private static enum SERVICE_STATE {
-        NOT_RUNNING, RUNNING
+        PROCESSED, NOT_PROCESSED
     };
     /**
      * A map of services (Key) and their STATE (Value).
@@ -118,9 +109,16 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      */
     private String containerName;
 
-    private String containerType;
-    
-    private String BROKER_WORK_DIR_PATH;
+    private final String containerType;
+    /**
+     * The work dir of the Broker, where created files will be stored.
+     */
+    private final String BROKER_WORK_DIR_PATH;
+    /**
+     * A Map that holds all the configuration maps of the needed containers.
+     */
+    private final Map<String, Map<String, Object>> servicesConfiguration = new HashMap<>();
+
     /**
      * Constructor
      *
@@ -139,9 +137,9 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         this.zkNamingService = zkNamingService;
         this.shutdownNode = shutdownNode;
         this.userConfNode = userConfNode;
-        containerName = zkContainerPath.substring(zkContainerPath.lastIndexOf("/")+1, zkContainerPath.length());
-        containerType = zkContainerPath.substring(zkContainerPath.indexOf("/")+1, zkContainerPath.lastIndexOf("/")-1);
-        BROKER_WORK_DIR_PATH = BrokerConf.BROKER_BASE_DIR_PATH + File.separator + containerName +"-broker";
+        containerName = zkContainerPath.substring(zkContainerPath.lastIndexOf("/") + 1, zkContainerPath.length());
+        containerType = zkContainerPath.substring(zkContainerPath.indexOf("/") + 1, zkContainerPath.lastIndexOf("/") - 1);
+        BROKER_WORK_DIR_PATH = BrokerConf.BROKER_BASE_DIR_PATH + File.separator + containerName + "-broker";
     }
 
     /**
@@ -330,7 +328,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
 
                 executorService.execute(() -> {
                     // create conf file for container associated with the broker
-                    createConfFile(getContainerConf(), "/".concat(containerName));
+                    createConfFile(getContainerConf(), containerName);
                 });
 
                 break;
@@ -356,9 +354,9 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         A service is offered by a container. The needed services are retrieved
         from the current cotnainer configuration from "connectWith" field.
          */
-        for (String service : getConfArrayValues("connectWith")) {
+        for (String service : (List<String>) containerConf.get("connectWith")) {
             // set the service status to NOT_RUNNING
-            serviceState.put(service, SERVICE_STATE.NOT_RUNNING);
+            serviceState.put(service, SERVICE_STATE.NOT_PROCESSED);
             // query tha naming service for the required service
             queryForService(service);
         }
@@ -395,8 +393,8 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     @Override
     public void registerToServices() {
         // get the zk path of the container and encode it to byte array
-        byte[] data = encodeUTF8(zkContainerPath);
-        // create the service path to the naming service
+        byte[] data = JsonSerializer.encodeUTF8(zkContainerPath);
+        // get the service path to the naming service
         String path = resolveServiceName(containerName);
         // create the zNode of the service to the naming service
         createZkNodeEphemeral(path, data);
@@ -516,7 +514,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      */
     private void processServiceData(byte[] data, String path) {
         // decode byte array into String
-        String containerPath = decodeUTF8(data);
+        String containerPath = JsonSerializer.decodeUTF8(data);
         // print data
         LOG.info("Retrieved from: {}. Data: {} ", path, containerPath);
         // GET CONDIGURATION DATA FROM the container of the retrieved zkPath.
@@ -548,12 +546,14 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
                 break;
             case OK:
                 LOG.info("Getting data from container: " + path);
+
                 // process retrieved data from requested service zNode
                 executorService.execute(() -> {
                     processContainerData(data, path);
                 });
 
                 setServiceWatch(path);
+
                 break;
             default:
                 LOG.error("Something went wrong: ",
@@ -569,12 +569,43 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      */
     private void processContainerData(byte[] data, String path) {
         LOG.info("Processing container data: {}", path);
-        // deserialize container data to string
-        String containerData = deserializeConf(data);
+        // deserialize container data 
+        Map<String, Object> conf = deserializeConf(data);
         // get cotnainer name
-        String filePath = path.substring(path.lastIndexOf("/"), path.length());
+        String conName = path.substring(path.lastIndexOf("/") + 1, path.length());
         // save configuration to file named after the container
-        createConfFile(containerData, filePath);
+        createConfFile(conf, conName);
+        // save service configuration to memory
+        saveServiceConf(conf, conName);
+        // set service status and log the event
+        serviceState.replace(conName, SERVICE_STATE.PROCESSED);
+        LOG.info("Service: {}\tStatus: {}.", conName, SERVICE_STATE.PROCESSED.toString());
+        // check if the container is initialized in order to start the main process
+        if (isContainerInitialized() == true) {
+            LOG.info("Container initialization COMPLETE!");
+            startMainProcess();
+        }
+    }
+
+    /**
+     * Checks if the container is initialized. A container is initialized after
+     * it has processed all the necessary configuration for the container and
+     * the required services.
+     *
+     * @return true if the container is initialized.
+     */
+    private boolean isContainerInitialized() {
+        return !serviceState.containsValue(SERVICE_STATE.NOT_PROCESSED);
+    }
+
+    /**
+     * Saves the configuration of a service to memory.
+     *
+     * @param conf the configuration of the service.
+     * @param serviceName the name of the service.
+     */
+    private void saveServiceConf(Map<String, Object> conf, String serviceName) {
+        servicesConfiguration.put(serviceName, conf);
     }
 
     /**
@@ -642,8 +673,16 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     };
 
     /**
-     * Resolves a service name to the service path in the zookeeper namepsace in
-     * order to access the zNode.
+     * <p>
+     * Resolves a service name to the service path.
+     * <p>
+     * A service name is a container name. Every running container, after
+     * initialization, registers itself to the naming service as a service. The
+     * path of the zNode created by this service under the naming service zNode
+     * is the service path.
+     * <p>
+     * The service zNode stores data: the path of the zNode of the corresponding
+     * container.
      *
      * @param service the service name.
      * @return the service path to the zookeeper namespace.
@@ -659,57 +698,63 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      * Data to be written must be in json format.
      * <p>
      * The file is created to the BROKER_WORK_DIR directory. The full path of
-     * the file is derived from the BROKER_WORK_DIR followed by the zkPath of
-     * the container.
+     * the file is derived from the BROKER_WORK_DIR followed by the name of the
+     * container.
+     *
+     * @param data the data to be written.
+     * @param fileName the name of the file to hold the data.
      */
-    private void createConfFile(String data, String path) {
-        // create final path
-        path = BROKER_WORK_DIR_PATH + File.separator + path;
-        ObjectMapper mapper = new ObjectMapper();
-        // set to write json indented
-        mapper.enable(SerializationFeature.INDENT_OUTPUT);
-        // craete a writer 
-        ObjectWriter writer = mapper.writer();
-
+    private void createConfFile(Map<String, Object> data, String fileName) {
+        // create the final file path
+        String path = BROKER_WORK_DIR_PATH + File.separator + fileName;
+        // create new file
+        File newFile = new File(path);
+        // save data to file
         try {
-            // read into a new Object
-            Object json = mapper.readValue(data, Object.class);
-            // create new file
-            File newFile = new File(path);
-            // make dirs if necessary
-            newFile.getParentFile().mkdirs();
-            // write Object to file
-            writer.writeValue(newFile, json);
+            JsonSerializer.saveToFile(newFile, data);
             // log event
             LOG.info("Created configuration file: {}", path);
         } catch (IOException ex) {
-            LOG.error("Something went wrong: " + ex);
+            LOG.error("FAILED to create configuration file: " + ex);
         }
     }
 
     /**
-     * Starts the main service of the associated container.
+     * Starts the main process of the associated container.
      */
-    private void startContainerService(String containerData) {
-        // get the list with the required containers by the this container
-        List<String> requiredContainers = getConfArrayValues("connectWith");
-        
-        for (String container : requiredContainers){
-            
-        }
-        
-        
+    private void startMainProcess() {
         // create a new process builder to initialize the process
-        ProcessBuilder pb = new ProcessBuilder("/bin/sh", "-c", getConfValue("serviceScriptPath"));
+        ProcessBuilder pb = new ProcessBuilder("/bin/sh", "-c", "echo $web_IP;");
         // get the environment 
         Map<String, String> env = pb.environment();
         // initialize the environment
-        switch (containerType) {
-            case "WebContainer":
-                break;
-            default:
+        for (Map.Entry<String, Map<String, Object>> entry : servicesConfiguration.entrySet()) {
+            String serviceName = entry.getKey();
+            Map<String, Object> serviceConf = (Map<String, Object>) entry.getValue();
+            LOG.info("Configuration map size: " + serviceConf.size());
+            for (Map.Entry<String, Object> entry2 : serviceConf.entrySet()) {
+                String key = entry2.getKey();
+                LOG.info("This is key: " + key);
+                if (key.equals("IP")){
+                    key = serviceName + key;
+                    LOG.info("This is new key: " + key);
+                    String value = (String) entry2.getValue();
+                    LOG.info("This is value: " + value);
+                    env.put(key, value);
+                }
+               /*     
+                String value = (String) entry2.getValue();
+                if (value instanceof String) {
+                    // add the service name as prefix, so that the keys from 
+                    // different services are unique.
+                    key = serviceName + key;
+                    // export as environment variable
+                    env.put(key, (String) value);
+                }
+                */
+            }
         }
-        env.put("VAR1", "myValue");
+
         /*System.out.println("Working directory for process: " + pb.directory());
         pb.directory(new File("myDir"));
         File log = new File("log");
@@ -718,8 +763,9 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         pb.redirectOutput(Redirect.INHERIT);
         try {
             Process p = pb.start();
+            LOG.info("Main process STARTED.");
         } catch (IOException ex) {
-            LOG.error("Something sent wrong: {}", ex);
+            LOG.error("FAILED to start main process: {}", ex);
         }
     }
 
@@ -741,87 +787,37 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     }
 
     /**
-     * Deserializes configuration.
+     * De-serializes container configuration.
      *
      * @param data the data to be deserialized.
-     * @return the deserialized data as String.
+     * @return the deserialized data as a Map<String, Object>.
      */
-    private String deserializeConf(byte[] data) {
-        String str = JsonSerializer.deserialize(data);
-        LOG.info("Configuration deserialized! Printing: \n {}", str);
-        return str;
-    }
-
-    /**
-     * Encodes a String in byte array using UTF-8.
-     *
-     * @param str the String to encode.
-     * @return the encoded byte array.
-     */
-    private byte[] encodeUTF8(String str) {
-        return str.getBytes(CHARSET);
-    }
-
-    /**
-     * Decodes a byte array to String using UTF-8.
-     *
-     * @param data the byte array to be decoded.
-     * @return a string representing the decoded byte array.
-     */
-    private String decodeUTF8(byte[] data) {
-        return (new String(data, CHARSET));
-    }
-
-    /**
-     * Returns a value that corresponds to the key contained in the container
-     * configuration.
-     *
-     * @param key the key which binded value is retrieved.
-     * @return the value of the specified key.
-     */
-    private String getConfValue(String key) {
-        ObjectMapper mapper = new ObjectMapper();
-        String value = null;
-
+    private Map<String, Object> deserializeConf(byte[] data) {
+        Map<String, Object> conf = null;
         try {
-            JsonNode rootNode = mapper.readTree(getContainerConf());
-            JsonNode elem = rootNode.path(key);
-            value = elem.asText();
-            LOG.info("Retrieved KV pair: " + key + ":" + value);
+            conf = JsonSerializer.deserializeToMap(data);
+            LOG.info("Configuration deserialized! Printing: \n {}", JsonSerializer.deserializeToString(data));
         } catch (IOException ex) {
-            LOG.error("Something went wrong: " + ex);
+            LOG.error("De-serialization FAILED: " + ex);
         }
-
-        return value;
+        return conf;
     }
 
     /**
-     * Returns a value that corresponds to the key contained in the container
-     * configuration.
+     * Serializes container configuration.
      *
-     * @param key the key which binded value is retrieved.
-     * @return the value of the specified key.
+     * @param conf the container configuration.
+     * @return a byte array with the serialzed configuration.
      */
-    private List<String> getConfArrayValues(String key) {
-        ObjectMapper mapper = new ObjectMapper();
-        String value;
-        List<String> returnedValues = new ArrayList<>();
-
+    private byte[] serializeConf(Map<String, Object> conf) {
+        byte[] data = null;
         try {
-            JsonNode rootNode = mapper.readTree(getContainerConf());
-            JsonNode elem = rootNode.path(key);
-            Iterator<JsonNode> iter = elem.elements();
-            while (iter.hasNext()) {
-                JsonNode node = iter.next();
-                value = node.asText();
-                returnedValues.add(value);
-                LOG.info("Retrieved KV pair: {}:{}", key, value);
-            }
-        } catch (IOException ex) {
-            LOG.error("Something went wrong: {}", ex);
+            data = JsonSerializer.serialize(conf);
+            LOG.info("Configuration serialized SUCCESSFULLY!");
+        } catch (JsonProcessingException ex) {
+            LOG.error("Serialization FAILED: " + ex);
         }
-
-        return returnedValues;
+        return data;
     }
 
     /**
@@ -851,14 +847,14 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
     /**
      * @return the containerConf
      */
-    private synchronized String getContainerConf() {
+    private synchronized Map<String, Object> getContainerConf() {
         return containerConf;
     }
 
     /**
      * @param containerConf the containerConf to set
      */
-    private synchronized void setContainerConf(String containerConf) {
+    private synchronized void setContainerConf(Map<String, Object> containerConf) {
         this.containerConf = containerConf;
     }
 
