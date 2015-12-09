@@ -24,6 +24,7 @@ import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooKeeper;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
+
 /**
  *
  * Class that establishes a zookeeper connection.
@@ -42,6 +43,15 @@ public class ConnectionWatcher implements Watcher {
      * The zookeeper client session timeout.
      */
     private final int zkSessionTimeout;
+    /**
+     * A CountDownLatch with a count of one, representing the number of events
+     * that need to occur before it releases all	waiting threads.
+     */
+    private final CountDownLatch connectedSignal = new CountDownLatch(1);
+    /**
+     * A Logger.
+     */
+    private final Logger LOG = LoggerFactory.getLogger(ConnectionWatcher.class);
 
     /**
      * Constructor.
@@ -53,11 +63,6 @@ public class ConnectionWatcher implements Watcher {
         this.zkHosts = zkHosts;
         this.zkSessionTimeout = zkSessionTimeout;
     }
-    /**
-     * A CountDownLatch with a count of one, representing the number of events
-     * that need to occur before it releases all	waiting threads.
-     */
-    private final CountDownLatch connectedSignal = new CountDownLatch(1);
 
     /**
      * <p>
@@ -90,16 +95,15 @@ public class ConnectionWatcher implements Watcher {
         if (event.getState() == KeeperState.SyncConnected) {
             connectedSignal.countDown();
         }
+        
     }
+
 
     /**
      * Closes the client session of a {@link org.apache.zookeeper.ZooKeeper
      * zookeeper handle}.
      */
     public void stop() {
-        // A Logger object.
-        Logger LOG = LoggerFactory.getLogger(ConnectionWatcher.class);
-
         try {
             zk.close();
         } catch (InterruptedException ex) {

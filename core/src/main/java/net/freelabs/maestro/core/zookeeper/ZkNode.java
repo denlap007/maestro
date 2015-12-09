@@ -16,13 +16,11 @@
  */
 package net.freelabs.maestro.core.zookeeper;
 
-import java.io.Serializable;
-
 /**
  *
  * Class that represents a zookeeper Node.
  */
-public class ZkNode implements Serializable {
+public class ZkNode{
 
     /**
      * The path of the zookeeper node.

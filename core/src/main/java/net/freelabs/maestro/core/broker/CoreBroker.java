@@ -24,6 +24,7 @@ import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Volume;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
@@ -124,12 +125,11 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
         // set environment configuration
         String ZK_HOSTS = zkConf.getHosts();
         String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSESSION_TIMEOUT());
-        String DOCKER_URI = "";   // IF NECESSARY
         String ZK_CONTAINER_PATH = zNode.getPath();
         String ZK_NAMING_SERVICE = zkConf.getNamingServicePath();
         String SHUTDOWN_NODE = zkConf.getShutDownPath();
         String CONF_NODE = zNode.getConfNodePath();
-        String newCmd = "exec /bin/sh /broker/container_bootscript.sh";
+        /*String newCmd = "exec /bin/sh /broker/container_bootscript.sh";
 
         String script;
         script = String.format("export DOCKER_SOCKET_URI=%s; export ZK_HOSTS=%s; "
@@ -137,19 +137,26 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
                 + "export ZK_NAMING_SERVICE=%s; export SHUTDOWN_NODE=%s;"
                 + "export CONF_NODE=%s; %s;", DOCKER_URI, ZK_HOSTS,
                 ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH, ZK_NAMING_SERVICE,
-                SHUTDOWN_NODE, CONF_NODE, newCmd);
+                SHUTDOWN_NODE, CONF_NODE, newCmd);*/
 
         Volume volume1 = new Volume("/broker");
 
+        String environment = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
+                + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
+                + "CONF_NODE=%s,TEST=", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
+                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
+
+        String runBrokerCmd = "java -jar /broker/broker.jar $ZK_HOSTS $ZK_SESSION_TIMEOUT $ZK_CONTAINER_PATH $ZK_NAMING_SERVICE $SHUTDOWN_NODE $CONF_NODE";
+
         // set container configuration
-        CreateContainerResponse container = dockerClient.createContainerCmd("dio/minijava")
+        CreateContainerResponse container = dockerClient.createContainerCmd(con.getDockerImage())
                 .withVolumes(volume1)
                 .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
-                .withTty(true)
-                .withStdinOpen(true)
-                .withCmd("/bin/sh", "-c", script)
+                .withCmd("/bin/sh", "-c", runBrokerCmd)
                 .withName(containerName)
-                .withNetworkMode("host")
+                .withNetworkMode("bridge")
+                .withEnv(environment.split(","))
+                .withPrivileged(true)
                 .exec();
 
         // START CONTAINER
@@ -181,21 +188,20 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
      * @param value the value (data) of the new configuration entry.
      */
     private void updateContainerUserConf(String key, String value) {
-        // deserialize configuration
-        String json = JsonSerializer.deserialize(zNode.getData());
-
-        // update configuration with data
-        String updatedConf = "";
         try {
-            updatedConf = JsonSerializer.addNewKV(json, key, value);
+            // deserialize configuration
+            Map<String, Object> conf = JsonSerializer.deserializeToMap(zNode.getData());
+            // update configuration
+            conf.put(key, value);
+            // log the event
+            LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), key, value);
+            // serialize updated configuration
+            byte[] data = JsonSerializer.serialize(conf);
+            // put data to zNode
+            zNode.setData(data);
         } catch (IOException ex) {
-            LOG.error("Something went wrong:" + ex);
+            LOG.error("Something went wrong: " + ex);
         }
-
-        // serialize configuration
-        byte[] data = JsonSerializer.serialize(updatedConf);
-        // put data to node
-        zNode.setData(data);
     }
 
     /**
@@ -280,7 +286,7 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
             Thread.currentThread().interrupt();
         }
     }
-    
+
     public void setShutDownWatch() {
         zk.exists(zkConf.getShutDownPath(), cleanUpWatcher, cleanUpCallback, zk);
     }
@@ -309,10 +315,21 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
             shutdown();
         }
     };
-    
-      public void shutdown() {
+
+    public void shutdown() {
         shutdownSignal.countDown();
         LOG.info("Initiating Core Broker shutdown.");
+
+    }
+
+    /**
+     * Shuts down a container.
+     *
+     * @param CID
+     */
+    private void shutdownContainer(String CID) {
+        LOG.info("Initiating Container shutdown.");
+        dockerClient.removeContainerCmd(CID).exec();
     }
 
 }

@@ -49,14 +49,16 @@ import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
     "name",
     "connectWith",
     "confFilePath",
-    "ports"
+    "ports",
+    "dockerImage",
+    "serviceScriptPath"
 })
 @XmlSeeAlso({
     DataContainer.class,
     WebContainer.class,
     BusinessContainer.class
 })
-public class Container implements Serializable {
+public class Container {
 
     @XmlElement(required = true)
     @XmlJavaTypeAdapter(CollapsedStringAdapter.class)
@@ -70,6 +72,11 @@ public class Container implements Serializable {
     @XmlList
     @XmlElement(type = Integer.class)
     protected List<Integer> ports;
+    @XmlElement(required = true)
+    private String dockerImage;
+    @XmlElement(required = true)
+    private String serviceScriptPath;
+    
 
     /**
      * Gets the value of the name property.
@@ -180,6 +187,34 @@ public class Container implements Serializable {
             ports = new ArrayList<Integer>();
         }
         return this.ports;
+    }
+
+    /**
+     * @return the dockerImage
+     */
+    public String getDockerImage() {
+        return dockerImage;
+    }
+
+    /**
+     * @param dockerImage the dockerImage to set
+     */
+    public void setDockerImage(String dockerImage) {
+        this.dockerImage = dockerImage;
+    }
+
+    /**
+     * @return the serviceScriptPath
+     */
+    public String getServiceScriptPath() {
+        return serviceScriptPath;
+    }
+
+    /**
+     * @param serviceScriptPath the serviceScriptPath to set
+     */
+    public void setServiceScriptPath(String serviceScriptPath) {
+        this.serviceScriptPath = serviceScriptPath;
     }
 
 }

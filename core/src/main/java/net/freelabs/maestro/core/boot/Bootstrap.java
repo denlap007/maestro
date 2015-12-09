@@ -64,19 +64,29 @@ public final class Bootstrap {
             initZk(zkConf);
             // launch containers
             //launchContainers(zkConf, handler, progConf.getDockerURI());
-            
+
             // create a docker client customized for the app
             DockerInitializer appDocker = new DockerInitializer(progConf.getDockerURI());
             DockerClient docker = appDocker.getDockerClient();
-            
+
             //get a container
             Container con = handler.getDataContainer();
             // launch Core Broker
             CoreBroker cb = new CoreBroker(zkConf, con, docker);
             cb.connect();
             // create new Thread and start it
-            Thread cbThread = new Thread(cb, "CoreBroker-thread");
+            Thread cbThread = new Thread(cb, "CoreBroker-"+con.getName()+"-thread");
             cbThread.start();
+
+            // get a container
+            con = handler.getWebContainer();
+            // launch Core Broker
+            CoreBroker cb2 = new CoreBroker(zkConf, con, docker);
+            cb2.connect();
+            // create new Thread and start it
+            Thread cbThread2 = new Thread(cb2, "CoreBroker-"+con.getName()+"-thread-2");
+            cbThread2.start();
+
         } catch (Exception ex) {
             exitProgram(ex);
         }
@@ -178,20 +188,15 @@ public final class Bootstrap {
          serialized Container object.
          */
         for (Container con : handler.listContainers()) {
-            // get the data for the child node
-            //byte[] data = Serializer.serialize(con);
-            
             // generate JSON from container and return the generated JSON as a byte array
-            String json = JsonSerializer.toJson(con);
-            LOG.info("Container converted to json: " +json);
-
-            byte[] data = JsonSerializer.serialize(json);
+            byte[] data = JsonSerializer.serialize(con);
+            LOG.info("Container converted to json: " + JsonSerializer.deserializeToString(data));
             // get the name for the child node
             String name = con.getName();
             // get the container type
             String type = Utils.getType(con);
             // initialize child node
-            LOG.info("Container name:type: " + name + ":" + type + ". Data size: "+data.length);
+            LOG.info("Container name:type: " + name + ":" + type + ". Data size: " + data.length);
             zkConf.initZkContainers(name, type, data);
         }
 
@@ -248,8 +253,11 @@ public final class Bootstrap {
      */
     private void exitProgram(Exception ex) {
         LOG.error("Something went wrong! The program will exit!", ex);
-        master.cleanZkNamespace();
-        master.stop();
+        if (master != null){
+            master.cleanZkNamespace();
+            master.stop();
+        }
+        
         System.exit(1);
     }
 

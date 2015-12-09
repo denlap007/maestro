@@ -3,25 +3,32 @@
     <containers>
         <webContainer>
             <name>web</name>
-            <connectWith>data</connectWith>
+            <connectWith>data business1</connectWith>
+            <dockerImage>java</dockerImage>
+            <serviceScriptPath></serviceScriptPath>
             <url>localhost:4848</url>
         </webContainer>
 
         <businessContainer>
             <name>business1</name>
             <connectWith>web data</connectWith>
+            <dockerImage>ubuntu</dockerImage>
+            <serviceScriptPath></serviceScriptPath>
             <url>http://something.com</url>
         </businessContainer>
         <businessContainer>
             <name>business2</name>
             <connectWith>web data</connectWith>
+            <dockerImage>ubuntu</dockerImage>
+            <serviceScriptPath></serviceScriptPath>
             <url>http://something.com</url>
         </businessContainer>
-
 
         <dataContainer>
             <name>data</name>
             <connectWith>web</connectWith>
+            <dockerImage>java</dockerImage>
+            <serviceScriptPath></serviceScriptPath>
             <dbPort>3306</dbPort>
             <dbUrl>jdbc:mysql://localhost:3306/test?profileSQL=true</dbUrl>
             <dbUsername>root</dbUsername>

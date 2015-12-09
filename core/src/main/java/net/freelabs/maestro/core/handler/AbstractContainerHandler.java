@@ -159,7 +159,7 @@ public final class AbstractContainerHandler {
         // Create a list to hold the simple names of the container type classes
         List<String> typeName = new ArrayList<>();
         // Iterate through collection of container type collections
-        for (Collection col : containerTypes){
+        for (Collection<?> col : containerTypes){
             Iterator<?> iter = col.iterator();
             // If the collection has elements get an elem and find its type
             if (iter.hasNext() == true){

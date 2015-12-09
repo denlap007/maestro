@@ -37,8 +37,6 @@ import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticListener;
 import javax.tools.JavaCompiler;
@@ -53,6 +51,8 @@ import javax.xml.bind.ValidationEvent;
 import javax.xml.bind.ValidationEventLocator;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
 
 /**
  * Class that provides methods to generate classes from .xml, bind .xml to POJOs
@@ -60,6 +60,11 @@ import javax.xml.validation.SchemaFactory;
  * objects through reflection.
  */
 public class ConfProcessor {
+    
+        /**
+     * A Logger object.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(ConfProcessor.class);
 
     /**
      * Dynamically loads a class based on its binary name using the ClassLoader
@@ -72,7 +77,7 @@ public class ConfProcessor {
     public final Class<?> loadClass(final String className) throws ClassNotFoundException {
         // Load the target class using its package name
         Class<?> loadedMyClass = Class.forName(className);
-        print("[INFO] Loaded Class: %s", loadedMyClass.getName());
+        LOG.info("Loaded Class: {}", loadedMyClass.getName());
 
         return loadedMyClass;
     }
@@ -91,7 +96,7 @@ public class ConfProcessor {
     public final Class<?> loadClass(final String className, Boolean initialize, final ClassLoader classLoader) throws ClassNotFoundException {
         // Load the target class using its package name
         Class<?> loadedMyClass = Class.forName(className, initialize, classLoader);
-        print("[INFO] Loaded Class: %s", loadedMyClass.getName());
+        LOG.info("Loaded Class: {}", loadedMyClass.getName());
 
         return loadedMyClass;
     }
@@ -106,11 +111,11 @@ public class ConfProcessor {
     public final Object instantiateCLass(final Class<?> classObj) {
         try {
             // Create a new instance from the loaded class
-            Constructor constructor = classObj.getConstructor();
+            Constructor<?> constructor = classObj.getConstructor();
 
             return constructor.newInstance();
         } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getCause().toString());
+            LOG.error("Somethinh went wrong: {}", ex.getCause().getMessage());
             return null;
         }
     }
@@ -153,17 +158,17 @@ public class ConfProcessor {
             try {
                 // Load class
                 Class<?> classObj = classLoader.loadClass(className);
-                print("[INFO] loadInstantiateClass(): LOADED class: %s", className);
+                LOG.info("LOADED class: {}", className);
 
                 // Instantiate class with the default constructor
-                Constructor constructor = classObj.getConstructor();
+                Constructor<?> constructor = classObj.getConstructor();
                 Object obj = constructor.newInstance();
-                print("[INFO] loadInstantiateClass(): CREATED object of class: %s", classObj.getName());
+                LOG.info("CREATED object of class: {}", classObj.getName());
 
                 // Add to list
                 objs.add(obj);
             } catch (InstantiationException | SecurityException | NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | ClassNotFoundException ex) {
-                Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, null, ex);
+                LOG.error("Somethinh went wrong: {}", ex.getCause().getMessage());
             }
         }
         return objs;
@@ -204,7 +209,7 @@ public class ConfProcessor {
             srcFiles = new File[]{src};
         }
 
-        print("\t[Compiling classes]");
+        LOG.info("\t[Compiling classes]");
         // Get system compiler:
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
 
@@ -225,10 +230,10 @@ public class ConfProcessor {
         // Print msgs for compilation result
         if (result == true) {
             for (File file : srcFiles) {
-                print("[INFO] compile2(): \'%s\' COMPILED!", file.getName());
+                LOG.info("\'{}\' COMPILED!", file.getName());
             }
         } else {
-            print("[INFO] compile2(): File(s) DID  NOT COMPILE!");
+            LOG.error("File(s) DID  NOT COMPILE!");
         }
 
         return result;
@@ -264,7 +269,7 @@ public class ConfProcessor {
 
             return true;
         } catch (IOException ex) {
-            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getMessage());
+            LOG.error("Somethinh went wrong: {}", ex.getCause().getMessage());
         }
         return false;
     }
@@ -306,7 +311,7 @@ public class ConfProcessor {
 
             return method.invoke(owner);
         } catch (NoSuchMethodException | SecurityException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getMessage());
+            LOG.error("Somethinh went wrong: {}", ex.getCause().getMessage());
         }
         return null;
     }
@@ -346,7 +351,7 @@ public class ConfProcessor {
      * another reason is thrown.
      */
     public Object unmarshal(String packageName, String schemaPath, String xmlFilePath) {
-        print("\t[Unmarshalling .xml]");
+        LOG.info("\t[Unmarshalling .xml]");
         Object unmarshalled = null;
         try {
             // create a JAXBContext capable of handling classes generated into
@@ -387,7 +392,7 @@ public class ConfProcessor {
                 // show  warnings but don't halt
                 if (ve.getSeverity() == ValidationEvent.WARNING) {
                     ValidationEventLocator vel = ve.getLocator();
-                    print("[Line: %s, Col: %s]: ", vel.getLineNumber(),
+                    LOG.warn("[Line: {}, Col: {}]: {}", vel.getLineNumber(),
                             vel.getColumnNumber(), ve.getMessage());
                     return true;
                 } else {
@@ -400,18 +405,17 @@ public class ConfProcessor {
             unmarshalled = u.unmarshal(new File(xmlFilePath));
 
         } catch (org.xml.sax.SAXException se) {
-            System.err.println("Unable to validate due to the following error.");
-            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, se.getMessage());
+            LOG.error("Unable to validate due to the following error: \n {}", se.getCause().getMessage());
             return null;
         } catch (JAXBException ex) {
-            Logger.getLogger(ConfProcessor.class.getName()).log(Level.SEVERE, ex.getMessage());
+            LOG.error("Something went wrong: {}", ex.getCause().getMessage());
             return null;
         }
 
         // Print msgs
         String file = new File(xmlFilePath).getName();
 
-        print("[INFO] unmarshal(): FIle \'%s\' unmarshalled.", file);
+        LOG.info("FIle \'{}\' unmarshalled.", file);
         return unmarshalled;
     }
 
