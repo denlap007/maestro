@@ -1,0 +1,97 @@
+/*
+ * Copyright (C) 2015 Dionysis Lappas <dio@freelabs.net>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package net.freelabs.maestro.broker;
+
+import java.io.IOException;
+import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
+
+/**
+ * Class that bootstraps the broker program.
+ */
+public class Bootstrap {
+
+    /**
+     * A Logger object.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(Bootstrap.class);
+
+    
+    // ---------------------------- THE MAIN -----------------------------------
+    
+    public static void main(String[] args) {
+        Broker broker = null;
+        String brokerThreadName = "";
+        
+        // Create and initialize broker according to container type
+        if (args[2].contains("WebContainer")){
+             broker = new WebBroker(args[0], // zkHosts
+                        Integer.parseInt(args[1]), // zkSessionTimeout
+                        args[2], // zkContainerPath
+                        args[3], // namingService
+                        args[4], // shutdownNode
+                        args[5] // userConfNode
+                );
+
+                brokerThreadName = "WebBroker-Thread-";
+        }else if (args[2].contains("BusinessContainer")){
+            broker = new BusinessBroker(args[0], // zkHosts
+                        Integer.parseInt(args[1]), // zkSessionTimeout
+                        args[2], // zkContainerPath
+                        args[3], // namingService
+                        args[4], // shutdownNode
+                        args[5] // userConfNode
+                );
+
+                brokerThreadName = "BusinessBroker-Thread-";
+        }else if (args[2].contains("DataContainer")){
+             broker = new WebBroker(args[0], // zkHosts
+                        Integer.parseInt(args[1]), // zkSessionTimeout
+                        args[2], // zkContainerPath
+                        args[3], // namingService
+                        args[4], // shutdownNode
+                        args[5] // userConfNode
+                );
+
+                brokerThreadName = "DataBroker-Thread-";
+        }else{
+            LOG.error("No known container type found!");
+        }
+               
+        if (broker != null) {
+            try {
+                // connect to zookeeper
+                broker.connect();
+                // create a new thread and start broker
+                Thread thread = new Thread(broker, brokerThreadName + args[2]);
+                // start the thread
+                thread.start();
+            } catch (InterruptedException ex) {
+                // log the event
+                LOG.warn("Interruption attemplted: {}", ex.getCause().getMessage());
+                // set interrupted flag
+                Thread.currentThread().interrupt();
+            } catch (IOException ex) {
+                LOG.error("FAILED to start broker: " + ex);
+            }
+        } else {
+            LOG.error("FAILED to initialize broker!");
+        }
+
+    }
+
+}

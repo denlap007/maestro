@@ -22,16 +22,14 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.ProcessBuilder.Redirect;
-import java.nio.charset.Charset;
-import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.logging.Level;
+import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
 import org.apache.zookeeper.AsyncCallback;
@@ -54,7 +52,7 @@ import org.slf4j.LoggerFactory;
  * Class that defines a Broker client to the zookeeper configuration store. Must
  * implement the BrokerInterface.
  */
-public class Broker extends ConnectionWatcher implements BrokerInterface, Runnable {
+public abstract class Broker extends ConnectionWatcher implements BrokerInterface, Runnable {
 
     /**
      * The path of the Container to the zookeeper namespace.
@@ -118,6 +116,8 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      * A Map that holds all the configuration maps of the needed containers.
      */
     private final Map<String, Map<String, Object>> servicesConfiguration = new HashMap<>();
+    
+    private Container container;
 
     /**
      * Constructor
@@ -354,7 +354,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         A service is offered by a container. The needed services are retrieved
         from the current cotnainer configuration from "connectWith" field.
          */
-        for (String service : (List<String>) containerConf.get("connectWith")) {
+        for(String service : container.getConnectWith()){//for (String service : (List<String>) containerConf.get("connectWith")) {
             // set the service status to NOT_RUNNING
             serviceState.put(service, SERVICE_STATE.NOT_PROCESSED);
             // query tha naming service for the required service
@@ -780,7 +780,7 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
             // read configuration file
             FileReader reader = new FileReader(BrokerConf.BROKER_SERVICE_SCRIPT_PATH);
         } catch (FileNotFoundException ex) {
-            java.util.logging.Logger.getLogger(Broker.class.getName()).log(Level.SEVERE, null, ex);
+           LOG.error("" + ex);
         }
 
         // JSONParser jsonParser = new JSONParser();
@@ -801,6 +801,15 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
             LOG.error("De-serialization FAILED: " + ex);
         }
         return conf;
+    }
+    
+    private void deserializeConfToContainer(byte[] data){
+        try {
+            container =  JsonSerializer.deserializeToConatiner(data);
+            LOG.info("Configuration deserialized! Printing: \n {}", JsonSerializer.deserializeToString(data));
+        } catch (IOException ex) {
+            LOG.error("De-serialization FAILED: " + ex);
+        }
     }
 
     /**
@@ -856,9 +865,9 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
      */
     private synchronized void setContainerConf(Map<String, Object> containerConf) {
         this.containerConf = containerConf;
-    }
+    } 
 
-    // ------------------------------- MAIN ------------------------------------
+    /* ------------------------------- MAIN ------------------------------------
     public static void main(String[] args) throws IOException, InterruptedException {
         // Create and initialize broker
         Broker broker = new Broker(args[0], // zkHosts
@@ -875,5 +884,6 @@ public class Broker extends ConnectionWatcher implements BrokerInterface, Runnab
         Thread thread = new Thread(broker, "BrokerThread-" + args[2]);
         thread.start();
     }
+*/
 
 }
