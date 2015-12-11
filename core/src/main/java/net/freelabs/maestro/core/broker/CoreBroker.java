@@ -22,12 +22,9 @@ import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.model.AccessMode;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Volume;
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
 import net.freelabs.maestro.core.zookeeper.ZkNode;
@@ -81,7 +78,7 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
     /**
      * Constructor
      *
-     * @param zkConf
+     * @param zkConf the zookeeper configuration.
      * @param con the container which will be bound to the broker.
      * @param dockerClient a docker client to communicate with the docker
      * daemon.
@@ -103,7 +100,9 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
         //get container IP
         String IP = getContainerIP(CID);
         // update the container configuration
-        updateContainerUserConf("IP", IP);
+        con.setIP(IP);
+        // log the event
+        LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), "IP", IP);
         // create zk configuration node
         createNode(zNode.getConfNodePath(), zNode.getData());
         // Sets the thread to wait until it's time to shutdown
@@ -179,29 +178,6 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
         InspectContainerResponse.NetworkSettings settings = response.getNetworkSettings();
         // return the cotnainer's IP
         return settings.getIpAddress();
-    }
-
-    /**
-     * Updates the container configuration with a new key/value entry.
-     *
-     * @param key the key of the new configuration entry.
-     * @param value the value (data) of the new configuration entry.
-     */
-    private void updateContainerUserConf(String key, String value) {
-        try {
-            // deserialize configuration
-            Map<String, Object> conf = JsonSerializer.deserializeToMap(zNode.getData());
-            // update configuration
-            conf.put(key, value);
-            // log the event
-            LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), key, value);
-            // serialize updated configuration
-            byte[] data = JsonSerializer.serialize(conf);
-            // put data to zNode
-            zNode.setData(data);
-        } catch (IOException ex) {
-            LOG.error("Something went wrong: " + ex);
-        }
     }
 
     /**
@@ -325,7 +301,7 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
     /**
      * Shuts down a container.
      *
-     * @param CID
+     * @param CID the container ID.
      */
     private void shutdownContainer(String CID) {
         LOG.info("Initiating Container shutdown.");

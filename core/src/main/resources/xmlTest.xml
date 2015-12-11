@@ -5,35 +5,43 @@
             <name>web</name>
             <connectWith>data business1</connectWith>
             <dockerImage>java</dockerImage>
-            <serviceScriptPath></serviceScriptPath>
-            <url>localhost:4848</url>
+            <entrypointScriptPath></entrypointScriptPath>
+            <environment>
+                <url>localhost:4848</url>
+            </environment>
         </webContainer>
 
         <businessContainer>
             <name>business1</name>
             <connectWith>web data</connectWith>
             <dockerImage>ubuntu</dockerImage>
-            <serviceScriptPath></serviceScriptPath>
-            <url>http://something.com</url>
+            <entrypointScriptPath></entrypointScriptPath>
+            <environment>
+                <url>http://something.com</url>
+            </environment>
         </businessContainer>
-        <businessContainer>
+        <businessContainer> 
             <name>business2</name>
             <connectWith>web data</connectWith>
             <dockerImage>ubuntu</dockerImage>
-            <serviceScriptPath></serviceScriptPath>
-            <url>http://something.com</url>
+            <entrypointScriptPath></entrypointScriptPath>
+            <environment>
+                <url>http://something.com</url>
+            </environment>
         </businessContainer>
 
         <dataContainer>
             <name>data</name>
             <connectWith>web</connectWith>
             <dockerImage>java</dockerImage>
-            <serviceScriptPath></serviceScriptPath>
-            <dbPort>3306</dbPort>
-            <dbUrl>jdbc:mysql://localhost:3306/test?profileSQL=true</dbUrl>
-            <dbUsername>root</dbUsername>
-            <dbPassword>pass</dbPassword>
-            <dbName>test</dbName>
+            <entrypointScriptPath></entrypointScriptPath>
+            <environment>
+                <db_port>3306</db_port>
+                <db_url>jdbc:mysql://localhost:3306/test?profileSQL=true</db_url>
+                <db_username>root</db_username>
+                <db_password>pass</db_password>
+                <db_name>test</db_name>
+            </environment>
         </dataContainer>
 
 

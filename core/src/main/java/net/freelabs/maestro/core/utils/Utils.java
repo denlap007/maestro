@@ -17,19 +17,26 @@
 package net.freelabs.maestro.core.utils;
 
 import java.io.Console;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * Class the provides general purpose methods.
  */
 public class Utils {
+
+    /**
+     * A Logger object.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(Utils.class);
 
     /**
      * Gets the declared fields of a class and its superclass, recursively
@@ -74,7 +81,7 @@ public class Utils {
                 description = description + field.getName() + ": " + field.get(obj) + ", ";
 
             } catch (IllegalArgumentException | IllegalAccessException ex) {
-                Logger.getLogger(Utils.class.getName()).log(Level.SEVERE, null, ex);
+                LOG.error("Something went wrong: " + ex);
             }
         }
         return (cls.getSimpleName() + ": {" + description + "}");
@@ -115,6 +122,60 @@ public class Utils {
     public static final String getType(Object obj) {
         Class<?> cls = obj.getClass();
         return cls.getSimpleName();
+    }
+
+    /**
+     * Dynamically loads a class based on its binary name using the ClassLoader
+     * of the caller.
+     *
+     * @param className The binary name of the class to load.
+     * @return A {@link java.lang.Class} object of the loaded class.
+     * @throws ClassNotFoundException if the class wasn't found.
+     */
+    public static final Class<?> loadClass(final String className) throws ClassNotFoundException {
+        // Load the target class using its package name
+        Class<?> loadedMyClass = Class.forName(className);
+        LOG.info("Loaded Class: {}", loadedMyClass.getName());
+
+        return loadedMyClass;
+    }
+
+    /**
+     * Dynamically loads a class based on its package name using an external
+     * ClassLoader.
+     *
+     * @param className The package name of the class to load.
+     * @param initialize Defines weather the class should be initialized when
+     * loaded.
+     * @param classLoader A ClassLoader to load class.
+     * @return A {@link java.lang.Class} object of the loaded class.
+     * @throws ClassNotFoundException if the class wasn't found.
+     */
+    public static final Class<?> loadClass(final String className, Boolean initialize, final ClassLoader classLoader) throws ClassNotFoundException {
+        // Load the target class using its package name
+        Class<?> loadedMyClass = Class.forName(className, initialize, classLoader);
+        LOG.info("Loaded Class: {}", loadedMyClass.getName());
+
+        return loadedMyClass;
+    }
+
+    /**
+     * Instantiates a class based on default constructor.
+     *
+     * @param classObj the Class object of the class to be instantiated.
+     * @return A new instance of a class. Type is Object because the class type
+     * is unknown.
+     */
+    public static final Object instantiateCLass(final Class<?> classObj) {
+        try {
+            // Create a new instance from the loaded class
+            Constructor<?> constructor = classObj.getConstructor();
+
+            return constructor.newInstance();
+        } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
+            LOG.error("Somethinh went wrong: {}", ex.getCause().getMessage());
+            return null;
+        }
     }
 
 }

@@ -100,7 +100,7 @@ public class ConfProcessor {
 
         return loadedMyClass;
     }
-
+    
     /**
      * Instantiates a class based on default constructor.
      *
@@ -115,7 +115,7 @@ public class ConfProcessor {
 
             return constructor.newInstance();
         } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
-            LOG.error("Somethinh went wrong: {}", ex.getCause().getMessage());
+            LOG.error("Somethinh went wrong: " + ex);
             return null;
         }
     }
@@ -168,7 +168,7 @@ public class ConfProcessor {
                 // Add to list
                 objs.add(obj);
             } catch (InstantiationException | SecurityException | NoSuchMethodException | IllegalAccessException | IllegalArgumentException | InvocationTargetException | ClassNotFoundException ex) {
-                LOG.error("Somethinh went wrong: {}", ex.getCause().getMessage());
+                LOG.error("Somethinh went wrong: " + ex);
             }
         }
         return objs;
@@ -209,7 +209,7 @@ public class ConfProcessor {
             srcFiles = new File[]{src};
         }
 
-        LOG.info("\t[Compiling classes]");
+        LOG.info("COMPILING CLASSES.");
         // Get system compiler:
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
 
@@ -249,7 +249,7 @@ public class ConfProcessor {
      * @return true, if operation succeeded.
      */
     public Boolean xmlToClass(String schemaPath, String packageName, String outputDir) {
-        print("\t[Generating classes]");
+        LOG.info("GENERATING CLASSES.");
 
         // Setup schema compiler
         SchemaCompiler sc = XJC.createSchemaCompiler();
@@ -326,7 +326,7 @@ public class ConfProcessor {
      * @throws Exception
      */
     public void addToClasspath(String dir) throws Exception {
-        print("\t[Adding to classpath]");
+        LOG.info("ADDING TO CLASSPATH.");
         File file = new File(dir);
         URL url = file.toURI().toURL();
         URLClassLoader urlClassLoader = (URLClassLoader) ClassLoader.getSystemClassLoader();
@@ -351,7 +351,7 @@ public class ConfProcessor {
      * another reason is thrown.
      */
     public Object unmarshal(String packageName, String schemaPath, String xmlFilePath) {
-        LOG.info("\t[Unmarshalling .xml]");
+        LOG.info("UNMARSHALLING xml.");
         Object unmarshalled = null;
         try {
             // create a JAXBContext capable of handling classes generated into
@@ -405,10 +405,10 @@ public class ConfProcessor {
             unmarshalled = u.unmarshal(new File(xmlFilePath));
 
         } catch (org.xml.sax.SAXException se) {
-            LOG.error("Unable to validate due to the following error: \n {}", se.getCause().getMessage());
+            LOG.error("Unable to validate due to the following error: \n" + se);
             return null;
         } catch (JAXBException ex) {
-            LOG.error("Something went wrong: {}", ex.getCause().getMessage());
+            LOG.error("Something went wrong: \n" + ex);
             return null;
         }
 

@@ -124,7 +124,12 @@ public class JsonSerializer {
     public static String deserializeToString(byte[] data) throws IOException {
         // byte[] -> Object -> String
          Object obj = MAPPER.readValue(data, Object.class);
-          return MAPPER.writeValueAsString(obj);
+         return MAPPER.writeValueAsString(obj);
+    }
+    
+    public static Container deserializeToConatiner(byte[] data) throws IOException{
+        // byte[] -> Container
+        return MAPPER.readValue(data, Container.class);
     }
 
     public static void saveToFile(File newFile, Map<String, Object> data) throws IOException {

@@ -11,61 +11,63 @@ package net.freelabs.maestro.core.generated;
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.XmlSchemaType;
 import javax.xml.bind.annotation.XmlType;
 
 
 /**
- * <p>Java class for dataContainer complex type.
+ * <p>Java class for webEnvironment complex type.
  * 
  * <p>The following schema fragment specifies the expected content contained within this class.
  * 
  * <pre>
- * &lt;complexType name="dataContainer"&gt;
+ * &lt;complexType name="webEnvironment"&gt;
  *   &lt;complexContent&gt;
- *     &lt;extension base="{}container"&gt;
+ *     &lt;extension base="{}containerEnvironment"&gt;
  *       &lt;sequence&gt;
- *         &lt;element name="environment" type="{}dataEnvironment"/&gt;
+ *         &lt;element name="url" type="{http://www.w3.org/2001/XMLSchema}anyURI"/&gt;
  *       &lt;/sequence&gt;
  *     &lt;/extension&gt;
  *   &lt;/complexContent&gt;
- * &lt;/complexType&gt;
+ * &lt;/complexType>
  * </pre>
  * 
  * 
  */
 @XmlAccessorType(XmlAccessType.FIELD)
-@XmlType(name = "dataContainer", propOrder = {
-    "environment"
+@XmlType(name = "webEnvironment", propOrder = {
+    "url"
 })
-public class DataContainer
-    extends Container
+public class WebEnvironment
+    extends ContainerEnvironment
 {
 
     @XmlElement(required = true)
-    protected DataEnvironment environment;
+    @XmlSchemaType(name = "anyURI")
+    protected String url;
 
     /**
-     * Gets the value of the environment property.
+     * Gets the value of the url property.
      * 
      * @return
      *     possible object is
-     *     {@link DataEnvironment }
+     *     {@link String }
      *     
      */
-    public DataEnvironment getEnvironment() {
-        return environment;
+    public String getUrl() {
+        return url;
     }
 
     /**
-     * Sets the value of the environment property.
+     * Sets the value of the url property.
      * 
      * @param value
      *     allowed object is
-     *     {@link DataEnvironment }
+     *     {@link String }
      *     
      */
-    public void setEnvironment(DataEnvironment value) {
-        this.environment = value;
+    public void setUrl(String value) {
+        this.url = value;
     }
 
 }

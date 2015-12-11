@@ -2,7 +2,6 @@
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
 
     <!-- definition of simple types -->
-
     <xs:simpleType name="port">
         <xs:restriction base="xs:positiveInteger">
             <xs:maxExclusive value="65535"/>
@@ -18,53 +17,75 @@
         <xs:list itemType="port"/>
     </xs:simpleType>
 
-
     <!-- definition of attributes -->
 
-
     <!-- definition of complex types -->
-
+    <xs:complexType name="containerEnvironment">
+        <xs:sequence>
+            <xs:element minOccurs="0" name="ports" type="portList"/>
+        </xs:sequence>
+    </xs:complexType>
+    
     <xs:complexType name="container">
         <xs:sequence>
             <xs:element name="name" type="xs:token"/>
             <xs:element name="connectWith" type="stringList"/>
             <xs:element name="confFilePath" type="stringList" minOccurs="0"/>
-            <xs:element name="ports" type="portList" minOccurs="0"/>
             <xs:element name="dockerImage" type="xs:string"/>
-            <xs:element name="serviceScriptPath" type="xs:string"/>
+            <xs:element name="entrypointScriptPath" type="xs:string"/>
         </xs:sequence>
     </xs:complexType>
 
+    <!-- Data Container -->
+    <xs:complexType name="dataEnvironment">
+        <xs:complexContent>
+            <xs:extension base="containerEnvironment">
+                <xs:sequence>
+                    <xs:element name="db_port" type="port"/>
+                    <xs:element name="db_url" type="xs:anyURI"/>
+                    <xs:element name="db_username" type="xs:string"/>
+                    <xs:element name="db_password" type="xs:string"/>
+                    <xs:element name="db_name" type="xs:string"/>
+                </xs:sequence> 
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
 
     <xs:complexType name="dataContainer">
         <xs:complexContent>
             <xs:extension base="container">
                 <xs:sequence>
-                    <xs:element name="dbPort" type="port"/>
-                    <xs:element name="dbUrl" type="xs:anyURI"/>
-                    <xs:element name="dbUsername" type="xs:string"/>
-                    <xs:element name="dbPassword" type="xs:string"/>
-                    <xs:element name="dbName" type="xs:string"/>
+                    <xs:element name="environment" type="dataEnvironment"/>
                 </xs:sequence>
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
 
+    <!-- Web Container -->
+    <xs:complexType name="webEnvironment">
+        <xs:complexContent>
+            <xs:extension base="containerEnvironment">
+                <xs:sequence>
+                    <xs:element name="url" type="xs:anyURI"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
 
     <xs:complexType name="webContainer">
         <xs:complexContent>
             <xs:extension base="container">
                 <xs:sequence>
-                    <xs:element name="url" type="xs:anyURI"/>
+                    <xs:element name="environment" type="webEnvironment"/>
                 </xs:sequence>
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
 
-
-    <xs:complexType name="businessContainer">
+    <!-- Business Container -->
+    <xs:complexType name="businessEnvironment">
         <xs:complexContent>
-            <xs:extension base="container">
+            <xs:extension base="containerEnvironment">
                 <xs:sequence>
                     <xs:element name="url" type="xs:anyURI"/>
                 </xs:sequence>
@@ -72,17 +93,25 @@
         </xs:complexContent>
     </xs:complexType>
 
+    <xs:complexType name="businessContainer">
+        <xs:complexContent>
+            <xs:extension base="container">
+                <xs:sequence>
+                    <xs:element name="environment" type="businessEnvironment"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
 
     <xs:complexType name="containers">
         <xs:sequence>
-            <xs:element name="webContainer" type="webContainer" maxOccurs="unbounded"/>
-            <xs:element name="businessContainer" type="businessContainer" maxOccurs="unbounded"/>
-            <xs:element name="dataContainer" type="dataContainer" maxOccurs="unbounded"/>
+            <xs:element maxOccurs="unbounded" name="webContainer" type="webContainer"/>
+            <xs:element maxOccurs="unbounded" name="businessContainer" type="businessContainer"/>
+            <xs:element maxOccurs="unbounded" name="dataContainer" type="dataContainer"/>
         </xs:sequence>
     </xs:complexType>
 
     <!-- definition of root element -->
-
     <xs:element name="webApp">
         <xs:complexType>
             <xs:sequence>
@@ -92,7 +121,4 @@
             </xs:sequence>
         </xs:complexType>
     </xs:element>
-
-
-
 </xs:schema>
