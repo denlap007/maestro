@@ -59,7 +59,7 @@ public class Bootstrap {
 
                 brokerThreadName = "BusinessBroker-Thread-";
         }else if (args[2].contains("DataContainer")){
-             broker = new WebBroker(args[0], // zkHosts
+             broker = new DataBroker(args[0], // zkHosts
                         Integer.parseInt(args[1]), // zkSessionTimeout
                         args[2], // zkContainerPath
                         args[3], // namingService

@@ -16,14 +16,44 @@
  */
 package net.freelabs.maestro.broker;
 
+import java.io.IOException;
+import net.freelabs.maestro.core.generated.BusinessContainer;
+import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.serializer.JsonSerializer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  *
  * @author Dionysis Lappas <dio@freelabs.net>
  */
-public class BusinessBroker extends Broker{
-    
+public class BusinessBroker extends Broker {
+
+    /**
+     * A Logger object.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(DataBroker.class);
+
     public BusinessBroker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String userConfNode) {
         super(zkHosts, zkSessionTimeout, zkContainerPath, zkNamingService, shutdownNode, userConfNode);
     }
-    
+
+    @Override
+    public Container deserializeContainerConf(byte[] data) {
+        BusinessContainer con = null;
+        try {
+            con = JsonSerializer.deserializeToBusinessContainer(data);
+            LOG.info("Configuration deserialized! Printing: \n {}",
+                    JsonSerializer.deserializeToString(data));
+        } catch (IOException ex) {
+            LOG.error("De-serialization FAILED: " + ex);
+        }
+        return con;
+    }
+
+    @Override
+    void startMainProcess() {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
 }

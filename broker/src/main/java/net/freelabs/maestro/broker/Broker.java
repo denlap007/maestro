@@ -28,8 +28,10 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.logging.Level;
+import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.generated.DataContainer;
+import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
 import org.apache.zookeeper.AsyncCallback;
@@ -83,10 +85,6 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      * container.
      */
     private final String userConfNode;
-    /**
-     * The user configuration for the container.
-     */
-    private Map<String, Object> containerConf;
 
     /**
      * The state of a service required by the container.
@@ -113,10 +111,10 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      */
     private final String BROKER_WORK_DIR_PATH;
     /**
-     * A Map that holds all the configuration maps of the needed containers.
+     * A Map that holds the configuration of all the dependency containers.
      */
     private final Map<String, Map<String, Object>> servicesConfiguration = new HashMap<>();
-    
+
     private Container container;
 
     /**
@@ -138,7 +136,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
         this.shutdownNode = shutdownNode;
         this.userConfNode = userConfNode;
         containerName = zkContainerPath.substring(zkContainerPath.lastIndexOf("/") + 1, zkContainerPath.length());
-        containerType = zkContainerPath.substring(zkContainerPath.indexOf("/") + 1, zkContainerPath.lastIndexOf("/") - 1);
+        containerType = zkContainerPath.substring(zkContainerPath.indexOf("/", zkContainerPath.indexOf("/") + 1) + 1, zkContainerPath.lastIndexOf("/"));
         BROKER_WORK_DIR_PATH = BrokerConf.BROKER_BASE_DIR_PATH + File.separator + containerName + "-broker";
     }
 
@@ -328,7 +326,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
 
                 executorService.execute(() -> {
                     // create conf file for container associated with the broker
-                    createConfFile(getContainerConf(), containerName);
+                    createConfFile(container, containerName);
                 });
 
                 break;
@@ -345,7 +343,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      */
     private void processUserConf(byte[] data) {
         // deserialize configuration 
-        setContainerConf(deserializeConf(data));
+        container = deserializeContainerConf(data);
         // set data to the container zNode 
         setNodeData(data);
         // register container as service to the naming service
@@ -354,7 +352,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
         A service is offered by a container. The needed services are retrieved
         from the current cotnainer configuration from "connectWith" field.
          */
-        for(String service : container.getConnectWith()){//for (String service : (List<String>) containerConf.get("connectWith")) {
+        for (String service : container.getConnectWith()) {
             // set the service status to NOT_RUNNING
             serviceState.put(service, SERVICE_STATE.NOT_PROCESSED);
             // query tha naming service for the required service
@@ -570,13 +568,11 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     private void processContainerData(byte[] data, String path) {
         LOG.info("Processing container data: {}", path);
         // deserialize container data 
-        Map<String, Object> conf = deserializeConf(data);
+        Container serviceContainer = deserializeDependency(path, data);
         // get cotnainer name
-        String conName = path.substring(path.lastIndexOf("/") + 1, path.length());
+        String conName = resolveServicePath(path);
         // save configuration to file named after the container
-        createConfFile(conf, conName);
-        // save service configuration to memory
-        saveServiceConf(conf, conName);
+        createConfFile(serviceContainer, conName);
         // set service status and log the event
         serviceState.replace(conName, SERVICE_STATE.PROCESSED);
         LOG.info("Service: {}\tStatus: {}.", conName, SERVICE_STATE.PROCESSED.toString());
@@ -584,6 +580,17 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
         if (isContainerInitialized() == true) {
             LOG.info("Container initialization COMPLETE!");
             startMainProcess();
+        } else {
+            // log services that have not started yet.
+            StringBuilder waitingSservices = new StringBuilder();
+            for (Map.Entry<String, SERVICE_STATE> entry : serviceState.entrySet()) {
+                String key = entry.getKey();
+                SERVICE_STATE value = entry.getValue();
+                if (value == SERVICE_STATE.NOT_PROCESSED) {
+                    waitingSservices.append(key).append(" ");
+                }
+            }
+            LOG.info("Waiting for services: {}", waitingSservices);
         }
     }
 
@@ -596,16 +603,6 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      */
     private boolean isContainerInitialized() {
         return !serviceState.containsValue(SERVICE_STATE.NOT_PROCESSED);
-    }
-
-    /**
-     * Saves the configuration of a service to memory.
-     *
-     * @param conf the configuration of the service.
-     * @param serviceName the name of the service.
-     */
-    private void saveServiceConf(Map<String, Object> conf, String serviceName) {
-        servicesConfiguration.put(serviceName, conf);
     }
 
     /**
@@ -692,6 +689,26 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     }
 
     /**
+     * Resolves a service/container path to the service/container name.
+     *
+     * @param path the service/container path to the zookeeper namespace.
+     * @return the service name.
+     */
+    private String resolveServicePath(String path) {
+        return path.substring(path.lastIndexOf("/") + 1, path.length());
+    }
+
+    /**
+     * Returns the container type.
+     *
+     * @param path the path of the cotnainer zNode to find the container type.
+     * @return the container type.
+     */
+    private String getContainerType(String path) {
+        return path.substring(path.indexOf("/", path.indexOf("/") + 1) + 1, path.lastIndexOf("/"));
+    }
+
+    /**
      * <p>
      * Creates a file with the container configuration.
      * <p>
@@ -704,14 +721,14 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      * @param data the data to be written.
      * @param fileName the name of the file to hold the data.
      */
-    private void createConfFile(Map<String, Object> data, String fileName) {
+    private void createConfFile(Container con, String fileName) {
         // create the final file path
         String path = BROKER_WORK_DIR_PATH + File.separator + fileName;
         // create new file
         File newFile = new File(path);
         // save data to file
         try {
-            JsonSerializer.saveToFile(newFile, data);
+            JsonSerializer.saveToFile(newFile, con);
             // log event
             LOG.info("Created configuration file: {}", path);
         } catch (IOException ex) {
@@ -720,96 +737,62 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     }
 
     /**
-     * Starts the main process of the associated container.
+     * Method that starts the main container process.
      */
-    private void startMainProcess() {
-        // create a new process builder to initialize the process
-        ProcessBuilder pb = new ProcessBuilder("/bin/sh", "-c", "echo $web_IP;");
-        // get the environment 
-        Map<String, String> env = pb.environment();
-        // initialize the environment
-        for (Map.Entry<String, Map<String, Object>> entry : servicesConfiguration.entrySet()) {
-            String serviceName = entry.getKey();
-            Map<String, Object> serviceConf = (Map<String, Object>) entry.getValue();
-            LOG.info("Configuration map size: " + serviceConf.size());
-            for (Map.Entry<String, Object> entry2 : serviceConf.entrySet()) {
-                String key = entry2.getKey();
-                LOG.info("This is key: " + key);
-                if (key.equals("IP")){
-                    key = serviceName + key;
-                    LOG.info("This is new key: " + key);
-                    String value = (String) entry2.getValue();
-                    LOG.info("This is value: " + value);
-                    env.put(key, value);
-                }
-               /*     
-                String value = (String) entry2.getValue();
-                if (value instanceof String) {
-                    // add the service name as prefix, so that the keys from 
-                    // different services are unique.
-                    key = serviceName + key;
-                    // export as environment variable
-                    env.put(key, (String) value);
-                }
-                */
-            }
-        }
-
-        /*System.out.println("Working directory for process: " + pb.directory());
-        pb.directory(new File("myDir"));
-        File log = new File("log");
-        pb.redirectErrorStream(true);
-        pb.redirectOutput(Redirect.appendTo(log));*/
-        pb.redirectOutput(Redirect.INHERIT);
-        try {
-            Process p = pb.start();
-            LOG.info("Main process STARTED.");
-        } catch (IOException ex) {
-            LOG.error("FAILED to start main process: {}", ex);
-        }
-    }
-
-    private void findContainerType(String containerPath) {
-        if (containerPath.contains("WebContainer")) {
-
-        }
-    }
+    abstract void startMainProcess();
 
     private void exportEnvVars() {
         try {
             // read configuration file
             FileReader reader = new FileReader(BrokerConf.BROKER_SERVICE_SCRIPT_PATH);
         } catch (FileNotFoundException ex) {
-           LOG.error("" + ex);
+            LOG.error("" + ex);
         }
 
         // JSONParser jsonParser = new JSONParser();
     }
 
     /**
-     * De-serializes container configuration.
+     * <p>
+     * De-serializes the configuration of the container associated with the
+     * broker.
+     * <p>
+     * The method is inherited by subclasses in order to implement custom
+     * functionality according to the container type (web, business, data).
      *
-     * @param data the data to be deserialized.
-     * @return the deserialized data as a Map<String, Object>.
+     * @param data the data to be de-serialized.
+     * @return a container object with the configuration.
      */
-    private Map<String, Object> deserializeConf(byte[] data) {
-        Map<String, Object> conf = null;
+    protected abstract Container deserializeContainerConf(byte[] data);
+
+    private Container deserializeDependency(String path, byte[] data) {
+        Container con = null;
+        // get the type of the container
+        String type = getContainerType(path);
+        // de-serialize the container according to the container type
         try {
-            conf = JsonSerializer.deserializeToMap(data);
-            LOG.info("Configuration deserialized! Printing: \n {}", JsonSerializer.deserializeToString(data));
+            if (type.equalsIgnoreCase("WebContainer")) {
+                WebContainer webCon = JsonSerializer.deserializeToWebContainer(data);
+                con = webCon;
+            } else if (type.equalsIgnoreCase("BusinessContainer")) {
+                BusinessContainer businessCon = JsonSerializer.deserializeToBusinessContainer(data);
+                con = businessCon;
+            } else if (type.equalsIgnoreCase("DataContainer")) {
+                DataContainer dataCon = JsonSerializer.deserializeToDataContainer(data);
+                con = dataCon;
+            }
+
+            if (con != null) {
+                LOG.info("De-serialized conf of dependency: {}. Printing: \n {}", resolveServicePath(path),
+                        JsonSerializer.deserializeToString(data));
+            } else {
+                LOG.error("De-serialization of dependency {} FAILED", path);
+            }
         } catch (IOException ex) {
-            LOG.error("De-serialization FAILED: " + ex);
+            LOG.error("De-serialization of dependency FAILED: " + ex);
         }
-        return conf;
-    }
-    
-    private void deserializeConfToContainer(byte[] data){
-        try {
-            container =  JsonSerializer.deserializeToConatiner(data);
-            LOG.info("Configuration deserialized! Printing: \n {}", JsonSerializer.deserializeToString(data));
-        } catch (IOException ex) {
-            LOG.error("De-serialization FAILED: " + ex);
-        }
+
+        return con;
     }
 
     /**
@@ -818,10 +801,10 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      * @param conf the container configuration.
      * @return a byte array with the serialzed configuration.
      */
-    private byte[] serializeConf(Map<String, Object> conf) {
+    private byte[] serializeConf(Container con) {
         byte[] data = null;
         try {
-            data = JsonSerializer.serialize(conf);
+            data = JsonSerializer.serialize(con);
             LOG.info("Configuration serialized SUCCESSFULLY!");
         } catch (JsonProcessingException ex) {
             LOG.error("Serialization FAILED: " + ex);
@@ -853,20 +836,6 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
         LOG.info("Initiating Broker shutdown " + zkContainerPath);
     }
 
-    /**
-     * @return the containerConf
-     */
-    private synchronized Map<String, Object> getContainerConf() {
-        return containerConf;
-    }
-
-    /**
-     * @param containerConf the containerConf to set
-     */
-    private synchronized void setContainerConf(Map<String, Object> containerConf) {
-        this.containerConf = containerConf;
-    } 
-
     /* ------------------------------- MAIN ------------------------------------
     public static void main(String[] args) throws IOException, InterruptedException {
         // Create and initialize broker
@@ -884,6 +853,5 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
         Thread thread = new Thread(broker, "BrokerThread-" + args[2]);
         thread.start();
     }
-*/
-
+     */
 }
