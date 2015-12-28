@@ -19,7 +19,10 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.charset.Charset;
 import java.util.Map;
+import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.generated.DataContainer;
+import net.freelabs.maestro.core.generated.WebContainer;
 
 /**
  *
@@ -118,18 +121,34 @@ public class JsonSerializer {
 
     public static Map<String, Object> deserializeToMap(byte[] data) throws IOException {
         // byte[] -> Map<String, Object>
-        return MAPPER.readValue(data, new TypeReference<Map<String, Object>>(){});
+        return MAPPER.readValue(data, new TypeReference<Map<String, Object>>() {
+        });
     }
 
     public static String deserializeToString(byte[] data) throws IOException {
         // byte[] -> Object -> String
-         Object obj = MAPPER.readValue(data, Object.class);
-         return MAPPER.writeValueAsString(obj);
+        Object obj = MAPPER.readValue(data, Object.class);
+        return MAPPER.writeValueAsString(obj);
     }
-    
-    public static Container deserializeToConatiner(byte[] data) throws IOException{
+
+    public static Container deserializeToContainer(byte[] data) throws IOException {
         // byte[] -> Container
         return MAPPER.readValue(data, Container.class);
+    }
+
+    public static WebContainer deserializeToWebContainer(byte[] data) throws IOException {
+        // byte[] -> Container
+        return MAPPER.readValue(data, WebContainer.class);
+    }
+
+    public static DataContainer deserializeToDataContainer(byte[] data) throws IOException {
+        // byte[] -> Container
+        return MAPPER.readValue(data, DataContainer.class);
+    }
+
+    public static BusinessContainer deserializeToBusinessContainer(byte[] data) throws IOException {
+        // byte[] -> Container
+        return MAPPER.readValue(data, BusinessContainer.class);
     }
 
     public static void saveToFile(File newFile, Map<String, Object> data) throws IOException {
@@ -137,6 +156,13 @@ public class JsonSerializer {
         newFile.getParentFile().mkdirs();
         // write java value as json to file
         MAPPER.writeValue(newFile, data);
+    }
+
+    public static void saveToFile(File newFile, Container con) throws IOException {
+        // create parent directories if they do not exist, so that the writer doesn't fail.
+        newFile.getParentFile().mkdirs();
+        // write java value as json to file
+        MAPPER.writeValue(newFile, con);
     }
 
     /**

@@ -16,6 +16,8 @@
  */
 package net.freelabs.maestro.core.broker;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
@@ -24,7 +26,9 @@ import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Volume;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
+import java.util.logging.Level;
 import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
 import net.freelabs.maestro.core.zookeeper.ZkNode;
@@ -97,10 +101,18 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
         setShutDownWatch();
         // boot the container
         CID = bootContainer();
-        //get container IP
+        // get container IP
         String IP = getContainerIP(CID);
-        // update the container configuration
+        // update container ip
         con.setIP(IP);
+        
+        try {
+            // update zNode configuration
+            zNode.setData(JsonSerializer.serialize(con));
+        } catch (JsonProcessingException ex) {
+            LOG.error("FAILED to update container IP. ", ex);
+        }
+        
         // log the event
         LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), "IP", IP);
         // create zk configuration node
