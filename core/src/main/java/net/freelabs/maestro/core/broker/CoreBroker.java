@@ -17,7 +17,6 @@
 package net.freelabs.maestro.core.broker;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
@@ -26,7 +25,6 @@ import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Volume;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
-import java.util.logging.Level;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
@@ -47,24 +45,24 @@ import org.slf4j.LoggerFactory;
  *
  * @author Dionysis Lappas <dio@freelabs.net>
  */
-public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
+public abstract class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
 
     /**
      * The container associated with the broker.
      */
-    private final Container con;
+    protected final Container con;
     /**
      * The zookeeper configuration.
      */
-    private final ZkConfig zkConf;
+    protected final ZkConfig zkConf;
     /**
      * The docker client that will communicate with the docker daemon.
      */
-    private final DockerClient dockerClient;
+    protected final DockerClient dockerClient;
     /**
      * A Logger object.
      */
-    private static final Logger LOG = LoggerFactory.getLogger(CoreBroker.class);
+    protected static final Logger LOG = LoggerFactory.getLogger(CoreBroker.class);
     /**
      * The container's id.
      */
@@ -72,7 +70,7 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
     /**
      * A ZkNode object that holds all the zk configuration about this container.
      */
-    private final ZkNode zNode;
+    protected final ZkNode zNode;
     /**
      * A CountDownLatch with a count of one, representing the number of events
      * that need to occur before it releases all	waiting threads.
@@ -105,16 +103,16 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
         String IP = getContainerIP(CID);
         // update container ip
         con.setIP(IP);
-        
+
         try {
             // update zNode configuration
             zNode.setData(JsonSerializer.serialize(con));
+            // log the event
+            LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), "IP", IP);
         } catch (JsonProcessingException ex) {
             LOG.error("FAILED to update container IP. ", ex);
         }
-        
-        // log the event
-        LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), "IP", IP);
+
         // create zk configuration node
         createNode(zNode.getConfNodePath(), zNode.getData());
         // Sets the thread to wait until it's time to shutdown
@@ -129,53 +127,7 @@ public class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
      *
      * @return the container ID of the started container.
      */
-    public String bootContainer() {
-        // boot configuration
-        String containerName = con.getName();
-
-        // set environment configuration
-        String ZK_HOSTS = zkConf.getHosts();
-        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSESSION_TIMEOUT());
-        String ZK_CONTAINER_PATH = zNode.getPath();
-        String ZK_NAMING_SERVICE = zkConf.getNamingServicePath();
-        String SHUTDOWN_NODE = zkConf.getShutDownPath();
-        String CONF_NODE = zNode.getConfNodePath();
-        /*String newCmd = "exec /bin/sh /broker/container_bootscript.sh";
-
-        String script;
-        script = String.format("export DOCKER_SOCKET_URI=%s; export ZK_HOSTS=%s; "
-                + "export ZK_SESSION_TIMEOUT=%s;  export  ZK_CONTAINER_PATH=%s; "
-                + "export ZK_NAMING_SERVICE=%s; export SHUTDOWN_NODE=%s;"
-                + "export CONF_NODE=%s; %s;", DOCKER_URI, ZK_HOSTS,
-                ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH, ZK_NAMING_SERVICE,
-                SHUTDOWN_NODE, CONF_NODE, newCmd);*/
-
-        Volume volume1 = new Volume("/broker");
-
-        String environment = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
-                + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
-                + "CONF_NODE=%s,TEST=", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
-                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
-
-        String runBrokerCmd = "java -jar /broker/broker.jar $ZK_HOSTS $ZK_SESSION_TIMEOUT $ZK_CONTAINER_PATH $ZK_NAMING_SERVICE $SHUTDOWN_NODE $CONF_NODE";
-
-        // set container configuration
-        CreateContainerResponse container = dockerClient.createContainerCmd(con.getDockerImage())
-                .withVolumes(volume1)
-                .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
-                .withCmd("/bin/sh", "-c", runBrokerCmd)
-                .withName(containerName)
-                .withNetworkMode("bridge")
-                .withEnv(environment.split(","))
-                .withPrivileged(true)
-                .exec();
-
-        // START CONTAINER
-        dockerClient.startContainerCmd(container.getId()).exec();
-        LOG.info("STARTING CONTAINER: " + containerName);
-
-        return container.getId();
-    }
+    public abstract String bootContainer();
 
     /**
      * Gets the IP of the container with this container ID.

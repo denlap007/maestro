@@ -20,11 +20,15 @@ import com.github.dockerjava.api.DockerClient;
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.broker.CoreBroker;
+import net.freelabs.maestro.core.broker.CoreDataBroker;
+import net.freelabs.maestro.core.broker.CoreWebBroker;
 import net.freelabs.maestro.core.conf.ConfProcessor;
 import net.freelabs.maestro.core.container.ContainerLauncher;
 import net.freelabs.maestro.core.docker.DockerInitializer;
 import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.WebApp;
+import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.handler.ContainerHandler;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.utils.Utils;
@@ -60,7 +64,7 @@ public final class Bootstrap {
             ContainerHandler handler = createConHandler(webApp);
             // create zk configuration
             ZkConfig zkConf = createZkConf(progConf.getZkHosts(), progConf.getZkSessionTimeout(), handler, webAppName);
-            // initialize zk and start master process and naming service process
+            // initialize zk and start master process
             initZk(zkConf);
             // launch containers
             //launchContainers(zkConf, handler, progConf.getDockerURI());
@@ -69,19 +73,19 @@ public final class Bootstrap {
             DockerInitializer appDocker = new DockerInitializer(progConf.getDockerURI());
             DockerClient docker = appDocker.getDockerClient();
 
-            //get a container
-            Container con = handler.getDataContainer();
+            //get a DATA container
+            DataContainer con = handler.getDataContainer();
             // launch Core Broker
-            CoreBroker cb = new CoreBroker(zkConf, con, docker);
+            CoreBroker cb = new CoreDataBroker(zkConf, con, docker);
             cb.connect();
             // create new Thread and start it
             Thread cbThread = new Thread(cb, "CoreBroker-"+con.getName()+"-thread");
             cbThread.start();
 
-            // get a container
-            con = handler.getWebContainer();
+            // get a WEB container
+            WebContainer con2 = handler.getWebContainer();
             // launch Core Broker
-            CoreBroker cb2 = new CoreBroker(zkConf, con, docker);
+            CoreBroker cb2 = new CoreWebBroker(zkConf, con2, docker);
             cb2.connect();
             // create new Thread and start it
             Thread cbThread2 = new Thread(cb2, "CoreBroker-"+con.getName()+"-thread-2");

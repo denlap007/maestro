@@ -20,7 +20,7 @@
                 <url>http://something.com</url>
             </environment>
         </businessContainer>
-        <businessContainer> 
+        <businessContainer>
             <name>business2</name>
             <connectWith>web data</connectWith>
             <dockerImage>ubuntu</dockerImage>
@@ -38,8 +38,8 @@
             <environment>
                 <db_port>3306</db_port>
                 <db_url>jdbc:mysql://localhost:3306/test?profileSQL=true</db_url>
-                <db_username>root</db_username>
-                <db_password>pass</db_password>
+                <db_user>root</db_user>
+                <db_pass>pass</db_pass>
                 <db_name>test</db_name>
             </environment>
         </dataContainer>

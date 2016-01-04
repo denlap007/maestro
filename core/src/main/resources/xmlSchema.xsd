@@ -43,8 +43,8 @@
                 <xs:sequence>
                     <xs:element name="db_port" type="port"/>
                     <xs:element name="db_url" type="xs:anyURI"/>
-                    <xs:element name="db_username" type="xs:string"/>
-                    <xs:element name="db_password" type="xs:string"/>
+                    <xs:element name="db_user" type="xs:string"/>
+                    <xs:element name="db_pass" type="xs:string"/>
                     <xs:element name="db_name" type="xs:string"/>
                 </xs:sequence> 
             </xs:extension>
