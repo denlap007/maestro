@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Dionysis Lappas <dio@freelabs.net>
+ * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,9 +17,12 @@
 package net.freelabs.maestro.broker;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Level;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
+import net.freelabs.maestro.core.generated.DataEnvironment;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,17 +32,31 @@ import org.slf4j.LoggerFactory;
  * @author Dionysis Lappas <dio@freelabs.net>
  */
 public class DataBroker extends Broker {
-    
-     /**
+
+    private DataContainer dataCon;
+
+    /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(DataBroker.class);
-    
+
+    /**
+     * Constructor.
+     *
+     * @param zkHosts the zookeeper hosts list.
+     * @param zkSessionTimeout the client session timeout.
+     * @param zkContainerPath the path of the Container to the zookeeper
+     * namespace.
+     * @param zkNamingService the path of the naming service to the zookeeper
+     * namespace.
+     * @param shutdownNode the node the signals the shutdown.
+     * @param userConfNode the node with the initial container configuration.
+     */
     public DataBroker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String userConfNode) {
         super(zkHosts, zkSessionTimeout, zkContainerPath, zkNamingService, shutdownNode, userConfNode);
     }
-    
-  @Override
+
+    @Override
     public Container deserializeContainerConf(byte[] data) {
         DataContainer con = null;
         try {
@@ -49,32 +66,79 @@ public class DataBroker extends Broker {
         } catch (IOException ex) {
             LOG.error("De-serialization FAILED: " + ex);
         }
+        // initialize instance var
+        dataCon = con;
+
         return con;
     }
-    
-     /**
+
+    /**
      * Starts the main process of the associated container.
      */
     @Override
-    protected void startMainProcess() {
+    protected int startMainProcess() {
         // create a new process builder to initialize the process
-        ProcessBuilder pb = new ProcessBuilder("/bin/sh", "-c", "echo test;");
+        ProcessBuilder pb = new ProcessBuilder("/bin/bash", "-c", "/broker/data-entrypoint.sh mysqld;");
         // get the environment 
         Map<String, String> env = pb.environment();
         // initialize the environment
-       
-
-        /*System.out.println("Working directory for process: " + pb.directory());
-        pb.directory(new File("myDir"));
-        File log = new File("log");
-        pb.redirectErrorStream(true);
-        pb.redirectOutput(Redirect.appendTo(log));*/
+        Map<String, String> environment = getDataConEnv();
+        env.putAll(environment);
+        // redirect I/O/E streams to parent
         pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+        Process p = null;
+        // start process
         try {
-            Process p = pb.start();
-            LOG.info("Main process STARTED.");
+            p = pb.start();
+            LOG.info("STARTING Main process.");
         } catch (IOException ex) {
             LOG.error("FAILED to start main process: {}", ex);
         }
+
+        // wait for the executed script to finish
+        int errCode = -1;
+        
+        if (p != null) {
+            try {
+                errCode = p.waitFor();
+            } catch (InterruptedException ex) {
+                LOG.warn("Interruption attempted: ", ex);
+                Thread.currentThread().interrupt();
+            }
+        }
+        return errCode;
+    }
+
+
+    /**
+     * Gets the environment of a DataContainer to a string.
+     *
+     * @return a Map with key/value pairs in the form key1=value1, key2=value2
+     * e.t.c. with all the fields declared in the
+     * {@link DataEnvironment DataEnvironment} class.
+     */
+    private Map<String, String> getDataConEnv() {
+        DataEnvironment env = dataCon.getEnvironment();
+
+        String DB_PORT = String.valueOf(env.getDb_Port());
+        String DB_URL = env.getDb_Url();
+        String DB_USER = env.getDb_User();
+        String DB_PASS = env.getDb_Pass();
+        String DB_NAME = env.getDb_Name();
+        String DB_HOST = dataCon.getIP();
+
+        Map<String, String> envMap = new HashMap<>();
+        envMap.put("DB_PORT", DB_PORT);
+        envMap.put("DB_URL", DB_URL);
+        envMap.put("DB_USER", DB_USER);
+        envMap.put("DB_PASS", DB_PASS);
+        envMap.put("DB_NAME", DB_NAME);
+        envMap.put("DB_HOST", DB_HOST);
+
+        return envMap;
+    }
+
+    private void loadEntrypointScript() {
+
     }
 }

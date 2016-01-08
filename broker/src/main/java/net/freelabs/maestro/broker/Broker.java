@@ -21,7 +21,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.lang.ProcessBuilder.Redirect;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -34,6 +33,7 @@ import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
+import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode;
 import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
 import org.apache.zookeeper.AsyncCallback.StatCallback;
@@ -48,6 +48,7 @@ import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 
 /**
  *
@@ -113,9 +114,15 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     /**
      * A Map that holds the configuration of all the dependency containers.
      */
-    private final Map<String, Map<String, Object>> servicesConfiguration = new HashMap<>();
-
+    private final Map<String, Container> servicesConfiguration = new HashMap<>();
+    /**
+     * The container associated with the broker. Holds the configuration.
+     */
     private Container container;
+    /**
+     * The node of the container service to the naming service.
+     */
+    private final ZkNamingServiceNode serviceNode;
 
     /**
      * Constructor
@@ -138,6 +145,10 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
         containerName = zkContainerPath.substring(zkContainerPath.lastIndexOf("/") + 1, zkContainerPath.length());
         containerType = zkContainerPath.substring(zkContainerPath.indexOf("/", zkContainerPath.indexOf("/") + 1) + 1, zkContainerPath.lastIndexOf("/"));
         BROKER_WORK_DIR_PATH = BrokerConf.BROKER_BASE_DIR_PATH + File.separator + containerName + "-broker";
+        // create a new naming service node
+        serviceNode = new ZkNamingServiceNode(zkContainerPath);
+        // stores the context data of the particular thread for logging
+        MDC.put("containerName", containerName);
     }
 
     /**
@@ -255,7 +266,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
             case OK:
                 String originalData = new String((byte[]) ctx);
                 String foundData = new String(data);
-                // check if this node is crated by this client
+                // check if this node is created by this client
                 if (foundData.equals(originalData) == true) {
                     LOG.info("Created zNode: " + path);
                 } else {
@@ -390,10 +401,10 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
 
     @Override
     public void registerToServices() {
-        // get the zk path of the container and encode it to byte array
-        byte[] data = JsonSerializer.encodeUTF8(zkContainerPath);
         // get the service path to the naming service
         String path = resolveServiceName(containerName);
+        // serialize the node to byte array
+        byte[] data = serializeServiceNode(path, serviceNode);
         // create the zNode of the service to the naming service
         createZkNodeEphemeral(path, data);
     }
@@ -502,19 +513,19 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      * <p>
      * Processes data retrieved from a service zNode.
      * <p>
-     * Data stored to the service zNode, resolve service name to the zkPath of
-     * the container offering that service.
-     * <p>
-     * Data retrieved is exptected to be a plain String.
+     * De-serializes the service node, gets the zNode path of the container
+     * offering that service.
      *
-     * @param data
-     * @param path
+     * @param data the data from a service zNode to process.
+     * @param path the path of the service zNode.
      */
     private void processServiceData(byte[] data, String path) {
-        // decode byte array into String
-        String containerPath = JsonSerializer.decodeUTF8(data);
+        // de-serialize service node
+        ZkNamingServiceNode node = deserializeServiceNode(path, data);
+        // get the zNode path of the container of this service
+        String containerPath = node.getZkContainerPath();
         // print data
-        LOG.info("Retrieved from: {}. Data: {} ", path, containerPath);
+        LOG.info("Service -> Container: {} -> {} ", path, containerPath);
         // GET CONDIGURATION DATA FROM the container of the retrieved zkPath.
         getContainerData(containerPath);
     }
@@ -571,21 +582,42 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
         Container serviceContainer = deserializeDependency(path, data);
         // get cotnainer name
         String conName = resolveServicePath(path);
+        // save configuration to memory
+        servicesConfiguration.put(conName, serviceContainer);
         // save configuration to file named after the container
         createConfFile(serviceContainer, conName);
         // set service status and log the event
         serviceState.replace(conName, SERVICE_STATE.PROCESSED);
         LOG.info("Service: {}\tStatus: {}.", conName, SERVICE_STATE.PROCESSED.toString());
-        // check if the container is initialized in order to start the main process
+        // check if container is initialized in order to start the main process
+        checkMainProcStart();
+    }
+
+    /**
+     * Checks if all container dependencies are resolved and then initiates the
+     * main container process.
+     */
+    private void checkMainProcStart() {
         if (isContainerInitialized() == true) {
-            LOG.info("Container initialization COMPLETE!");
-            startMainProcess();
+            LOG.info("Container INITIALIZED!");
+
+            // start the main process
+            int errCode = startMainProcess();
+            // check error code
+            if (errCode == 0) {
+                LOG.info("Main process INITIALIZED.");
+                // change service status to INITIALIZED
+                updateServiceStatus();
+            } else {
+                LOG.error("Main process FAILED to initialize.");
+            }
         } else {
             // log services that have not started yet.
             StringBuilder waitingSservices = new StringBuilder();
             for (Map.Entry<String, SERVICE_STATE> entry : serviceState.entrySet()) {
                 String key = entry.getKey();
                 SERVICE_STATE value = entry.getValue();
+
                 if (value == SERVICE_STATE.NOT_PROCESSED) {
                     waitingSservices.append(key).append(" ");
                 }
@@ -604,6 +636,57 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     private boolean isContainerInitialized() {
         return !serviceState.containsValue(SERVICE_STATE.NOT_PROCESSED);
     }
+
+    /**
+     * Starts the main container process.
+     *
+     * @return the exit code from the started process.
+     */
+    protected abstract int startMainProcess();
+
+    /**
+     * Updates the service status to INITIALIZED.
+     */
+    private void updateServiceStatus() {
+        // get the service path
+        String servicePath = resolveServiceName(containerName);
+        // log action
+        LOG.info("Updating service status to Initialized: {}", servicePath);
+        // set the new status for the service
+        serviceNode.setStatusInitialized();
+        // serialize data
+        byte[] updatedData = serializeServiceNode(servicePath, serviceNode);
+        // update service node data
+        setZNodeData(servicePath, updatedData);
+    }
+
+    /**
+     * Sets data to a zNode.
+     */
+    private void setZNodeData(String zNodePath, byte[] data) {
+        zk.setData(zNodePath, data, -1, setZNodeDataDataCallback, data);
+    }
+
+    /**
+     * Callback to be used with {@link #setZNodeData(java.lang.String, byte[])
+     * setZNodeData} method.
+     */
+    private final StatCallback setZNodeDataDataCallback = (int rc, String path, Object ctx, Stat stat) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                setZNodeData(path, (byte[]) ctx);
+                break;
+            case NONODE:
+                LOG.error("Cannot set data to node. NODE DOES NOT EXITST: " + path);
+                break;
+            case OK:
+                LOG.info("Data set to node: " + path);
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
+        }
+    };
 
     /**
      * Registers watches for updates to a service required by the container.
@@ -694,7 +777,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      * @param path the service/container path to the zookeeper namespace.
      * @return the service name.
      */
-    private String resolveServicePath(String path) {
+    protected String resolveServicePath(String path) {
         return path.substring(path.lastIndexOf("/") + 1, path.length());
     }
 
@@ -735,11 +818,6 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
             LOG.error("FAILED to create configuration file: " + ex);
         }
     }
-
-    /**
-     * Method that starts the main container process.
-     */
-    abstract void startMainProcess();
 
     private void exportEnvVars() {
         try {
@@ -810,6 +888,41 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
             LOG.error("Serialization FAILED: " + ex);
         }
         return data;
+    }
+
+    /**
+     * Serializes a service node.
+     *
+     * @param node the service node to serialize.
+     * @return a byte array representing the serialized node.
+     */
+    private byte[] serializeServiceNode(String path, ZkNamingServiceNode node) {
+        byte[] data = null;
+        try {
+            data = JsonSerializer.serializeServiceNode(node);
+            LOG.info("Serialized naming service node: {}", path);
+        } catch (JsonProcessingException ex) {
+            LOG.error("Naming service node Serialization FAILED: " + ex);
+        }
+        return data;
+    }
+
+    /**
+     * De-serializes a byte array to a
+     * {@link ZkNamingServiceNode ZkNamingServiceNode}.
+     *
+     * @param data the data to de-serialize.
+     * @return a {@link ZkNamingServiceNode ZkNamingServiceNode}.
+     */
+    private ZkNamingServiceNode deserializeServiceNode(String path, byte[] data) {
+        ZkNamingServiceNode node = null;
+        try {
+            node = JsonSerializer.deserializeServiceNode(data);
+            LOG.info("De-serialized naming service node: {}", path);
+        } catch (IOException ex) {
+            LOG.error("Naming service node de-serialization FAILED!" + ex);
+        }
+        return node;
     }
 
     /**

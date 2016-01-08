@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Dionysis Lappas <dio@freelabs.net>
+ * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,54 +30,58 @@ public class Bootstrap {
      */
     private static final Logger LOG = LoggerFactory.getLogger(Bootstrap.class);
 
-    
     // ---------------------------- THE MAIN -----------------------------------
-    
     public static void main(String[] args) {
         Broker broker = null;
         String brokerThreadName = "";
-        
+
         // Create and initialize broker according to container type
-        if (args[2].contains("WebContainer")){
-             broker = new WebBroker(args[0], // zkHosts
-                        Integer.parseInt(args[1]), // zkSessionTimeout
-                        args[2], // zkContainerPath
-                        args[3], // namingService
-                        args[4], // shutdownNode
-                        args[5] // userConfNode
-                );
-
-                brokerThreadName = "WebBroker-Thread-";
-        }else if (args[2].contains("BusinessContainer")){
+        if (args[2].contains("WebContainer")) {
+            broker = new WebBroker(args[0], // zkHosts
+                    Integer.parseInt(args[1]), // zkSessionTimeout
+                    args[2], // zkContainerPath
+                    args[3], // namingService
+                    args[4], // shutdownNode
+                    args[5] // userConfNode
+            );
+            // get the container name
+            String name = broker.resolveServicePath(args[2]);// zkContainerPath
+            // set the thread name
+            brokerThreadName = name + "-WebBrokerThraed";
+        } else if (args[2].contains("BusinessContainer")) {
             broker = new BusinessBroker(args[0], // zkHosts
-                        Integer.parseInt(args[1]), // zkSessionTimeout
-                        args[2], // zkContainerPath
-                        args[3], // namingService
-                        args[4], // shutdownNode
-                        args[5] // userConfNode
-                );
-
-                brokerThreadName = "BusinessBroker-Thread-";
-        }else if (args[2].contains("DataContainer")){
-             broker = new DataBroker(args[0], // zkHosts
-                        Integer.parseInt(args[1]), // zkSessionTimeout
-                        args[2], // zkContainerPath
-                        args[3], // namingService
-                        args[4], // shutdownNode
-                        args[5] // userConfNode
-                );
-
-                brokerThreadName = "DataBroker-Thread-";
-        }else{
+                    Integer.parseInt(args[1]), // zkSessionTimeout
+                    args[2], // zkContainerPath
+                    args[3], // namingService
+                    args[4], // shutdownNode
+                    args[5] // userConfNode
+            );
+            // get the container name
+            String name = broker.resolveServicePath(args[2]);// zkContainerPath
+            // set the thread name
+            brokerThreadName = name + "-BusinessBrokerThread";
+        } else if (args[2].contains("DataContainer")) {
+            broker = new DataBroker(args[0], // zkHosts
+                    Integer.parseInt(args[1]), // zkSessionTimeout
+                    args[2], // zkContainerPath
+                    args[3], // namingService
+                    args[4], // shutdownNode
+                    args[5] // userConfNode
+            );
+            // get the container name
+            String name = broker.resolveServicePath(args[2]);// zkContainerPath
+            // set the thread name
+            brokerThreadName = name + "-DataBrokerThread";
+        } else {
             LOG.error("No known container type found!");
         }
-               
+
         if (broker != null) {
             try {
                 // connect to zookeeper
                 broker.connect();
                 // create a new thread and start broker
-                Thread thread = new Thread(broker, brokerThreadName + args[2]);
+                Thread thread = new Thread(broker, brokerThreadName);
                 // start the thread
                 thread.start();
             } catch (InterruptedException ex) {

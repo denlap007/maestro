@@ -53,7 +53,7 @@ public class WebBroker extends Broker {
     }
 
     @Override
-    void startMainProcess() {
+    protected int startMainProcess() {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
