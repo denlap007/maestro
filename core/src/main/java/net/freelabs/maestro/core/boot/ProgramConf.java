@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Dionysis Lappas (dio@freelabs.net)
+ * Copyright (C) 2015-2016 Dionysis Lappas (dio@freelabs.net)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
  */
 package net.freelabs.maestro.core.boot;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Properties;
@@ -32,19 +33,23 @@ public final class ProgramConf {
     private final String xmlSchemaPath;
     private final String xmlFilePath;
     private final String dockerURI;
+    private final String workDir;
+    private static final String PROPERTIES_FILE_NAME = "maestro.properties";
 
     /**
      * Read the configuration from a propertied file.
+     * @param workDir the program's work directory.
      * @throws Exception if a FileNotFoundException or IOException is thrown.
      */
-    public ProgramConf() throws Exception {
+    public ProgramConf(String workDir) throws Exception {
         // create logger
         Logger LOG = LoggerFactory.getLogger(ProgramConf.class);
         // create a Properties object to handle .properties file
         Properties prop = new Properties();
 
         // read .properties file
-        try (FileInputStream input = new FileInputStream("src/main/resources/maestro.properties")){
+        String filename = workDir + File.separator + PROPERTIES_FILE_NAME;
+        try (FileInputStream input = new FileInputStream(filename)){
             // load a .properties file
             prop.load(input);
         } catch (IOException ex) {
@@ -57,6 +62,7 @@ public final class ProgramConf {
         xmlSchemaPath = prop.getProperty("xmlSchemaPath");
         xmlFilePath = prop.getProperty("xmlFilePath");
         dockerURI = prop.getProperty("docker.io.url");
+        this.workDir = workDir;
 
         LOG.info("Loaded configuration from \'maestro.properties\' file as follows:");
         LOG.info("zkHosts: " + zkHosts);
@@ -64,6 +70,7 @@ public final class ProgramConf {
         LOG.info("xmlSchemaPath: " + xmlSchemaPath);
         LOG.info("xmlFilePath: " + xmlFilePath);
         LOG.info("docker.io.url: " + dockerURI);
+        LOG.info("workDir: " + this.workDir);
     }
 
     /**
@@ -94,10 +101,6 @@ public final class ProgramConf {
         return xmlFilePath;
     }
 
-    public static void main(String[] args) throws Exception {
-        ProgramConf p = new ProgramConf();
-    }
-
     /**
      * @return the dockerURI
      */
@@ -105,4 +108,8 @@ public final class ProgramConf {
         return dockerURI;
     }
 
+    public String getWorkDir() {
+        return workDir;
+    }
+    
 }

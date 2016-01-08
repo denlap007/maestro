@@ -23,7 +23,10 @@
                 <version>1.4.0</version>
                 <configuration>
                     <mainClass>net.freelabs.maestro.core.boot.Bootstrap</mainClass>
-                    <arguments></arguments>
+                    <arguments>
+                        <argument>-w</argument>
+                        <argument>/home/dio/THESIS/maestro/core/src/main/resources</argument>
+                    </arguments>
                 </configuration>
             </plugin>
             

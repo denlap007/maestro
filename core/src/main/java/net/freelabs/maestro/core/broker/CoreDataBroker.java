@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Dionysis Lappas <dio@freelabs.net>
+ * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,6 @@ import com.github.dockerjava.api.model.AccessMode;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Volume;
 import java.lang.reflect.Field;
-import java.util.Locale;
 import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.DataEnvironment;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
@@ -44,30 +43,14 @@ public class CoreDataBroker extends CoreBroker {
     public String bootContainer() {
         // boot configuration
         String containerName = dataCon.getName();
-
-        // set environment configuration
-        String ZK_HOSTS = zkConf.getHosts();
-        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSESSION_TIMEOUT());
-        String ZK_CONTAINER_PATH = zNode.getPath();
-        String ZK_NAMING_SERVICE = zkConf.getNamingServicePath();
-        String SHUTDOWN_NODE = zkConf.getShutDownPath();
-        String CONF_NODE = zNode.getConfNodePath();
-
         Volume volume1 = new Volume("/broker");
-
-        String env = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
-                + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
-                + "CONF_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
-                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
-
-        String dataConEnv = getDataConEnv();
-
-        String conEnv = dataConEnv + env;
+        // get the container description
+        String conEnv = setConDescription();
 
         // command to run on boot
         String runBrokerCmd = "java -jar /broker/broker.jar $ZK_HOSTS $ZK_SESSION_TIMEOUT $ZK_CONTAINER_PATH $ZK_NAMING_SERVICE $SHUTDOWN_NODE $CONF_NODE";
 
-        // set container configuration
+        // set container configuration for the docker client to create a new container
         CreateContainerResponse container = dockerClient.createContainerCmd(dataCon.getDockerImage())
                 .withVolumes(volume1)
                 .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
@@ -86,29 +69,30 @@ public class CoreDataBroker extends CoreBroker {
     }
 
     /**
-     * Gets the environment of a DataContainer to a string.
+     * <p>
+     * Generates the container description.
+     * <p>
+     * The container description is all the necessary configuration for the
+     * environment of the container in order to boot and initialize.
      *
-     * @return a string with key/value pairs in the form key1=value1,
-     * key2=value2 e.t.c. with all the fields declared in the
-     * {@link DataEnvironment DataEnvironment} class.
+     * @return a String with key/value pairs in the form key1=value1,
+     * key2=value2 e.t.c. representing the container description.
      */
-    private String getDataConEnv() {
-        DataEnvironment env = dataCon.getEnvironment();
+    private String setConDescription() {
+        // set boot environment configuration
+        String ZK_HOSTS = zkConf.getHosts();
+        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSESSION_TIMEOUT());
+        String ZK_CONTAINER_PATH = zNode.getPath();
+        String ZK_NAMING_SERVICE = zkConf.getNamingServicePath();
+        String SHUTDOWN_NODE = zkConf.getShutDownPath();
+        String CONF_NODE = zNode.getConfNodePath();
+        // create a string with all the key-value pairs
+        String env = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
+                + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
+                + "CONF_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
+                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
 
-        int DB_PORT = env.getDb_Port();
-        String DB_URL = env.getDb_Url();
-        String DB_USER = env.getDb_User();
-        String DB_PASS = env.getDb_Pass();
-        String DB_NAME = env.getDb_Name();
-
-        String environment = String.format(
-                "DB_PORT=%d,"
-                + "DB_URL=%s,"
-                + "DB_USER=%s,"
-                + "DB_PASS=%s,"
-                + "DB_NAME=%s,", DB_PORT, DB_URL, DB_USER, DB_PASS, DB_NAME);
-
-        return environment;
+        return env;
     }
 
     /**
@@ -143,7 +127,7 @@ public class CoreDataBroker extends CoreBroker {
                 env.append(fieldName).append("=").append(fieldValue).append(",");
             }
         }
-
+        
         return env.toString();
     }
 

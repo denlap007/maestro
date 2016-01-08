@@ -33,14 +33,14 @@
         <dataContainer>
             <name>data</name>
             <connectWith>web</connectWith>
-            <dockerImage>java</dockerImage>
+            <dockerImage>dio/mysql_jre:v2</dockerImage>
             <entrypointScriptPath></entrypointScriptPath>
             <environment>
                 <db_port>3306</db_port>
                 <db_url>jdbc:mysql://localhost:3306/test?profileSQL=true</db_url>
                 <db_user>root</db_user>
-                <db_pass>pass</db_pass>
-                <db_name>test</db_name>
+                <db_pass>root</db_pass>
+                <db_name></db_name>
             </environment>
         </dataContainer>
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Dionysis Lappas <dio@freelabs.net>
+ * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,11 +18,7 @@ package net.freelabs.maestro.core.broker;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.dockerjava.api.DockerClient;
-import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
-import com.github.dockerjava.api.model.AccessMode;
-import com.github.dockerjava.api.model.Bind;
-import com.github.dockerjava.api.model.Volume;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.generated.Container;
@@ -43,7 +39,11 @@ import org.slf4j.LoggerFactory;
 
 /**
  *
- * @author Dionysis Lappas <dio@freelabs.net>
+ * <p>
+ * Abstract class that provides methods to initialize and boot a container.
+ * <p>
+ * For every container type, there is a subclass of this class that handles
+ * initialization and bootstrapping of the container.
  */
 public abstract class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
 

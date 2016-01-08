@@ -23,6 +23,7 @@ import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.WebContainer;
+import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode;
 
 /**
  *
@@ -163,6 +164,29 @@ public class JsonSerializer {
         newFile.getParentFile().mkdirs();
         // write java value as json to file
         MAPPER.writeValue(newFile, con);
+    }
+
+    /**
+     * Serializes a {@link ZkNamingServiceNode ZkNamingServiceNode}.
+     *
+     * @param node the service node to serialize.
+     * @return a byte array of the serialized node.
+     * @throws JsonProcessingException if error occurs during json processing.
+     */
+    public static byte[] serializeServiceNode(ZkNamingServiceNode node) throws JsonProcessingException {
+        // ZkNamingServiceNode -> byte[]
+        return MAPPER.writeValueAsBytes(node);
+    }
+
+    /**
+     * Deserializes a byte array to a {@link ZkNamingServiceNode ZkNamingServiceNode}.
+     * @param data the data to deserialize.
+     * @return a {@link ZkNamingServiceNode ZkNamingServiceNode}.
+     * @throws IOException
+     */
+    public static ZkNamingServiceNode deserializeServiceNode(byte[] data) throws IOException {
+        // byte[] -> ZkNamingServiceNode
+        return MAPPER.readValue(data, ZkNamingServiceNode.class);
     }
 
     /**

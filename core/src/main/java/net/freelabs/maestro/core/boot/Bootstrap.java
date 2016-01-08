@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Dionysis Lappas (dio@freelabs.net)
+ * Copyright (C) 2015-2016 Dionysis Lappas (dio@freelabs.net)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@ import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.broker.CoreBroker;
 import net.freelabs.maestro.core.broker.CoreDataBroker;
 import net.freelabs.maestro.core.broker.CoreWebBroker;
+import net.freelabs.maestro.core.cl.CommandLineOptions;
 import net.freelabs.maestro.core.conf.ConfProcessor;
 import net.freelabs.maestro.core.container.ContainerLauncher;
 import net.freelabs.maestro.core.docker.DockerInitializer;
@@ -34,6 +35,10 @@ import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.utils.Utils;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +51,10 @@ public final class Bootstrap {
      * The master zk process.
      */
     private ZkMaster master;
+    /**
+     * The path of the program's working directory.
+     */
+    private String workDirPath;
 
     /**
      * A Logger object.
@@ -55,7 +64,7 @@ public final class Bootstrap {
     public void boot() {
         try {
             // Read configuration
-            ProgramConf progConf = new ProgramConf();
+            ProgramConf progConf = new ProgramConf(workDirPath);
             // unmarshall xml file into a top-level object
             WebApp webApp = unmarshalXml(progConf.getXmlSchemaPath(), progConf.getXmlFilePath());
             // get the name of the webApp
@@ -79,7 +88,7 @@ public final class Bootstrap {
             CoreBroker cb = new CoreDataBroker(zkConf, con, docker);
             cb.connect();
             // create new Thread and start it
-            Thread cbThread = new Thread(cb, "CoreBroker-"+con.getName()+"-thread");
+            Thread cbThread = new Thread(cb, "CoreBroker-" + con.getName() + "-thread");
             cbThread.start();
 
             // get a WEB container
@@ -88,7 +97,7 @@ public final class Bootstrap {
             CoreBroker cb2 = new CoreWebBroker(zkConf, con2, docker);
             cb2.connect();
             // create new Thread and start it
-            Thread cbThread2 = new Thread(cb2, "CoreBroker-"+con.getName()+"-thread-2");
+            Thread cbThread2 = new Thread(cb2, "CoreBroker-" + con.getName() + "-thread-2");
             cbThread2.start();
 
         } catch (Exception ex) {
@@ -257,22 +266,54 @@ public final class Bootstrap {
      */
     private void exitProgram(Exception ex) {
         LOG.error("Something went wrong! The program will exit!", ex);
-        if (master != null){
+        if (master != null) {
             master.cleanZkNamespace();
             master.stop();
         }
-        
+
         System.exit(1);
     }
 
-    // ------------------------------ MAIN -------------------------------------
-    public static void main(String[] args) throws InterruptedException {
+    /**
+     * @param workDirPath the workDirPath to set
+     */
+    private void setWorkDirPath(String workDirPath) {
+        this.workDirPath = workDirPath;
+    }
 
+    /* -------------------------------------------------------------------------
+       ------------------------------ MAIN -------------------------------------
+       -------------------------------------------------------------------------*/
+    public static void main(String[] args) {
         // create the bootstrap object to boot the program
-        Bootstrap starter = new Bootstrap();
+        Bootstrap bootObj = new Bootstrap();
+        // create an object of the class that holds the cli options
+        CommandLineOptions opt = new CommandLineOptions();
+        // create a parser to parse cli options
+        CommandLineParser parser = new DefaultParser();
+        CommandLine cmd = null;
+        
+        try {
+            // parse cli arguments
+            cmd = parser.parse(opt.getOptions(), args);
+        } catch (ParseException ex) {
+            LOG.error(ex.getMessage());
+            // Unrecognized arguments, print help
+            opt.help();
+            // exit
+            System.exit(1);
+        }
 
-        // boot the program
-        starter.boot();
+        if (cmd.hasOption("w")) {
+            // set work directory 
+            bootObj.setWorkDirPath(cmd.getOptionValue("w"));
+            // boot program
+            bootObj.boot();
+        } else {
+            // Show help
+            opt.help();
+        }
+
     }
 
 }
