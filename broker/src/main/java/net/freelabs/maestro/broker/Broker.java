@@ -636,31 +636,11 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * main container process.
      */
     private void checkInitialization() {
+        // if container is initialized
         if (isContainerInitialized()) {
-            // start process initialization
-
             // start the main process
             startMainProcess();
-
         }
-    }
-
-    private boolean isProcInitialized(Process p) {
-        boolean initialized = false;
-        if (p != null) {
-            try {
-                int errCode = p.waitFor();
-            } catch (InterruptedException ex) {
-                LOG.warn("Interruption attempted: ", ex);
-                Thread.currentThread().interrupt();
-            }
-        }
-
-        return initialized;
-    }
-
-    private void loadEntrypoint() {
-
     }
 
     /**
@@ -678,16 +658,16 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
             LOG.info("Container INITIALIZED!");
         } else {
             // log services that have not started yet.
-            StringBuilder waitingSservices = new StringBuilder();
+            StringBuilder waitingServices = new StringBuilder();
             for (Map.Entry<String, SERVICE_STATE> entry : serviceState.entrySet()) {
                 String key = entry.getKey();
                 SERVICE_STATE value = entry.getValue();
 
                 if (value == SERVICE_STATE.NOT_PROCESSED) {
-                    waitingSservices.append(key).append(" ");
+                    waitingServices.append(key).append(" ");
                 }
             }
-            LOG.info("Waiting for services: {}", waitingSservices);
+            LOG.info("Waiting for services: {}", waitingServices);
         }
 
         return initialized;
@@ -724,6 +704,13 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         return entryHandler;
     }
 
+    /**
+     * <p>Handles the interaction with the new process.
+     * <p>The method creates a new process, initializes it with the environment,
+     * starts the process, monitors its execution and updates the service status 
+     * to initialized, if it is initialized. 
+     * @param entryHandler 
+     */
     private void handleProcess(EntrypointHandler entryHandler) {
         // create a process handler to manage the new process initiation.
         ProcessHandler procHandler = new ProcessHandler();
@@ -733,12 +720,12 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         List<String> entrypointArgs = entryHandler.getEntrypointArgs();
         procHandler.initProc(env, entrypointPath, entrypointArgs);
         // start process
-        boolean procStarted = procHandler.startProc();
-
-        if (procStarted) {
+        procHandler.startProc();
+        //check if process has started successfully
+        if (procHandler.hasProcStarted()) {
             // check if process is running
             if (procHandler.isProcRunning()) {
-                // wait the process toinitialize
+                // wait the process to initialize
                 procHandler.waitForInitialization();
                 LOG.info("Main process INITIALIZED.");
                 // change service status to INITIALIZED

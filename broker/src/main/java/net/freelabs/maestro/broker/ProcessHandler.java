@@ -48,15 +48,18 @@ final class ProcessHandler {
 
     private volatile int main_proc_pid;
 
-    private static final String INIT_STRING = "_proc_pid=";
+    private static final String CONTROL_STRING = "_proc_pid=";
 
-    private ProcMon procMon;
+    private final ProcMon procMon;
 
     /**
      * Constructor
      */
     public ProcessHandler() {
+        // create a ProcessBuidler to spawn a new process
         pb = createProc();
+        // create a process monitor object to minitor the state of the process
+        procMon = new ProcMon();
     }
 
     /**
@@ -103,27 +106,32 @@ final class ProcessHandler {
      *
      * @return true if process started successfully.
      */
-    protected boolean startProc() {
-        boolean started = false;
-        // start the new process
+    protected void startProc() {
         try {
+            // start the new process, set to started
             _proc = pb.start();
-            started = true;
+            procMon._started = true;
             LOG.info("STARTING Main process.");
+            // start monitoring the process, set to running
+            monProc();
             // read proc output
             readProcOutput();
         } catch (IOException ex) {
             LOG.error("FAILED to start main process: " + ex);
         }
-        // start monitoring the process
-        procMon = monProc();
-        procMon._running = true;
-
-        return started;
     }
 
     /**
-     * Reads the output of {@link #_proc _proc} process.
+     * <p>
+     * Reads the output of {@link #_proc _proc} process and sets the process
+     * state to initialized if it initializes successfully. 
+     * <p>
+     * The method reads the output and searches for the {@link #CONTROL_STRING
+     * CONTROL_STRING}. If the CONTROL_STRING is found then the process is
+     * initialized and will spawn the main container process.
+     * <p>
+     * By finding the CONTROL_STRING the method extracts also the pid of the
+     * main container process that is spawned.
      */
     private void readProcOutput() {
         // create a new thread to read proc output
@@ -140,7 +148,7 @@ final class ProcessHandler {
                     line = scan.nextLine();
                     LOG.info(line);
                     // check if process is initialized
-                    if (line.contains(INIT_STRING)) {
+                    if (line.contains(CONTROL_STRING)) {
                         main_proc_pid = Integer.parseInt(line.substring(line.indexOf("=") + 1, line.length()));
                         procMon._initialized = true;
                     }
@@ -151,18 +159,29 @@ final class ProcessHandler {
         t.start();
     }
 
+    /**
+     * <p>
+     * Waits until the process is initialized.
+     * <p>
+     * The method creates a new thread that monitors the process initialization.
+     * When the process is initialized, it interrupts the main execution thread
+     * that is waiting to be notified of the event.
+     */
     protected void waitForInitialization() {
         LOG.info("Waiting for the process to initialize...");
         // get the current executing thread
-        Thread cur = Thread.currentThread();
+        Thread waitingThread = Thread.currentThread();
         // create a thread to monitor if the process is initialized
         Thread monThread = new Thread() {
             @Override
             public void run() {
-                while (!procMon._initialized) {
+                while (true) {
+                    if (procMon._initialized) {
+                        break;
+                    }
                 }
                 // interrupt the thread that is waiting for the initialization
-                cur.interrupt();
+                waitingThread.interrupt();
             }
         };
 
@@ -179,7 +198,11 @@ final class ProcessHandler {
     }
 
     /**
+     * <p>
      * Waits for the process to finish.
+     * <p>
+     * The method blocks until the process has finished. Any interruption
+     * attempted is logged and ignored.
      *
      * @return the error code returned by the process execution.
      */
@@ -205,34 +228,38 @@ final class ProcessHandler {
      *
      * @return a {@link ProcMon ProcMon} object.
      */
-    protected ProcMon monProc() {
-        // create a process monitor
-        ProcMon mon = new ProcMon();
+    protected void monProc() {
         // start in a new thread
-        Thread t = new Thread(mon);
+        Thread t = new Thread(procMon);
         t.start();
         LOG.info("Started monitoring the main process.");
-
-        return mon;
     }
 
     /**
-     * Class that provides methods to monitor a process.
+     * Class that is used to monitor a process's state.
      */
     protected final class ProcMon implements Runnable {
-        
+
+        /**
+         * Indicates if the process has started or not.
+         */
+        private volatile boolean _started;
+        /**
+         * Indicated if the process is initialized or not.
+         */
         private volatile boolean _initialized;
         /**
-         * Holds the process status (running, not running).
+         * Indicated if the process is running or not.
          */
         private volatile boolean _running;
         /**
          * Holds the process error code.
          */
-        private int errCode;
+        private volatile int errCode;
 
         @Override
         public void run() {
+            _running = true;
             errCode = waitForProc();
             _running = false;
         }
@@ -264,19 +291,15 @@ final class ProcessHandler {
 
     // Getters
     public boolean isProcInitialized() {
-        if (procMon != null) {
-            return procMon._initialized;
-        } else {
-            return false;
-        }
+        return procMon._initialized;
     }
 
     protected boolean isProcRunning() {
-        if (procMon != null) {
-            return procMon._running;
-        } else {
-            return false;
-        }
+        return procMon._running;
+    }
+
+    protected boolean hasProcStarted() {
+        return procMon._started;
     }
 
 }
