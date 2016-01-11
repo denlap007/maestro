@@ -717,10 +717,8 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         EntrypointHandler entryHandler = new EntrypointHandler(("/broker/data-entrypoint.sh"));
         // process entrypoint
         entryHandler.processEntrypoint();
-        // set entrypoint cmd and arguments
-        String cmd = container.getEntrypointCmd();
+        // set entrypoint arguments
         List<String> args = container.getEntrypointArgs();
-        args.add(0, cmd);
         entryHandler.setEntrypointArgs(args);
 
         return entryHandler;
@@ -745,12 +743,17 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
                 LOG.info("Main process INITIALIZED.");
                 // change service status to INITIALIZED
                 updateServiceStatus();
-            }else{
+            } else {
                 LOG.error("Main process FAILED to initialize.");
             }
         }
     }
 
+    /**
+     * Gets the container environments.
+     *
+     * @return a map with the container environment.
+     */
     protected abstract Map<String, String> getConEnv();
 
     /**

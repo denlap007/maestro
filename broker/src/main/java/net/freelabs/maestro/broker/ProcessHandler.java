@@ -81,7 +81,7 @@ final class ProcessHandler {
      * @param outerEnv the environment to add to the new process.
      * @param entrypointPath the path of the entrypoint script to execute.
      */
-    protected void initProc(Map<String, String> outerEnv, String entrypointPath, List<String> entrypointCmdArgs) {
+    protected void initProc(Map<String, String> outerEnv, String entrypointPath, List<String> entrypointArgs) {
         // get the environmente of the new process
         Map<String, String> env = pb.environment();
         // add the necessary external environment 
@@ -93,7 +93,7 @@ final class ProcessHandler {
         List<String> procCmdArgs = new ArrayList<>();
         // add the entrypoint path and args
         procCmdArgs.add(entrypointPath);
-        procCmdArgs.addAll(entrypointCmdArgs);
+        procCmdArgs.addAll(entrypointArgs);
         // set command and arguments
         pb.command(procCmdArgs);
     }

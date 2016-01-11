@@ -98,13 +98,6 @@ final class EntrypointHandler {
             Files.write(temp, CUSTOM_SCRIPT.getBytes(Charset.forName("UTF-8")), StandardOpenOption.APPEND);
             // update the entrypoint path
             updatedEntrypointPath = temp.toString();
-
-            try (BufferedReader br = new BufferedReader(new FileReader(updatedEntrypointPath))) {
-                String line = null;
-                while ((line = br.readLine()) != null) {
-                    System.out.println(line);
-                }
-            }
         } catch (IOException ex) {
             LOG.error("Something went wrong: " + ex);
         }
