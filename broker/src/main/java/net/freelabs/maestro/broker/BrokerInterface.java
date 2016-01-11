@@ -20,6 +20,7 @@ package net.freelabs.maestro.broker;
  * This interface defines the methods to be instantiated from a 
  * {@link net.freelabs.maestro.broker.Broker Broker}.
  */
+@Deprecated
 public interface BrokerInterface {
     /**
      * Registers a Broker to the naming service.

@@ -17,6 +17,7 @@
 package net.freelabs.maestro.broker;
 
 import java.io.IOException;
+import java.util.Map;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
@@ -39,7 +40,7 @@ public class BusinessBroker extends Broker {
     }
 
     @Override
-    public Container deserializeContainerConf(byte[] data) {
+    public Container deserializeConType(byte[] data) {
         BusinessContainer con = null;
         try {
             con = JsonSerializer.deserializeToBusinessContainer(data);
@@ -51,8 +52,13 @@ public class BusinessBroker extends Broker {
         return con;
     }
 
+    @Deprecated
+    protected void startMainProcess_OLD() {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
     @Override
-    protected int startMainProcess() {
+    protected Map<String, String> getConEnv() {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 

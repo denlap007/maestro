@@ -22,6 +22,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -55,7 +56,7 @@ import org.slf4j.MDC;
  * Class that defines a Broker client to the zookeeper configuration store. Must
  * implement the BrokerInterface.
  */
-public abstract class Broker extends ConnectionWatcher implements BrokerInterface, Runnable {
+public abstract class Broker extends ConnectionWatcher implements Runnable {
 
     /**
      * The path of the Container to the zookeeper namespace.
@@ -82,10 +83,10 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      */
     private final String shutdownNode;
     /**
-     * The path of the zNode that holds the user configuration for the
+     * The path of the zNode that holds the initial configuration for the
      * container.
      */
-    private final String userConfNode;
+    private final String conConfNode;
 
     /**
      * The state of a service required by the container.
@@ -134,45 +135,54 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      * @param zkNamingService the path of the naming service to the zookeeper
      * namespace.
      * @param shutdownNode the node the signals the shutdown.
-     * @param userConfNode the node with the initial container configuration.
+     * @param conConfNode the node with the initial container configuration.
      */
-    public Broker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String userConfNode) {
+    public Broker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String conConfNode) {
         super(zkHosts, zkSessionTimeout);
         this.zkContainerPath = zkContainerPath;
         this.zkNamingService = zkNamingService;
         this.shutdownNode = shutdownNode;
-        this.userConfNode = userConfNode;
+        this.conConfNode = conConfNode;
         containerName = zkContainerPath.substring(zkContainerPath.lastIndexOf("/") + 1, zkContainerPath.length());
         containerType = zkContainerPath.substring(zkContainerPath.indexOf("/", zkContainerPath.indexOf("/") + 1) + 1, zkContainerPath.lastIndexOf("/"));
         BROKER_WORK_DIR_PATH = BrokerConf.BROKER_BASE_DIR_PATH + File.separator + containerName + "-broker";
         // create a new naming service node
         serviceNode = new ZkNamingServiceNode(zkContainerPath);
         // stores the context data of the particular thread for logging
-        MDC.put("containerName", containerName);
+        MDC.put("id", containerName);
     }
 
-    /**
-     * Method implementation of run method from Runnable interface.
-     */
     @Override
     public void run() {
         bootstrap();
     }
 
-    @Override
+    /*
+     * *************************************************************************
+     * BOOTSTRAPPING
+     * **************************************************************************
+     */
+    /**
+     * Bootstraps the broker.
+     */
     public void bootstrap() {
         // set watch for shutdown zNode
         setShutDownWatch();
         // create container zNode
         createZkNodeEphemeral(zkContainerPath, BROKER_ID.getBytes());
-        // set watch for container configuration
-        setConfWatch();
+        // set watch for the container description
+        waitForConDescription();
         // wait for shutdown
         waitForShutdown();
         // close zk client session
         stop();
     }
 
+    /*
+     * *************************************************************************
+     * INITIALIZATION
+     * **************************************************************************
+     */
     /**
      * Sets a watch on the zookeeper shutdown node. When the shutdown zNode is
      * created execution is terminated.
@@ -215,18 +225,20 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
 
     /**
      * Creates an EPHEMERAL zNode.
+     *
+     * @param path the path of the zNode to the zookeeper namespace.
+     * @param data the data of the zNode.
      */
-    @Override
     public void createZkNodeEphemeral(String path, byte[] data) {
         zk.create(path, data, OPEN_ACL_UNSAFE,
-                CreateMode.EPHEMERAL, createBrokerCallback, data);
+                CreateMode.EPHEMERAL, createZkNodeEphemeralCallback, data);
     }
 
     /**
-     * The object to call back with the
-     * {@link #createContainer(String) createContainer} method.
+     * The object to call back with {@link #createZkNodeEphemeral(java.lang.String, byte[])
+     * createZkNodeEphemeral} method.
      */
-    private final StringCallback createBrokerCallback = (int rc, String path, Object ctx, String name) -> {
+    private final StringCallback createZkNodeEphemeralCallback = (int rc, String path, Object ctx, String name) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
                 LOG.warn("Connection loss was detected");
@@ -245,16 +257,17 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     };
 
     /**
-     * Checks weather the container is created or not.
+     * Checks weather the container zNode was created or not.
      */
     private void checkContainerNode(String path, byte[] data) {
-        zk.getData(path, false, checkBrokerCallback, data);
+        zk.getData(path, false, checkContainerNodeCallback, data);
     }
 
     /**
-     * The object to call with the {@link #checkBroker() checkBroker} method.
+     * The object to call back with {@link #checkContainerNode(java.lang.String, byte[])
+     * checkContainerNode} method.
      */
-    private final DataCallback checkBrokerCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
+    private final DataCallback checkContainerNodeCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
                 LOG.warn("Connection loss was detected");
@@ -266,7 +279,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
             case OK:
                 String originalData = new String((byte[]) ctx);
                 String foundData = new String(data);
-                // check if this node is created by this client
+                // check if this zNode is created by this client
                 if (foundData.equals(originalData) == true) {
                     LOG.info("Created zNode: " + path);
                 } else {
@@ -280,24 +293,29 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     };
 
     /**
-     * Checks if configuration for this container exists and sets a watch.
+     * Checks if the container description for this container exists and sets a
+     * watch.
      */
-    private void setConfWatch() {
-        zk.exists(userConfNode, setConfWatchWatcher, setConfWatchCallback, null);
+    private void waitForConDescription() {
+        zk.exists(conConfNode, waitForConDescriptionWatcher, waitForConDescriptionCallback, null);
     }
 
-    private final AsyncCallback.StatCallback setConfWatchCallback = (int rc, String path, Object ctx, Stat stat) -> {
+    /**
+     * The object to call back with
+     * {@link #waitForConDescription() waitForConDescription} method.
+     */
+    private final AsyncCallback.StatCallback waitForConDescriptionCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                setConfWatch();
+                waitForConDescription();
                 break;
             case NONODE:
                 LOG.info("Watch registered on: " + path);
                 break;
             case OK:
                 LOG.info("Configuration Node found: " + path);
-                // get the configuration from the configuration zNode
-                getUserConf();
+                // get the description from the configuration zNode
+                getConDescription();
                 break;
             default:
                 LOG.error("Something went wrong: ",
@@ -308,32 +326,38 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     /**
      * A watcher to process a watch notification for configuration node.
      */
-    private final Watcher setConfWatchWatcher = (WatchedEvent event) -> {
+    private final Watcher waitForConDescriptionWatcher = (WatchedEvent event) -> {
         LOG.info(event.getType() + ", " + event.getPath());
 
         if (event.getType() == NodeCreated) {
-            getUserConf();
+            getConDescription();
         }
     };
 
-    @Override
-    public void getUserConf() {
-        zk.getData(userConfNode, false, getUserConfCallback, null);
+    /**
+     * Gets the container description.
+     */
+    public void getConDescription() {
+        zk.getData(conConfNode, false, getUserConfCallback, null);
     }
 
+    /**
+     * The object to call back with
+     * {@link #getConDescription() getConDescription} method.
+     */
     private final DataCallback getUserConfCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
                 LOG.warn("Connection loss was detected");
-                getUserConf();
+                getConDescription();
                 break;
             case NONODE:
                 LOG.error("Node does NOT EXIST: " + path);
                 break;
             case OK:
                 LOG.info("ZkNode initialized with configuration: " + path);
-                // process configuration
-                processUserConf(data);
+                // process container description
+                processConDescription(data);
 
                 executorService.execute(() -> {
                     // create conf file for container associated with the broker
@@ -348,13 +372,13 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     };
 
     /**
-     * Initiates processing of the configuration.
+     * Initiates processing of the container description.
      *
-     * @param data
+     * @param data a serialized {@link Container Container}.
      */
-    private void processUserConf(byte[] data) {
-        // deserialize configuration 
-        container = deserializeContainerConf(data);
+    private void processConDescription(byte[] data) {
+        // deserialize container 
+        container = deserializeConType(data);
         // set data to the container zNode 
         setNodeData(data);
         // register container as service to the naming service
@@ -372,15 +396,14 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     }
 
     /**
-     * Sets data to container's zNode.
+     * Sets data to the container's zNode.
      */
     private void setNodeData(byte[] data) {
         zk.setData(zkContainerPath, data, -1, setNodeDataCallback, data);
     }
 
     /**
-     * Callback to be used with {@link #setNodeData(byte[]) setNodeData(byte[])}
-     * method.
+     * Callback to be used with {@link #setNodeData(byte[]) setNodeDate} method.
      */
     private final StatCallback setNodeDataCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
@@ -399,9 +422,19 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
         }
     };
 
-    @Override
+    /**
+     * <p>
+     * Registers the container as a service to the naming service.
+     * <p>
+     * The container name is also the name of the service. Every registered
+     * service is represented by a service zNode. A service zNode is a
+     * serialized {@link ZkNamingServiceNode ZkNamingServiceNode} object.
+     * <p>
+     * The service node contains the zNode path of the container offering the
+     * service along with the status of the service (initialized or not).
+     */
     public void registerToServices() {
-        // get the service path to the naming service
+        // create the service path for the naming service
         String path = resolveServiceName(containerName);
         // serialize the node to byte array
         byte[] data = serializeServiceNode(path, serviceNode);
@@ -415,7 +448,8 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      * service. The name of the container is the name with which the container
      * registers itself to the naming service. The zNode of every service in the
      * naming service holds data. The data is the zNode path of the container to
-     * the zookeeper namespace.
+     * the zookeeper namespace and the status of the service (initialized or
+     * not).
      *
      * @param name the name of the service (the container name).
      */
@@ -438,8 +472,8 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     }
 
     /**
-     * Callback to be used in
-     * {@link  #serviceExists(java.lang.String) serviceExists(String)} method.
+     * Callback to be used with
+     * {@link  #serviceExists(java.lang.String) serviceExists} method.
      */
     private final StatCallback serviceExistsCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
@@ -452,7 +486,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
                 break;
             case OK:
                 LOG.info("Requested service found: " + path);
-                // get data from service zNode. Data resolve service name to container zkPath
+                // get data from service zNode.
                 getServiceData(path);
                 break;
             default:
@@ -463,8 +497,8 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
     };
 
     /**
-     * Watcher to be used in
-     * {@link  #serviceExists(java.lang.String) serviceExists(String)} method.
+     * Watcher to be used with
+     * {@link  #serviceExists(java.lang.String) serviceExists} method.
      */
     private final Watcher serviceExistsWatcher = (WatchedEvent event) -> {
         LOG.info(event.getType() + ", " + event.getPath());
@@ -527,7 +561,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
         // print data
         LOG.info("Service -> Container: {} -> {} ", path, containerPath);
         // GET CONDIGURATION DATA FROM the container of the retrieved zkPath.
-        getContainerData(containerPath);
+        getConData(containerPath);
     }
 
     /**
@@ -535,20 +569,19 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      *
      * @param zkPath the path of the container zNode.
      */
-    private void getContainerData(String zkPath) {
-        zk.getData(zkPath, false, getContainerDataDataCallback, null);
+    private void getConData(String zkPath) {
+        zk.getData(zkPath, false, getConDataDataCallback, null);
     }
 
     /**
      * The callback to be used with
-     * {@link #getContainerData(java.lang.String) getContainerData(String)}
-     * method.
+     * {@link #getConData(java.lang.String) getConData(String)} method.
      */
-    private final DataCallback getContainerDataDataCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
+    private final DataCallback getConDataDataCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
                 LOG.warn("Connection loss was detected");
-                getContainerData(path);
+                getConData(path);
                 break;
             case NONODE:
                 LOG.error("CANNOT GET DATA from CONTAINER. Container node DOES NOT EXIST: " + path);
@@ -558,7 +591,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
 
                 // process retrieved data from requested service zNode
                 executorService.execute(() -> {
-                    processContainerData(data, path);
+                    processConData(data, path);
                 });
 
                 setServiceWatch(path);
@@ -576,7 +609,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      * @param data the data of the container zNode.
      * @param path the path of the container zNode.
      */
-    private void processContainerData(byte[] data, String path) {
+    private void processConData(byte[] data, String path) {
         LOG.info("Processing container data: {}", path);
         // deserialize container data 
         Container serviceContainer = deserializeDependency(path, data);
@@ -590,27 +623,59 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
         serviceState.replace(conName, SERVICE_STATE.PROCESSED);
         LOG.info("Service: {}\tStatus: {}.", conName, SERVICE_STATE.PROCESSED.toString());
         // check if container is initialized in order to start the main process
-        checkMainProcStart();
+        checkInitialization();
     }
 
     /**
-     * Checks if all container dependencies are resolved and then initiates the
+     * *************************************************************************
+     * PROCESS HANDLING
+     * **************************************************************************
+     */
+    /**
+     * Checks if all container dependencies are resolved and if so initiates the
      * main container process.
      */
-    private void checkMainProcStart() {
-        if (isContainerInitialized() == true) {
-            LOG.info("Container INITIALIZED!");
+    private void checkInitialization() {
+        if (isContainerInitialized()) {
+            // start process initialization
 
             // start the main process
-            int errCode = startMainProcess();
-            // check error code
-            if (errCode == 0) {
-                LOG.info("Main process INITIALIZED.");
-                // change service status to INITIALIZED
-                updateServiceStatus();
-            } else {
-                LOG.error("Main process FAILED to initialize.");
+            startMainProcess();
+
+        }
+    }
+
+    private boolean isProcInitialized(Process p) {
+        boolean initialized = false;
+        if (p != null) {
+            try {
+                int errCode = p.waitFor();
+            } catch (InterruptedException ex) {
+                LOG.warn("Interruption attempted: ", ex);
+                Thread.currentThread().interrupt();
             }
+        }
+
+        return initialized;
+    }
+
+    private void loadEntrypoint() {
+
+    }
+
+    /**
+     * Checks if the container is initialized. A container is initialized after
+     * it has processed all the necessary configuration for the container and
+     * the required services.
+     *
+     * @return true if the container is initialized.
+     */
+    private boolean isContainerInitialized() {
+        // check if there are not processes services and set value accoordingly
+        boolean initialized = !serviceState.containsValue(SERVICE_STATE.NOT_PROCESSED);
+        // print messages according to state
+        if (initialized) {
+            LOG.info("Container INITIALIZED!");
         } else {
             // log services that have not started yet.
             StringBuilder waitingSservices = new StringBuilder();
@@ -624,25 +689,69 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
             }
             LOG.info("Waiting for services: {}", waitingSservices);
         }
-    }
 
-    /**
-     * Checks if the container is initialized. A container is initialized after
-     * it has processed all the necessary configuration for the container and
-     * the required services.
-     *
-     * @return true if the container is initialized.
-     */
-    private boolean isContainerInitialized() {
-        return !serviceState.containsValue(SERVICE_STATE.NOT_PROCESSED);
+        return initialized;
     }
 
     /**
      * Starts the main container process.
      *
-     * @return the exit code from the started process.
      */
-    protected abstract int startMainProcess();
+    private void startMainProcess() {
+        // handle the entrypoint processing
+        EntrypointHandler entryHandler = handleEntrypoint();
+        // handle the interaction with the new process
+        handleProcess(entryHandler);
+    }
+
+    /**
+     * <p>
+     * Handles the interaction with the entrypoint script.
+     * <p>
+     * The method creates an {@link EntrypointHandler EntrypointHandler} that
+     * loads the entrypoint and processes it accordingly. Also, sets cmd and
+     * arguments specified to be executed by the entrypoint.
+     */
+    private EntrypointHandler handleEntrypoint() {
+        // create entrypoint handler
+        EntrypointHandler entryHandler = new EntrypointHandler(("/broker/data-entrypoint.sh"));
+        // process entrypoint
+        entryHandler.processEntrypoint();
+        // set entrypoint cmd and arguments
+        String cmd = container.getEntrypointCmd();
+        List<String> args = container.getEntrypointArgs();
+        args.add(0, cmd);
+        entryHandler.setEntrypointArgs(args);
+
+        return entryHandler;
+    }
+
+    private void handleProcess(EntrypointHandler entryHandler) {
+        // create a process handler to manage the new process initiation.
+        ProcessHandler procHandler = new ProcessHandler();
+        // initialize with the environment
+        Map<String, String> env = getConEnv();
+        String entrypointPath = entryHandler.getUpdatedEntrypointPath();
+        List<String> entrypointArgs = entryHandler.getEntrypointArgs();
+        procHandler.initProc(env, entrypointPath, entrypointArgs);
+        // start process
+        boolean procStarted = procHandler.startProc();
+
+        if (procStarted) {
+            // check if process is running
+            if (procHandler.isProcRunning()) {
+                // wait the process toinitialize
+                procHandler.waitForInitialization();
+                LOG.info("Main process INITIALIZED.");
+                // change service status to INITIALIZED
+                updateServiceStatus();
+            }else{
+                LOG.error("Main process FAILED to initialize.");
+            }
+        }
+    }
+
+    protected abstract Map<String, String> getConEnv();
 
     /**
      * Updates the service status to INITIALIZED.
@@ -832,8 +941,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
 
     /**
      * <p>
-     * De-serializes the configuration of the container associated with the
-     * broker.
+     * De-serializes the container associated with the broker.
      * <p>
      * The method is inherited by subclasses in order to implement custom
      * functionality according to the container type (web, business, data).
@@ -841,8 +949,15 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
      * @param data the data to be de-serialized.
      * @return a container object with the configuration.
      */
-    protected abstract Container deserializeContainerConf(byte[] data);
+    protected abstract Container deserializeConType(byte[] data);
 
+    /**
+     * De-serialiazes a container.
+     *
+     * @param path the path of the container.
+     * @param data the data to deserialize.
+     * @return a {@link Container Container} object.
+     */
     private Container deserializeDependency(String path, byte[] data) {
         Container con = null;
         // get the type of the container
@@ -957,7 +1072,7 @@ public abstract class Broker extends ConnectionWatcher implements BrokerInterfac
                 args[2], // zkContainerPath
                 args[3], // namingService
                 args[4], // shutdownNode
-                args[5] // userConfNode
+                args[5] // conConfNode
         );
 
         // connect to zookeeper

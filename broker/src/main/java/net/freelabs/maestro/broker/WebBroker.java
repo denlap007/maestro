@@ -17,6 +17,7 @@
 package net.freelabs.maestro.broker;
 
 import java.io.IOException;
+import java.util.Map;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
@@ -40,7 +41,7 @@ public class WebBroker extends Broker {
 
 
     @Override
-    public Container deserializeContainerConf(byte[] data) {
+    public Container deserializeConType(byte[] data) {
         WebContainer con = null;
         try {
             con = JsonSerializer.deserializeToWebContainer(data);
@@ -52,8 +53,12 @@ public class WebBroker extends Broker {
         return con;
     }
 
+    protected void startMainProcess_OLD() {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
     @Override
-    protected int startMainProcess() {
+    protected Map<String, String> getConEnv() {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 

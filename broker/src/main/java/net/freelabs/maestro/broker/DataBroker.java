@@ -19,7 +19,6 @@ package net.freelabs.maestro.broker;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.logging.Level;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.DataEnvironment;
@@ -57,7 +56,7 @@ public class DataBroker extends Broker {
     }
 
     @Override
-    public Container deserializeContainerConf(byte[] data) {
+    public Container deserializeConType(byte[] data) {
         DataContainer con = null;
         try {
             con = JsonSerializer.deserializeToDataContainer(data);
@@ -75,24 +74,25 @@ public class DataBroker extends Broker {
     /**
      * Starts the main process of the associated container.
      */
-    @Override
-    protected int startMainProcess() {
+    @Deprecated
+    protected void startMainProcess_OLD() {
         // create a new process builder to initialize the process
         ProcessBuilder pb = new ProcessBuilder("/bin/bash", "-c", "/broker/data-entrypoint.sh mysqld;");
         // get the environment 
         Map<String, String> env = pb.environment();
         // initialize the environment
-        Map<String, String> environment = getDataConEnv();
+        Map<String, String> environment = getConEnv();
         env.putAll(environment);
         // redirect I/O/E streams to parent
-        pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+        //pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+        pb.redirectError();
         Process p = null;
         // start process
         try {
             p = pb.start();
             LOG.info("STARTING Main process.");
         } catch (IOException ex) {
-            LOG.error("FAILED to start main process: {}", ex);
+            LOG.error("FAILED to start main process: " + ex);
         }
 
         // wait for the executed script to finish
@@ -102,11 +102,10 @@ public class DataBroker extends Broker {
             try {
                 errCode = p.waitFor();
             } catch (InterruptedException ex) {
-                LOG.warn("Interruption attempted: ", ex);
+                LOG.warn("Interruption attempted: " + ex);
                 Thread.currentThread().interrupt();
             }
         }
-        return errCode;
     }
 
 
@@ -117,7 +116,8 @@ public class DataBroker extends Broker {
      * e.t.c. with all the fields declared in the
      * {@link DataEnvironment DataEnvironment} class.
      */
-    private Map<String, String> getDataConEnv() {
+    @Override
+    protected Map<String, String> getConEnv() {
         DataEnvironment env = dataCon.getEnvironment();
 
         String DB_PORT = String.valueOf(env.getDb_Port());
@@ -134,11 +134,8 @@ public class DataBroker extends Broker {
         envMap.put("DB_PASS", DB_PASS);
         envMap.put("DB_NAME", DB_NAME);
         envMap.put("DB_HOST", DB_HOST);
-
+        
         return envMap;
     }
 
-    private void loadEntrypointScript() {
-
-    }
 }
