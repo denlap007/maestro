@@ -5,7 +5,8 @@
             <name>web</name>
             <connectWith>data business1</connectWith>
             <dockerImage>java</dockerImage>
-            <entrypointScriptPath></entrypointScriptPath>
+            <entrypointPath></entrypointPath>
+            <entrypointArgs></entrypointArgs>
             <environment>
                 <url>localhost:4848</url>
             </environment>
@@ -15,7 +16,8 @@
             <name>business1</name>
             <connectWith>web data</connectWith>
             <dockerImage>ubuntu</dockerImage>
-            <entrypointScriptPath></entrypointScriptPath>
+            <entrypointPath></entrypointPath>
+            <entrypointArgs></entrypointArgs>
             <environment>
                 <url>http://something.com</url>
             </environment>
@@ -24,7 +26,8 @@
             <name>business2</name>
             <connectWith>web data</connectWith>
             <dockerImage>ubuntu</dockerImage>
-            <entrypointScriptPath></entrypointScriptPath>
+            <entrypointPath></entrypointPath>
+            <entrypointArgs></entrypointArgs>
             <environment>
                 <url>http://something.com</url>
             </environment>
@@ -34,7 +37,8 @@
             <name>data</name>
             <connectWith>web</connectWith>
             <dockerImage>dio/mysql_jre:v2</dockerImage>
-            <entrypointScriptPath></entrypointScriptPath>
+            <entrypointPath>/broker/data-entrypoint.sh</entrypointPath>
+            <entrypointArgs>mysqld</entrypointArgs>
             <environment>
                 <db_port>3306</db_port>
                 <db_url>jdbc:mysql://localhost:3306/test?profileSQL=true</db_url>
