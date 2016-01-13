@@ -34,8 +34,8 @@ public class ZkNamingServiceNode {
     /**
      * Enum with two (2) states.
      */
-    private static enum SERVICE_STATE {
-        INITIALIZED, NOT_INITIALIZED
+    private enum SERVICE_STATE {
+        INITIALIZED, NOT_INITIALIZED, NOT_RUNNING
     };
 
     /**
@@ -45,14 +45,14 @@ public class ZkNamingServiceNode {
      */
     public ZkNamingServiceNode(String zkContainerPath) {
         this.zkContainerPath = zkContainerPath;
-        status = SERVICE_STATE.NOT_INITIALIZED;
+        status = SERVICE_STATE.NOT_RUNNING;
     }
-    
+
     /**
      * Default constructor, necessary for de-serialization with Jackson.
      */
-    public ZkNamingServiceNode(){
-        
+    public ZkNamingServiceNode() {
+
     }
 
     // Getters -Setters
@@ -66,6 +66,10 @@ public class ZkNamingServiceNode {
 
     public void setStatusNotInitialized() {
         this.status = SERVICE_STATE.NOT_INITIALIZED;
+    }
+
+    public void setStatusNotRunning() {
+        this.status = SERVICE_STATE.NOT_RUNNING;
     }
 
     public String getZkContainerPath() {

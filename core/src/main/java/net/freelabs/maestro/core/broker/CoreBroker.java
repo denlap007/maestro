@@ -221,9 +221,9 @@ public abstract class CoreBroker extends ConnectionWatcher implements Runnable, 
             shutdownSignal.await();
         } catch (InterruptedException ex) {
             // log the event
-            LOG.warn("Interruption attempted: ", ex);
-            // set the interrupt status
-            Thread.currentThread().interrupt();
+            LOG.warn("Interruption attempted: {}", ex.getMessage());
+            LOG.warn("Shutting down due to interruption(!)");
+            shutdown();
         }
     }
 
