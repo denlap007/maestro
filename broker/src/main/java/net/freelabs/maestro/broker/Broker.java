@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Dionysis Lappas (dio@freelabs.net)
+ * Copyright (C) 2015-2016 Dionysis Lappas (dio@freelabs.net)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -52,9 +52,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
 /**
- *
- * Class that defines a Broker client to the zookeeper configuration store. Must
- * implement the BrokerInterface.
+ * Class that defines a Broker client to the zookeeper configuration store.
  */
 public abstract class Broker extends ConnectionWatcher implements Runnable {
 
@@ -89,15 +87,15 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
     private final String conConfNode;
 
     /**
-     * The state of a service required by the container.
+     * The status of a service-dependency, required by the container.
      */
-    private static enum SERVICE_STATE {
+    private static enum DEPENDENCY_STATUS {
         PROCESSED, NOT_PROCESSED
     };
     /**
-     * A map of services (Key) and their STATE (Value).
+     * A map of services (Key) and their STATUS (Value).
      */
-    private final Map<String, SERVICE_STATE> serviceState = new HashMap<>();
+    private final Map<String, DEPENDENCY_STATUS> dependenciesState = new HashMap<>();
     /**
      * An object to handle execution of operations on another thread.
      */
@@ -106,7 +104,9 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * The name of the container associated with the broker.
      */
     private String containerName;
-
+    /**
+     * The type of the container.
+     */
     private final String containerType;
     /**
      * The work dir of the Broker, where created files will be stored.
@@ -143,8 +143,8 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         this.zkNamingService = zkNamingService;
         this.shutdownNode = shutdownNode;
         this.conConfNode = conConfNode;
-        containerName = zkContainerPath.substring(zkContainerPath.lastIndexOf("/") + 1, zkContainerPath.length());
-        containerType = zkContainerPath.substring(zkContainerPath.indexOf("/", zkContainerPath.indexOf("/") + 1) + 1, zkContainerPath.lastIndexOf("/"));
+        containerName = resolveServicePath(zkContainerPath);
+        containerType = getContainerType(zkContainerPath);
         BROKER_WORK_DIR_PATH = BrokerConf.BROKER_BASE_DIR_PATH + File.separator + containerName + "-broker";
         // create a new naming service node
         serviceNode = new ZkNamingServiceNode(zkContainerPath);
@@ -388,8 +388,8 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         from the current cotnainer configuration from "connectWith" field.
          */
         for (String service : container.getConnectWith()) {
-            // set the service status to NOT_RUNNING
-            serviceState.put(service, SERVICE_STATE.NOT_PROCESSED);
+            // set the service-dependency status to NOT_PROCESSED
+            dependenciesState.put(service, DEPENDENCY_STATUS.NOT_PROCESSED);
             // query tha naming service for the required service
             queryForService(service);
         }
@@ -616,30 +616,30 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         // get cotnainer name
         String conName = resolveServicePath(path);
         // save configuration to memory
-        servicesConfiguration.put(conName, serviceContainer);
+        servicesConfiguration.put(path, serviceContainer);
         // save configuration to file named after the container
         createConfFile(serviceContainer, conName);
-        // set service status and log the event
-        serviceState.replace(conName, SERVICE_STATE.PROCESSED);
-        LOG.info("Service: {}\tStatus: {}.", conName, SERVICE_STATE.PROCESSED.toString());
-        // check if container is initialized in order to start the main process
+        // set service-dependency status and log the event
+        dependenciesState.replace(conName, DEPENDENCY_STATUS.PROCESSED);
+        LOG.info("Service: {}\tStatus: {}.", conName, DEPENDENCY_STATUS.PROCESSED.toString());
+        // check if container is initialized in order to start the entrypoint process
         checkInitialization();
     }
 
     /**
      * *************************************************************************
      * PROCESS HANDLING
-     * **************************************************************************
+     * *************************************************************************
      */
     /**
      * Checks if all container dependencies are resolved and if so initiates the
-     * main container process.
+     * entrypoint container process.
      */
     private void checkInitialization() {
         // if container is initialized
         if (isContainerInitialized()) {
-            // start the main process
-            startMainProcess();
+            // start the entryoint process
+            startEntrypointProcess();
         }
     }
 
@@ -652,18 +652,18 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      */
     private boolean isContainerInitialized() {
         // check if there are not processes services and set value accoordingly
-        boolean initialized = !serviceState.containsValue(SERVICE_STATE.NOT_PROCESSED);
+        boolean initialized = !dependenciesState.containsValue(DEPENDENCY_STATUS.NOT_PROCESSED);
         // print messages according to state
         if (initialized) {
             LOG.info("Container INITIALIZED!");
         } else {
             // log services that have not started yet.
             StringBuilder waitingServices = new StringBuilder();
-            for (Map.Entry<String, SERVICE_STATE> entry : serviceState.entrySet()) {
+            for (Map.Entry<String, DEPENDENCY_STATUS> entry : dependenciesState.entrySet()) {
                 String key = entry.getKey();
-                SERVICE_STATE value = entry.getValue();
+                DEPENDENCY_STATUS value = entry.getValue();
 
-                if (value == SERVICE_STATE.NOT_PROCESSED) {
+                if (value == DEPENDENCY_STATUS.NOT_PROCESSED) {
                     waitingServices.append(key).append(" ");
                 }
             }
@@ -677,7 +677,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * Starts the main container process.
      *
      */
-    private void startMainProcess() {
+    private void startEntrypointProcess() {
         // handle the entrypoint processing
         EntrypointHandler entryHandler = handleEntrypoint();
         // handle the interaction with the new process
@@ -705,35 +705,75 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
     }
 
     /**
-     * <p>Handles the interaction with the new process.
-     * <p>The method creates a new process, initializes it with the environment,
-     * starts the process, monitors its execution and updates the service status 
-     * to initialized, if it is initialized. 
-     * @param entryHandler 
+     * <p>
+     * Handles the interaction with the new process.
+     * <p>
+     * The method creates a new process, initializes it with the environment,
+     * starts the process, monitors its execution and updates the service status
+     * to initialized, if it is initialized.
+     *
+     * @param entryHandler
      */
     private void handleProcess(EntrypointHandler entryHandler) {
         // create a process handler to manage the new process initiation.
         ProcessHandler procHandler = new ProcessHandler();
         // initialize with the environment
         Map<String, String> env = getConEnv();
+
+        // add environment from dependencies
         String entrypointPath = entryHandler.getUpdatedEntrypointPath();
         List<String> entrypointArgs = entryHandler.getEntrypointArgs();
         procHandler.initProc(env, entrypointPath, entrypointArgs);
         // start process
-        procHandler.startProc();
-        //check if process has started successfully
-        if (procHandler.hasProcStarted()) {
-            // check if process is running
-            if (procHandler.isProcRunning()) {
-                // wait the process to initialize
-                procHandler.waitForInitialization();
-                LOG.info("Main process INITIALIZED.");
-                // change service status to INITIALIZED
-                updateServiceStatus();
-            } else {
-                LOG.error("Main process FAILED to initialize.");
+        boolean procStarted = procHandler.startProc();
+        // check if process has started successfully
+        if (procStarted) {
+            // change service status to INITIALIZED
+            updateZkServiceStatus(serviceNode::setStatusInitialized);
+            // monitor service and update status accordingly for zk service node
+            monService(procHandler);
+        } else {
+            // change service status to NOT_INITIALIZED
+            updateZkServiceStatus(serviceNode::setStatusNotInitialized);
+        }
+
+    }
+
+    private Map<String, String> getDependenciesEnv() {
+        for (Map.Entry<String, Container> entry : servicesConfiguration.entrySet()) {
+            // get the container path 
+            String path = entry.getKey();
+            Container con = entry.getValue();
+            if (con instanceof WebContainer) {
+                // cast to instance class
+                WebContainer web = (WebContainer) con;
+                //web.ge WebEnvironment env = web.getEnvironment();
+            } else if (con instanceof BusinessContainer) {
+                // cast to instance class
+                BusinessContainer bus = (BusinessContainer) con;
+            } else if (con instanceof DataContainer) {
+                // cast to instance class
+                DataContainer data = (DataContainer) con;
             }
         }
+
+        return null;
+    }
+
+    /**
+     * Monitors the running service and updates the zk service node status 
+     * accordingly in case it stops.
+     *
+     * @param procHandler the {@link ProcessHandler ProcessHandler} object.
+     */
+    private void monService(ProcessHandler procHandler) {
+        // run in a new thread
+        new Thread(() -> {
+            procHandler.waitForMainProc();
+            // change service status to NOT RUNNING
+            updateZkServiceStatus(serviceNode::setStatusNotRunning);
+        }
+        ).start();
     }
 
     /**
@@ -744,15 +784,14 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
     protected abstract Map<String, String> getConEnv();
 
     /**
-     * Updates the service status to INITIALIZED.
+     * Updates the service status to INITIALIZED or NOT, RUNNING, NOT RUNNING.
      */
-    private void updateServiceStatus() {
+    private void updateZkServiceStatus(Updatable updateInterface) {
         // get the service path
         String servicePath = resolveServiceName(containerName);
-        // log action
-        LOG.info("Updating service status to Initialized: {}", servicePath);
-        // set the new status for the service
-        serviceNode.setStatusInitialized();
+        // update status
+        updateInterface.updateStatus();
+        LOG.info("Updating service status to {}: {}", serviceNode.getStatus(), servicePath);
         // serialize data
         byte[] updatedData = serializeServiceNode(servicePath, serviceNode);
         // update service node data
@@ -866,7 +905,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * @param service the service name.
      * @return the service path to the zookeeper namespace.
      */
-    private String resolveServiceName(String service) {
+    protected final String resolveServiceName(String service) {
         return zkNamingService.concat("/").concat(service);
     }
 
@@ -876,7 +915,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * @param path the service/container path to the zookeeper namespace.
      * @return the service name.
      */
-    protected String resolveServicePath(String path) {
+    protected final String resolveServicePath(String path) {
         return path.substring(path.lastIndexOf("/") + 1, path.length());
     }
 
@@ -886,7 +925,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * @param path the path of the cotnainer zNode to find the container type.
      * @return the container type.
      */
-    private String getContainerType(String path) {
+    protected final String getContainerType(String path) {
         return path.substring(path.indexOf("/", path.indexOf("/") + 1) + 1, path.lastIndexOf("/"));
     }
 
@@ -1025,7 +1064,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
             node = JsonSerializer.deserializeServiceNode(data);
             LOG.info("De-serialized naming service node: {}", path);
         } catch (IOException ex) {
-            LOG.error("Naming service node de-serialization FAILED!" + ex);
+            LOG.error("Naming service node de-serialization FAILED! " + ex);
         }
         return node;
     }
@@ -1038,7 +1077,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
             shutdownSignal.await();
         } catch (InterruptedException ex) {
             // log the event
-            LOG.warn("Interruption attemplted", ex);
+            LOG.warn("Interruption attemplted: {}", ex.getMessage());
             // set interrupted flag
             Thread.currentThread().interrupt();
         }

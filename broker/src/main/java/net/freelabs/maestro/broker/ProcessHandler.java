@@ -16,17 +16,13 @@
  */
 package net.freelabs.maestro.broker;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Scanner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 /**
  *
@@ -43,14 +39,18 @@ final class ProcessHandler {
      * The processs associated with the {@link ProcessHandler ProcessHandler}.
      */
     private Process _proc;
-
+    /**
+     * Used to initialize and start a new process.
+     */
     private final ProcessBuilder pb;
-
-    private volatile int main_proc_pid;
-
-    private static final String CONTROL_STRING = "_proc_pid=";
-
-    private final ProcMon procMon;
+    /**
+     * Monitors the entrypoint process state.
+     */
+    private final EntrypointProcMon entryProcMon;
+    /**
+     * Monitors the main process state.
+     */
+    private final MainProcMon mainProcMon;
 
     /**
      * Constructor
@@ -58,8 +58,10 @@ final class ProcessHandler {
     public ProcessHandler() {
         // create a ProcessBuidler to spawn a new process
         pb = createProc();
-        // create a process monitor object to minitor the state of the process
-        procMon = new ProcMon();
+        // create an entrypoint process monitor
+        entryProcMon = new EntrypointProcMon();
+        // create a main process monitor
+        mainProcMon = new MainProcMon();
     }
 
     /**
@@ -102,173 +104,31 @@ final class ProcessHandler {
     }
 
     /**
-     * Starts a new process.
+     * <p>Starts the main process. 
+     * <p>Spawns a new process and runs the entrypoint script. This is the
+     * entrypoint process. Waits until initialization is complete and then 
+     * the main container process is spawned.
      *
-     * @return true if process started successfully.
+     * @return true if main container process started successfully.
      */
-    protected void startProc() {
+    protected boolean startProc() {
         try {
-            // start the new process, set to started
+            // start the new process
             _proc = pb.start();
-            procMon._started = true;
-            LOG.info("STARTING Main process.");
-            // start monitoring the process, set to running
-            monProc();
-            // read proc output
-            readProcOutput();
+            LOG.info("STARTING entrypoint process.");
+            // start the entrypoint monitor
+            entryProcMon.start(_proc);
+            // if entrypoint initialized, main process is spawned
+            if (entryProcMon.isInitialized()){
+                LOG.info("STARTING main process.");
+                mainProcMon.start(_proc, entryProcMon.getMain_proc_pid());
+            }
         } catch (IOException ex) {
-            LOG.error("FAILED to start main process: " + ex);
+            LOG.error("FAILED to start entrypoint process: " + ex);
         }
+        return mainProcMon.isRunning();
     }
-
-    /**
-     * <p>
-     * Reads the output of {@link #_proc _proc} process and sets the process
-     * state to initialized if it initializes successfully. 
-     * <p>
-     * The method reads the output and searches for the {@link #CONTROL_STRING
-     * CONTROL_STRING}. If the CONTROL_STRING is found then the process is
-     * initialized and will spawn the main container process.
-     * <p>
-     * By finding the CONTROL_STRING the method extracts also the pid of the
-     * main container process that is spawned.
-     */
-    private void readProcOutput() {
-        // create a new thread to read proc output
-        Thread t = new Thread() {
-            @Override
-            public void run() {
-                // set id for logging
-                MDC.put("id", "entrypoint");
-                // read process output
-                BufferedReader inStream = new BufferedReader(new InputStreamReader(_proc.getInputStream()));
-                String line;
-                Scanner scan = new Scanner(inStream);
-                while (scan.hasNextLine()) {
-                    line = scan.nextLine();
-                    LOG.info(line);
-                    // check if process is initialized
-                    if (line.contains(CONTROL_STRING)) {
-                        main_proc_pid = Integer.parseInt(line.substring(line.indexOf("=") + 1, line.length()));
-                        procMon._initialized = true;
-                    }
-                }
-            }
-        };
-        // start the thread
-        t.start();
-    }
-
-    /**
-     * <p>
-     * Waits until the process is initialized.
-     * <p>
-     * The method creates a new thread that monitors the process initialization.
-     * When the process is initialized, it interrupts the main execution thread
-     * that is waiting to be notified of the event.
-     */
-    protected void waitForInitialization() {
-        LOG.info("Waiting for the process to initialize...");
-        // get the current executing thread
-        Thread waitingThread = Thread.currentThread();
-        // create a thread to monitor if the process is initialized
-        Thread monThread = new Thread() {
-            @Override
-            public void run() {
-                while (true) {
-                    if (procMon._initialized) {
-                        break;
-                    }
-                }
-                // interrupt the thread that is waiting for the initialization
-                waitingThread.interrupt();
-            }
-        };
-
-        monThread.start();
-
-        if (_proc != null) {
-            try {
-                _proc.waitFor();
-            } catch (InterruptedException ex) {
-                LOG.warn("Thread interrupted. Process initialization complete.");
-                Thread.interrupted();
-            }
-        }
-    }
-
-    /**
-     * <p>
-     * Waits for the process to finish.
-     * <p>
-     * The method blocks until the process has finished. Any interruption
-     * attempted is logged and ignored.
-     *
-     * @return the error code returned by the process execution.
-     */
-    protected int waitForProc() {
-        int errCode = -1;
-        if (_proc != null) {
-            try {
-                errCode = _proc.waitFor();
-            } catch (InterruptedException ex) {
-                LOG.warn("Interruption attempted: " + ex);
-                Thread.currentThread().interrupt();
-            }
-        }
-        return errCode;
-    }
-
-    /**
-     * <p>
-     * Monitors the running process.
-     * <p>
-     * The process status may be obtained by invoking the {@link ProcMon#isRunning()
-     * isRunning} method. If the process is running the method will return true.
-     *
-     * @return a {@link ProcMon ProcMon} object.
-     */
-    protected void monProc() {
-        // start in a new thread
-        Thread t = new Thread(procMon);
-        t.start();
-        LOG.info("Started monitoring the main process.");
-    }
-
-    /**
-     * Class that is used to monitor a process's state.
-     */
-    protected final class ProcMon implements Runnable {
-
-        /**
-         * Indicates if the process has started or not.
-         */
-        private volatile boolean _started;
-        /**
-         * Indicated if the process is initialized or not.
-         */
-        private volatile boolean _initialized;
-        /**
-         * Indicated if the process is running or not.
-         */
-        private volatile boolean _running;
-        /**
-         * Holds the process error code.
-         */
-        private volatile int errCode;
-
-        @Override
-        public void run() {
-            _running = true;
-            errCode = waitForProc();
-            _running = false;
-        }
-
-        // Getters
-        protected int getErrCode() {
-            return errCode;
-        }
-    }
+    
 
     /**
      * Returns the process's pid through reflection.
@@ -288,18 +148,20 @@ final class ProcessHandler {
 
         return pid;
     }
-
-    // Getters
-    public boolean isProcInitialized() {
-        return procMon._initialized;
+    
+    /**
+     * Checks if the main container process is running.
+     * @return true if the main container process is running.
+     */
+    protected boolean isMainProcRunning(){
+        return mainProcMon.isRunning();
     }
-
-    protected boolean isProcRunning() {
-        return procMon._running;
-    }
-
-    protected boolean hasProcStarted() {
-        return procMon._started;
+    
+    /**
+     * Blocks until the main container process stops running.
+     */
+    protected void waitForMainProc(){
+        mainProcMon.setWaitOnMainProc();
     }
 
 }

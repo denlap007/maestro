@@ -71,43 +71,6 @@ public class DataBroker extends Broker {
         return con;
     }
 
-    /**
-     * Starts the main process of the associated container.
-     */
-    @Deprecated
-    protected void startMainProcess_OLD() {
-        // create a new process builder to initialize the process
-        ProcessBuilder pb = new ProcessBuilder("/bin/bash", "-c", "/broker/data-entrypoint.sh mysqld;");
-        // get the environment 
-        Map<String, String> env = pb.environment();
-        // initialize the environment
-        Map<String, String> environment = getConEnv();
-        env.putAll(environment);
-        // redirect I/O/E streams to parent
-        //pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-        pb.redirectError();
-        Process p = null;
-        // start process
-        try {
-            p = pb.start();
-            LOG.info("STARTING Main process.");
-        } catch (IOException ex) {
-            LOG.error("FAILED to start main process: " + ex);
-        }
-
-        // wait for the executed script to finish
-        int errCode = -1;
-        
-        if (p != null) {
-            try {
-                errCode = p.waitFor();
-            } catch (InterruptedException ex) {
-                LOG.warn("Interruption attempted: " + ex);
-                Thread.currentThread().interrupt();
-            }
-        }
-    }
-
 
     /**
      * Gets the environment of a DataContainer to a string.

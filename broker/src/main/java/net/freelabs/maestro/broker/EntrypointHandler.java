@@ -16,8 +16,6 @@
  */
 package net.freelabs.maestro.broker;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
@@ -50,7 +48,12 @@ final class EntrypointHandler {
     /**
      * The custom script to be appended to entrypoint.
      */
-    private static final String CUSTOM_SCRIPT = " & echo \"_proc_pid=$!\"; wait;";
+    private static final String CUSTOM_SCRIPT = " & echo \"_main_proc_pid=$!\"; wait;";
+    /**
+     * Used to indicate that initialization is complete and the main process is
+     * spawned. 
+     */    
+    protected static final String CONTROL_STRING = "_main_proc_pid";
     /**
      * A Logger object.
      */
