@@ -17,7 +17,6 @@
 package net.freelabs.maestro.broker;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.logging.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,14 +40,14 @@ public class MainProcMon {
      * is the process that spawned the main container process.
      */
     private Process _proc;
-    
-    private CountDownLatch runningSignal = new CountDownLatch(1);
-    
+    /**
+     * Latch that is used to wait for the process while running.
+     */
+    private final CountDownLatch runningSignal = new CountDownLatch(1);
     /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(MainProcMon.class);
-    
 
     /**
      * Starts monitoring the process. Sets state to RUNNING.
@@ -69,9 +68,16 @@ public class MainProcMon {
     public boolean isRunning() {
         return running;
     }
-    
+
     /**
-     * Monitors if the process is running.
+     * <p>
+     * Monitors if the process is running
+     * <p>
+     * The method waits for the process and when it exits sets state to NOT
+     * RUNNING, while releases the {@link #runningSignal runningSingal} latch,
+     * in order to notify the threads waiting.
+     * <p>
+     * The method blocks.
      */
     protected void monRunning() {
         new Thread(() -> {
@@ -91,16 +97,28 @@ public class MainProcMon {
         ).start();
         LOG.info("Started monitoring the main process.");
     }
-
+    /**
+     * Sets the main process pid.
+     * @param pid 
+     */
     public void setPid(int pid) {
         this.pid = pid;
     }
-
+    /**
+     * Gets the main process pid.
+     * @return 
+     */
     public int getPid() {
         return pid;
     }
-    
-    public void setWaitOnMainProc(){
+
+    /**
+     * <p>
+     * The method sets the caller into waiting for the main process to stop.
+     * <p>
+     * The method blocks.
+     */
+    public void setWaitOnMainProc() {
         try {
             runningSignal.await();
         } catch (InterruptedException ex) {

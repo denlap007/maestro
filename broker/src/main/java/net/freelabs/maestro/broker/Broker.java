@@ -559,7 +559,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         // get the zNode path of the container of this service
         String containerPath = node.getZkContainerPath();
         // print data
-        LOG.info("Service -> Container: {} -> {} ", path, containerPath);
+        LOG.info("Service:Container -> {}:{} ", path, containerPath);
         // GET CONDIGURATION DATA FROM the container of the retrieved zkPath.
         getConData(containerPath);
     }
@@ -680,8 +680,10 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
     private void startEntrypointProcess() {
         // handle the entrypoint processing
         EntrypointHandler entryHandler = handleEntrypoint();
-        // handle the interaction with the new process
-        handleProcess(entryHandler);
+        // if entryoint handler is ready, handle the interaction with the new process
+        if (entryHandler.isReady()){
+            handleProcess(entryHandler);
+        }
     }
 
     /**
@@ -719,8 +721,12 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         ProcessHandler procHandler = new ProcessHandler();
         // initialize with the environment
         Map<String, String> env = getConEnv();
+        // get environment from dependencies and add to environment
+        Map<String, String> dependenciesEnv = getDependenciesEnv();
 
-        // add environment from dependencies
+        // CHECK RESULT
+        env.putAll(dependenciesEnv);
+        // get the rest configuration
         String entrypointPath = entryHandler.getUpdatedEntrypointPath();
         List<String> entrypointArgs = entryHandler.getEntrypointArgs();
         procHandler.initProc(env, entrypointPath, entrypointArgs);
@@ -736,32 +742,50 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
             // change service status to NOT_INITIALIZED
             updateZkServiceStatus(serviceNode::setStatusNotInitialized);
         }
-
     }
 
     private Map<String, String> getDependenciesEnv() {
-        for (Map.Entry<String, Container> entry : servicesConfiguration.entrySet()) {
-            // get the container path 
-            String path = entry.getKey();
-            Container con = entry.getValue();
+        LOG.info("Extracting environment from dependencies.");
+        // holds the global key-value entries for all container
+        Map<String, String> dependenciesEnv = new HashMap<>();
+        // holds data per repetition
+        Map<String, String> env = new HashMap<>();
+
+        // iterate through the container dependencies
+        for (Container con : servicesConfiguration.values()) {
             if (con instanceof WebContainer) {
                 // cast to instance class
                 WebContainer web = (WebContainer) con;
-                //web.ge WebEnvironment env = web.getEnvironment();
+                // get the environment
+                env = web.getEnvironment().getEnvMap(web.getEnvironment(), con.getName());
             } else if (con instanceof BusinessContainer) {
                 // cast to instance class
-                BusinessContainer bus = (BusinessContainer) con;
+                BusinessContainer business = (BusinessContainer) con;
+                // get the environment
+                env = business.getEnvironment().getEnvMap(business.getEnvironment(), con.getName());
             } else if (con instanceof DataContainer) {
                 // cast to instance class
                 DataContainer data = (DataContainer) con;
+                // get the environment
+                env = data.getEnvironment().getEnvMap(data.getEnvironment(), con.getName());
             }
+            // print extracted environment
+            LOG.info("Environment of dependency: {}", con.getName());
+            for (Map.Entry<String, String> entry : env.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+                LOG.info("{}={}", key, value);
+            }
+            // add map to dependencies map
+            dependenciesEnv.putAll(env);
+            // remove everything
+            env.clear();
         }
-
-        return null;
+        return dependenciesEnv;
     }
 
     /**
-     * Monitors the running service and updates the zk service node status 
+     * Monitors the running service and updates the zk service node status
      * accordingly in case it stops.
      *
      * @param procHandler the {@link ProcessHandler ProcessHandler} object.
@@ -880,7 +904,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
             LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
             /**
              *
-             * CODE FOR RETRIEVING UPDATED CONFIGURATION
+             * CODE FOR RETRIEVING UPDATES ON SERVICE STATE
              *
              *
              */
@@ -991,7 +1015,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         Container con = null;
         // get the type of the container
         String type = getContainerType(path);
-        // de-serialize the container according to the container type
+        // de-serialize the container according to the container type       
         try {
             if (type.equalsIgnoreCase("WebContainer")) {
                 WebContainer webCon = JsonSerializer.deserializeToWebContainer(data);
@@ -1005,7 +1029,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
             }
 
             if (con != null) {
-                LOG.info("De-serialized conf of dependency: {}. Printing: \n {}", resolveServicePath(path),
+                LOG.info("De-serialized dependency: {}. Printing: \n {}", resolveServicePath(path),
                         JsonSerializer.deserializeToString(data));
             } else {
                 LOG.error("De-serialization of dependency {} FAILED", path);
@@ -1044,9 +1068,9 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         byte[] data = null;
         try {
             data = JsonSerializer.serializeServiceNode(node);
-            LOG.info("Serialized naming service node: {}", path);
+            LOG.info("Serialized service node: {}", path);
         } catch (JsonProcessingException ex) {
-            LOG.error("Naming service node Serialization FAILED: " + ex);
+            LOG.error("Service node Serialization FAILED: " + ex);
         }
         return data;
     }
@@ -1062,9 +1086,9 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         ZkNamingServiceNode node = null;
         try {
             node = JsonSerializer.deserializeServiceNode(data);
-            LOG.info("De-serialized naming service node: {}", path);
+            LOG.info("De-serialized service node: {}", path);
         } catch (IOException ex) {
-            LOG.error("Naming service node de-serialization FAILED! " + ex);
+            LOG.error("Service node de-serialization FAILED! " + ex);
         }
         return node;
     }

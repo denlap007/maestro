@@ -104,10 +104,14 @@ final class ProcessHandler {
     }
 
     /**
-     * <p>Starts the main process. 
-     * <p>Spawns a new process and runs the entrypoint script. This is the
-     * entrypoint process. Waits until initialization is complete and then 
-     * the main container process is spawned.
+     * <p>
+     * Starts the main process.
+     * <p>
+     * Spawns a new process and runs the entrypoint script. This is the
+     * entrypoint process. Waits until initialization is complete and then the
+     * main container process is spawned.
+     * <p>
+     * The method blocks.
      *
      * @return true if main container process started successfully.
      */
@@ -119,8 +123,8 @@ final class ProcessHandler {
             // start the entrypoint monitor
             entryProcMon.start(_proc);
             // if entrypoint initialized, main process is spawned
-            if (entryProcMon.isInitialized()){
-                LOG.info("STARTING main process.");
+            if (entryProcMon.isInitialized()) {
+                LOG.info("STARTED main process with pid: {}", entryProcMon.getMain_proc_pid());
                 mainProcMon.start(_proc, entryProcMon.getMain_proc_pid());
             }
         } catch (IOException ex) {
@@ -128,7 +132,6 @@ final class ProcessHandler {
         }
         return mainProcMon.isRunning();
     }
-    
 
     /**
      * Returns the process's pid through reflection.
@@ -148,19 +151,20 @@ final class ProcessHandler {
 
         return pid;
     }
-    
+
     /**
      * Checks if the main container process is running.
+     *
      * @return true if the main container process is running.
      */
-    protected boolean isMainProcRunning(){
+    protected boolean isMainProcRunning() {
         return mainProcMon.isRunning();
     }
-    
+
     /**
      * Blocks until the main container process stops running.
      */
-    protected void waitForMainProc(){
+    protected void waitForMainProc() {
         mainProcMon.setWaitOnMainProc();
     }
 

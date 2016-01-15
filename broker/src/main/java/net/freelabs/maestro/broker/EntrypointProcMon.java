@@ -50,7 +50,7 @@ final class EntrypointProcMon {
      */
     private volatile boolean initialized;
     /**
-     * The monitoring process.
+     * The entrypoint process.
      */
     private Process _proc;
     /**
@@ -59,9 +59,9 @@ final class EntrypointProcMon {
      */
     private CountDownLatch initializedSignal;
     /**
-     * The pid of the main container spawned.
+     * The pid of the main container process.
      */
-    private int main_proc_pid = -1;
+    private int main_proc_pid;
 
     /**
      * A Logger object.
@@ -81,6 +81,11 @@ final class EntrypointProcMon {
      * state.
      * <p>
      * Sets state to RUNNING.
+     * <p>
+     * Starts monitoring the running and initialization state. Waits until
+     * initialization is complete.
+     * <p>
+     * The method blocks.
      *
      * @param _proc the process to monitor.
      */
@@ -123,12 +128,12 @@ final class EntrypointProcMon {
                 initializedSignal = new CountDownLatch(1);
                 break;
             case INITIALIZED:
-                initializedSignal.countDown();
                 LOG.info("Process initialization complete.");
+                initializedSignal.countDown();
                 break;
             case NOT_INITIALIZED:
-                initializedSignal.countDown();
                 LOG.error("Process initialization FAILED.");
+                initializedSignal.countDown();
                 break;
             default:
                 break;
@@ -139,7 +144,9 @@ final class EntrypointProcMon {
      * <p>
      * Monitors if the entrypoint is running.
      * <p>
-     * Sets entrypoint process status to not running.
+     * Sets entrypoint process status to not running when then process stops.
+     * <p>
+     * Logic is executed in a new thread, consequently the method doesn't block.
      */
     protected void monProcRun() {
         new Thread(() -> {
@@ -169,8 +176,10 @@ final class EntrypointProcMon {
      * <p>
      * By finding the CONTROL_STRING the method extracts also the pid of the
      * main container process that is spawned.
+     * <p>
+     * Logic is executed in a new thread, consequently the method doesn't block.
      */
-    private void readOutForInit() {
+   private void readOutForInit() {
         // create a new thread to read proc output
         new Thread(() -> {
             // set id for logging
@@ -181,9 +190,11 @@ final class EntrypointProcMon {
             Scanner scan = new Scanner(inStream);
             while (scan.hasNextLine()) {
                 line = scan.nextLine();
-                LOG.info(line);
                 // check if process is initialized 
-                checkInit(line);
+                if (checkInit(line)){
+                }else{
+                    LOG.info(line);
+                }
             }
         }
         ).start();
@@ -194,18 +205,25 @@ final class EntrypointProcMon {
      * if found extracts the main process pid and sets entrypoint process status
      * to INITIALIZED.
      *
-     * @param line
+     * @param line input to be checked for the
+     * {@link #CONTROL_STRING CONTROL_STRING}.
      */
-    private void checkInit(String line) {
+    private boolean checkInit(String line) {
         if (line.contains(CONTROL_STRING)) {
             main_proc_pid = Integer.parseInt(line.substring(line.indexOf("=") + 1, line.length()));
             // set initialized status
             setInitialized(true);
+            return true;
+        }else{
+            return false;
         }
     }
 
     /**
+     * <p>
      * Monitors the process initialization. Waits until initialized.
+     * <p>
+     * The method blocks.
      */
     protected void monProcInit() {
         LOG.info("Waiting for the process to initialize...");

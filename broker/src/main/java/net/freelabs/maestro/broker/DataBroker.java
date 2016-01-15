@@ -71,6 +71,14 @@ public class DataBroker extends Broker {
         return con;
     }
 
+    
+    
+    @Override
+    protected Map<String, String> getConEnv(){
+        return dataCon.getEnvironment().getEnvMap(dataCon.getEnvironment(), "");
+    }
+    
+    
 
     /**
      * Gets the environment of a DataContainer to a string.
@@ -79,12 +87,12 @@ public class DataBroker extends Broker {
      * e.t.c. with all the fields declared in the
      * {@link DataEnvironment DataEnvironment} class.
      */
-    @Override
-    protected Map<String, String> getConEnv() {
+    @Deprecated
+    protected Map<String, String> getConEnv_OLD() {
         DataEnvironment env = dataCon.getEnvironment();
 
         String DB_PORT = String.valueOf(env.getDb_Port());
-        String DB_URL = env.getDb_Url();
+        String DB_URL = env.getHost_Url();
         String DB_USER = env.getDb_User();
         String DB_PASS = env.getDb_Pass();
         String DB_NAME = env.getDb_Name();

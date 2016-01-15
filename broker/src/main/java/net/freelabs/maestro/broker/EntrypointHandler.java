@@ -51,8 +51,8 @@ final class EntrypointHandler {
     private static final String CUSTOM_SCRIPT = " & echo \"_main_proc_pid=$!\"; wait;";
     /**
      * Used to indicate that initialization is complete and the main process is
-     * spawned. 
-     */    
+     * spawned.
+     */
     protected static final String CONTROL_STRING = "_main_proc_pid";
     /**
      * A Logger object.
@@ -62,6 +62,14 @@ final class EntrypointHandler {
      * Possible arguments with the entrypoint script.
      */
     private List<String> entrypointArgs;
+    /**
+     * Flag that indicates if the entrypoint script was processed successfully.
+     */
+    private boolean isProcessed;
+    /**
+     * Flat that indicates if the entrypoint args were set.
+     */
+    private boolean areArgsSet;
 
     /**
      * Constructor.
@@ -77,33 +85,47 @@ final class EntrypointHandler {
      * <p>
      * Processes and updates the entrypoint script.
      * <p>
-     * The method makes a copy of the entrypoint script as a temoorary file.
-     * This is done in order to later update the entrypoint script while the
-     * initial script remains intact. As a result the process is transparent to
-     * the user. Afterwards, the entrypoint copy is updated with a custom script
-     * part. Finally, the entrypoint path is updated to point to the updated
-     * copy.
+     * The method makes a copy of the entrypoint script as a temporary file.
+     * This is done in order to update the entrypoint script while the initial
+     * script remains intact. As a result the process is transparent to the
+     * user. Afterwards, the entrypoint copy is updated with a custom script.
+     * Finally, the entrypoint path is updated to point to the updated copy.
      *
      * @throws IOException if there was a problem creating a temp file, copying
      * the entrypoint or writing the custom script.
      */
     protected void processEntrypoint() {
-        // set permissions for a new file
-        Set<PosixFilePermission> perms = PosixFilePermissions.fromString("rwxrwxrwx");
-        try {
-            // create a temporary file and set its attributes
-            Path temp = Files.createTempFile("entrypoint-", ".sh");
-            temp.toFile().deleteOnExit();
-            // make a copy of the entrypoint file
-            Files.copy(Paths.get(entrypointPath), temp, StandardCopyOption.REPLACE_EXISTING);
-            Files.setPosixFilePermissions(temp, perms);
-            // customize entrypoint script by appending the custom script
-            Files.write(temp, CUSTOM_SCRIPT.getBytes(Charset.forName("UTF-8")), StandardOpenOption.APPEND);
-            // update the entrypoint path
-            updatedEntrypointPath = temp.toString();
-        } catch (IOException ex) {
-            LOG.error("Something went wrong: " + ex);
+        boolean fileExists = Files.exists(Paths.get(entrypointPath));
+        if (fileExists) {
+            // set permissions for a new file
+            Set<PosixFilePermission> perms = PosixFilePermissions.fromString("rwxrwxrwx");
+            try {
+                // create a temporary file and set its attributes
+                Path temp = Files.createTempFile("entrypoint-", ".sh");
+                temp.toFile().deleteOnExit();
+                // make a copy of the entrypoint file
+                Files.copy(Paths.get(entrypointPath), temp, StandardCopyOption.REPLACE_EXISTING);
+                Files.setPosixFilePermissions(temp, perms);
+                // customize entrypoint script by appending the custom script
+                Files.write(temp, CUSTOM_SCRIPT.getBytes(Charset.forName("UTF-8")), StandardOpenOption.APPEND);
+                // update the entrypoint path
+                updatedEntrypointPath = temp.toString();
+                // set processed to true
+                isProcessed = true;
+            } catch (IOException ex) {
+                LOG.error("Something went wrong: " + ex);
+            }
+        }else{
+            LOG.error("Entrypoint script NOT FOUND!");
         }
+    }
+    
+    /**
+     * Returns true if the {@link EntrypointHandler EntrypointHandler} is 
+     * initialized and ready to be used.
+     */
+    protected boolean isReady(){
+        return areArgsSet && isProcessed;
     }
 
     /**
@@ -114,6 +136,7 @@ final class EntrypointHandler {
      */
     protected void setEntrypointArgs(List<String> entrypointArgs) {
         this.entrypointArgs = entrypointArgs;
+        areArgsSet = true;
     }
 
     protected List<String> getEntrypointArgs() {

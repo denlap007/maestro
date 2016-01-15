@@ -30,6 +30,8 @@ import org.slf4j.LoggerFactory;
  */
 public class WebBroker extends Broker {
 
+    private WebContainer web;
+
     /**
      * A Logger object.
      */
@@ -38,7 +40,6 @@ public class WebBroker extends Broker {
     public WebBroker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String userConfNode) {
         super(zkHosts, zkSessionTimeout, zkContainerPath, zkNamingService, shutdownNode, userConfNode);
     }
-
 
     @Override
     public Container deserializeConType(byte[] data) {
@@ -50,16 +51,14 @@ public class WebBroker extends Broker {
         } catch (IOException ex) {
             LOG.error("De-serialization FAILED: " + ex);
         }
+        // initialize instance
+        web = con;
         return con;
-    }
-
-    protected void startMainProcess_OLD() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     protected Map<String, String> getConEnv() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return web.getEnvironment().getEnvMap(web.getEnvironment(), "");
     }
 
 }

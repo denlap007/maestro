@@ -30,6 +30,8 @@ import org.slf4j.LoggerFactory;
  */
 public class BusinessBroker extends Broker {
 
+    private BusinessContainer business;
+
     /**
      * A Logger object.
      */
@@ -49,17 +51,14 @@ public class BusinessBroker extends Broker {
         } catch (IOException ex) {
             LOG.error("De-serialization FAILED: " + ex);
         }
+        // initialize instance
+        business = con;
         return con;
-    }
-
-    @Deprecated
-    protected void startMainProcess_OLD() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     protected Map<String, String> getConEnv() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return business.getEnvironment().getEnvMap(business.getEnvironment(), "");
     }
 
 }
