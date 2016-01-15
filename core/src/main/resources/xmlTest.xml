@@ -3,12 +3,13 @@
     <containers>
         <webContainer>
             <name>web</name>
-            <connectWith>data business1</connectWith>
+            <connectWith>data </connectWith>
             <dockerImage>java</dockerImage>
             <entrypointPath></entrypointPath>
             <entrypointArgs></entrypointArgs>
             <environment>
-                <url>localhost:4848</url>
+                <host_url>localhost:4848</host_url>
+                <host_port>4848</host_port>
             </environment>
         </webContainer>
 
@@ -19,7 +20,8 @@
             <entrypointPath></entrypointPath>
             <entrypointArgs></entrypointArgs>
             <environment>
-                <url>http://something.com</url>
+                <host_url>http://something.com</host_url>
+                <host_port>8080</host_port>
             </environment>
         </businessContainer>
         <businessContainer>
@@ -29,7 +31,8 @@
             <entrypointPath></entrypointPath>
             <entrypointArgs></entrypointArgs>
             <environment>
-                <url>http://something.com</url>
+                <host_url>http://something.com</host_url>
+                <host_port>8080</host_port>
             </environment>
         </businessContainer>
 
@@ -40,11 +43,12 @@
             <entrypointPath>/broker/data-entrypoint.sh</entrypointPath>
             <entrypointArgs>mysqld</entrypointArgs>
             <environment>
+                <host_url>jdbc:mysql://localhost:3306/test?profileSQL=true</host_url>
                 <db_port>3306</db_port>
-                <db_url>jdbc:mysql://localhost:3306/test?profileSQL=true</db_url>
                 <db_user>root</db_user>
                 <db_pass>root</db_pass>
                 <db_name></db_name>
+                <db_driver></db_driver>
             </environment>
         </dataContainer>
 

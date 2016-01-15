@@ -165,7 +165,7 @@ public class JsonSerializer {
         // write java value as json to file
         MAPPER.writeValue(newFile, con);
     }
-
+    
     /**
      * Serializes a {@link ZkNamingServiceNode ZkNamingServiceNode}.
      *

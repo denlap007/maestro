@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema">
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns:jxb="http://java.sun.com/xml/ns/jaxb"
+    jxb:version="2.0">
+ 
+<xs:annotation>
+    <xs:appinfo>
+        <jxb:globalBindings underscoreBinding="asCharInWord"/>
+    </xs:appinfo>
+</xs:annotation>
+
 
     <!-- definition of simple types -->
     <xs:simpleType name="port">
@@ -8,7 +17,7 @@
             <xs:minExclusive value="1024"/>
         </xs:restriction>
     </xs:simpleType>
-
+ 
     <xs:simpleType name="stringList">
         <xs:list itemType="xs:string"/>
     </xs:simpleType>
@@ -20,13 +29,14 @@
     <!-- definition of attributes -->
 
     <!-- definition of complex types -->
-    <xs:complexType name="containerEnvironment">
+    <xs:complexType name="containerEnvironment" abstract="true">
         <xs:sequence>
-            <xs:element minOccurs="0" name="ports" type="portList"/>
+            <xs:element name="host_url" type="xs:anyURI"/>
         </xs:sequence>
     </xs:complexType>
     
-    <xs:complexType name="container">
+
+    <xs:complexType name="container" abstract="true">
         <xs:sequence>
             <xs:element name="name" type="xs:token"/>
             <xs:element name="connectWith" type="stringList"/>
@@ -37,16 +47,16 @@
         </xs:sequence>
     </xs:complexType>
 
-    <!-- Data Container -->
+    <!-- DATA CONTAINER -->
     <xs:complexType name="dataEnvironment">
         <xs:complexContent>
             <xs:extension base="containerEnvironment">
                 <xs:sequence>
                     <xs:element name="db_port" type="port"/>
-                    <xs:element name="db_url" type="xs:anyURI"/>
                     <xs:element name="db_user" type="xs:string"/>
                     <xs:element name="db_pass" type="xs:string"/>
                     <xs:element name="db_name" type="xs:string"/>
+                    <xs:element name="db_driver" type="xs:string"/>
                 </xs:sequence> 
             </xs:extension>
         </xs:complexContent>
@@ -62,12 +72,12 @@
         </xs:complexContent>
     </xs:complexType>
 
-    <!-- Web Container -->
+    <!-- WEB CONTAINER -->
     <xs:complexType name="webEnvironment">
         <xs:complexContent>
             <xs:extension base="containerEnvironment">
                 <xs:sequence>
-                    <xs:element name="url" type="xs:anyURI"/>
+                    <xs:element name="host_port" type="port"/>
                 </xs:sequence>
             </xs:extension>
         </xs:complexContent>
@@ -83,12 +93,12 @@
         </xs:complexContent>
     </xs:complexType>
 
-    <!-- Business Container -->
+    <!-- BUSINESS CONTAINER -->
     <xs:complexType name="businessEnvironment">
         <xs:complexContent>
             <xs:extension base="containerEnvironment">
                 <xs:sequence>
-                    <xs:element name="url" type="xs:anyURI"/>
+                    <xs:element name="host_port" type="port"/>
                 </xs:sequence>
             </xs:extension>
         </xs:complexContent>
