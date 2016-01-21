@@ -23,7 +23,7 @@ import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
-import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
+import net.freelabs.maestro.core.zookeeper.ZkConnectionWatcher;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
 import net.freelabs.maestro.core.zookeeper.ZkNode;
 import org.apache.zookeeper.AsyncCallback;
@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
  * For every container type, there is a subclass of this class that handles
  * initialization and bootstrapping of the container.
  */
-public abstract class CoreBroker extends ConnectionWatcher implements Runnable, Watcher {
+public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable, Watcher {
 
     /**
      * The container associated with the broker.

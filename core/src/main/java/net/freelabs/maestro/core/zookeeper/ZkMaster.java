@@ -33,6 +33,7 @@ import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.Code;
 import org.apache.zookeeper.KeeperException.ConnectionLossException;
+import org.apache.zookeeper.KeeperException.NoNodeException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
@@ -45,7 +46,7 @@ import org.apache.zookeeper.data.Stat;
  * zookeeper, create hierarchical namespace and set configuration data to
  * zkNodes declared in the zookeeper configuration.
  */
-public final class ZkMaster extends ConnectionWatcher implements Runnable {
+public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
 
     /**
      * Zookeeper configuration.
@@ -337,11 +338,14 @@ public final class ZkMaster extends ConnectionWatcher implements Runnable {
         while (true) {
             try {
                 zk.delete(path, version);
-                LOG.info("Deleted node: " + path);
+                LOG.info("Deleted node: {}", path);
                 break;
             } catch (ConnectionLossException ex) {
                 LOG.warn("Connection loss was detected");
-            } catch (KeeperException ex) {
+            } catch (NoNodeException ex) {
+                 LOG.info("Node already detected: {}", path);
+            }
+            catch (KeeperException ex) {
                 LOG.error("Something went wrong", ex);
                 break;
             }

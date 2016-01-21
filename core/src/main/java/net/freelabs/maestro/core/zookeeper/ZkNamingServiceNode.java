@@ -23,29 +23,29 @@ package net.freelabs.maestro.core.zookeeper;
 public class ZkNamingServiceNode {
 
     /**
-     * The zNode path of the container to which the service refers.
+     * The zNode path of the container offering the service.
      */
     private String zkContainerPath;
     /**
      * The status of the service.
      */
-    private SERVICE_STATE status;
+    private SRV_STATE_STATUS status;
 
     /**
-     * Enum with two (2) states.
+     * Defines the possible service state status values.
      */
-    private enum SERVICE_STATE {
+    public static enum SRV_STATE_STATUS {
         INITIALIZED, NOT_INITIALIZED, NOT_RUNNING
     };
 
     /**
-     * Cosntructor.
+     * Constructor.
      *
      * @param zkContainerPath the zNode of the container offering the service.
      */
     public ZkNamingServiceNode(String zkContainerPath) {
         this.zkContainerPath = zkContainerPath;
-        status = SERVICE_STATE.NOT_RUNNING;
+        status = SRV_STATE_STATUS.NOT_RUNNING;
     }
 
     /**
@@ -55,23 +55,35 @@ public class ZkNamingServiceNode {
 
     }
 
-    // Getters -Setters
-    public SERVICE_STATE getStatus() {
+    /**
+     * 
+     * @return the {@link #status status} of the service.
+     */
+    public SRV_STATE_STATUS getStatus() {
         return status;
     }
-
+    /**
+     * Sets node {@link #status status} to INITIALIZED.
+     */
     public void setStatusInitialized() {
-        this.status = SERVICE_STATE.INITIALIZED;
+        this.status = SRV_STATE_STATUS.INITIALIZED;
     }
-
+    /**
+     * Sets node {@link #status status} to NOT_INITIALIZED.
+     */
     public void setStatusNotInitialized() {
-        this.status = SERVICE_STATE.NOT_INITIALIZED;
+        this.status = SRV_STATE_STATUS.NOT_INITIALIZED;
     }
-
+    /**
+     * Sets node {@link #status status} to NOT_RUNNING.
+     */
     public void setStatusNotRunning() {
-        this.status = SERVICE_STATE.NOT_RUNNING;
+        this.status = SRV_STATE_STATUS.NOT_RUNNING;
     }
-
+    /**
+     * 
+     * @return the zNode path of the container offering the service.
+     */
     public String getZkContainerPath() {
         return zkContainerPath;
     }

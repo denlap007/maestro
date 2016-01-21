@@ -25,8 +25,8 @@ import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
 
 /**
- *
- * @author Dionysis Lappas <dio@freelabs.net>
+ * Class that provides methods to handle initialization and bootstrapping of 
+ * a Web container type.
  */
 public class CoreWebBroker extends CoreBroker{
     private final WebContainer webCon; 

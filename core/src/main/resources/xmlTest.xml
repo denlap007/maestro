@@ -38,7 +38,7 @@
 
         <dataContainer>
             <name>data</name>
-            <connectWith>web</connectWith>
+            <connectWith></connectWith>
             <dockerImage>dio/mysql_jre:v2</dockerImage>
             <entrypointPath>/broker/data-entrypoint.sh</entrypointPath>
             <entrypointArgs>mysqld</entrypointArgs>
@@ -57,5 +57,5 @@
 
     <containersNum>2</containersNum>
 
-    <webAppName>TestWebApp</webAppName>
+    <webAppName>WebApp</webAppName>
 </webApp>

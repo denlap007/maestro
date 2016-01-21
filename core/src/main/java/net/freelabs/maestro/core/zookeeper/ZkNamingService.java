@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Dionysis Lappas (dio@freelabs.net)
+ * Copyright (C) 2015-2016 Dionysis Lappas (dio@freelabs.net)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,203 +16,116 @@
  */
 package net.freelabs.maestro.core.zookeeper;
 
-import java.util.Random;
-import java.util.concurrent.CountDownLatch;
-import org.apache.zookeeper.AsyncCallback;
-import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
-import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
-import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
-import org.apache.zookeeper.data.Stat;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import net.freelabs.maestro.core.serializer.JsonSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Class that will serve as the zookeeper naming service for the application.
+ * Class that provides methods to facilitate the interaction with the the
+ * zookeeper naming service for the application.
  */
-public class ZkNamingService extends ConnectionWatcher implements Runnable {
+public class ZkNamingService {
 
     /**
-     * The naming service node in the zookeeper namespace.
+     * The zNode path of the naming service node in the zookeeper namespace.
      */
-    private final String namingServicePath;
-    /**
-     * A boolean value indicating if the naming service is running.
-     */
-    private volatile static boolean isRunning = false;
-    /**
-     * An object with the zookeeper configuration.
-     */
-    private final ZkConfig zkConf;
+    private final String zkNamingServicePath;
     /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(ZkNamingService.class);
-    /**
-     * Data for the naming service node.
-     */
-    private static final String NAMING_SERVICE_ID = Long.toString(new Random().nextLong());
-    /**
-     * A CountDownLatch with a count of one, representing the number of events
-     * that need to occur before it releases all	waiting threads.
-     */
-    private final CountDownLatch shutdownSignal = new CountDownLatch(1);
-    /**
-     * The node that signals the shutdown of the master
-     */
-    private final String shutDownNode;
 
     /**
      * Constructor
      *
-     * @param zkConf an object with the zookeeper configuration.
+     * @param zkNamingServicePath
      */
-    public ZkNamingService(ZkConfig zkConf) {
-        // call the constructor of the superclass
-        super(zkConf.getHosts(), zkConf.getSESSION_TIMEOUT());
-        // initialize the name of the naming service node
-        this.zkConf = zkConf;
-        namingServicePath = zkConf.getNamingServicePath();
-        shutDownNode = zkConf.getShutDownPath();
-    }
-
-    @Override
-    public void run() {
-        // create the naming service zNode
-        createNamingService();
-        // set watch for shutdown
-        setShutDownWatch();
-
-        try {
-            waitForShutdown();
-        } catch (InterruptedException ex) {
-            // log the event
-            LOG.warn("Interruption attempted: ", ex);
-            // set the interrupt status
-            Thread.currentThread().interrupt();
-        }
-
-        // close session
-        stop();
+    public ZkNamingService(String zkNamingServicePath) {
+        // store the name of the naming service node
+        this.zkNamingServicePath = zkNamingServicePath;
     }
 
     /**
-     * Creates the master zkNode. The node is EPHEMERAL with masterID as data.
-     */
-    public void createNamingService() {
-        zk.create(namingServicePath, NAMING_SERVICE_ID.getBytes(), OPEN_ACL_UNSAFE,
-                CreateMode.PERSISTENT, createNamingServiceCallback, null);
-    }
-
-    /**
-     * The object to call back with the {@link #runMaster() runMaster} method.
-     */
-    private final AsyncCallback.StringCallback createNamingServiceCallback = (int rc, String path, Object ctx, String name) -> {
-        switch (KeeperException.Code.get(rc)) {
-            case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
-                checkNamingService();
-                return;
-            case NODEEXISTS:
-                LOG.error("Node already exists: " + path);
-                break;
-            case OK:
-                LOG.info("NAMING SERVICE started: " + path);
-                isRunning = true;
-                break;
-            default:
-                LOG.error("Something went wrong: ",
-                        KeeperException.create(KeeperException.Code.get(rc), path));
-        }
-    };
-
-    /**
-     * Checks weather the master is created or not.
-     */
-    public void checkNamingService() {
-        zk.getData(namingServicePath, false, checkNamingServiceCallback, null);
-    }
-
-    /**
-     * The object to call with the {@link #checkMaster() checkMaster} method.
-     */
-    private final AsyncCallback.DataCallback checkNamingServiceCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
-        switch (KeeperException.Code.get(rc)) {
-            case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
-                checkNamingService();
-                break;
-            case NONODE:
-                createNamingService();
-                break;
-            case OK:
-                String nodeId = new String(data);
-                // check if this is the master node
-                if (nodeId.equals(NAMING_SERVICE_ID) == true) {
-                    LOG.info("NAMING SERVICE started: " + path);
-                    isRunning = true;
-                } else {
-                    LOG.error("Node already exists: " + path);
-                }
-                break;
-            default:
-                LOG.error("Something went wrong: ",
-                        KeeperException.create(KeeperException.Code.get(rc), path));
-        }
-    };
-
-    /**
-     * Sets a latch so that the thread waits for shutdown.
+     * <p>
+     * Resolves a service name to the service path.
+     * <p>
+     * A service name is a container name. Every running container, after
+     * initialization, registers itself to the naming service as a service. The
+     * path of the zNode created by this service under the naming service zNode
+     * is the service path.
      *
-     * @throws InterruptedException if thread is interrupted.
+     * @param service the service name.
+     * @return the service path to the zookeeper namespace.
      */
-    public void waitForShutdown() throws InterruptedException {
-        shutdownSignal.await();
+    public final String resolveSrvName(String service) {
+        return zkNamingServicePath.concat("/").concat(service);
     }
 
     /**
-     * Releases the latch to initiate shutdown.
+     * Resolves a service path to the service name.
+     *
+     * @param path the service path to the zookeeper namespace.
+     * @return the service name.
      */
-    public void shutdown() {
-        shutdownSignal.countDown();
-        LOG.info("Initiating naming service shutdown.");
+    public final String resolveSrvPath(String path) {
+        return path.substring(path.lastIndexOf("/") + 1, path.length());
     }
 
     /**
-     * Sets a watch on the zookeeper shutdown node.
+     * Serializes a {@link ZkNamingServiceNode ZkNamingServiceNode}.
+     *
+     * @param path the zNode path of the service.
+     * @param node the service node to serialize.
+     * @return a byte array representing the serialized node.
      */
-    public void setShutDownWatch() {
-        zk.exists(shutDownNode, shutDownWatcher, shutDownCallback, zk);
-    }
-
-    private final AsyncCallback.StatCallback shutDownCallback = (int rc, String path, Object ctx, Stat stat) -> {
-        switch (KeeperException.Code.get(rc)) {
-            case CONNECTIONLOSS:
-                setShutDownWatch();
-                break;
-            case NONODE:
-                LOG.info("Watch registered on: " + path);
-                break;
-            case OK:
-                LOG.error("Node exists: " + path);
-                break;
-            default:
-                LOG.error("Something went wrong: ",
-                        KeeperException.create(KeeperException.Code.get(rc), path));
+    public byte[] serializeZkSrvNode(String path, ZkNamingServiceNode node) {
+        byte[] data = null;
+        try {
+            data = JsonSerializer.serializeServiceNode(node);
+            LOG.info("Serialized service node: {}", path);
+        } catch (JsonProcessingException ex) {
+            LOG.error("Service node Serialization FAILED: " + ex);
         }
-    };
+        return data;
+    }
 
     /**
-     * A watcher to process a watch notification.
+     * De-serializes a {@link ZkNamingServiceNode ZkNamingServiceNode} that is
+     * stored as a byte array.
+     *
+     * @param path the zNode path of the service.
+     * @param data the data to de-serialize.
+     * @return a {@link ZkNamingServiceNode ZkNamingServiceNode} with the data
+     * of the specified service node.
      */
-    private final Watcher shutDownWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
-
-        if (event.getType() == NodeCreated) {
-            shutdown();
+    public ZkNamingServiceNode deserializeZkSrvNode(String path, byte[] data) {
+        ZkNamingServiceNode node = null;
+        try {
+            node = JsonSerializer.deserializeServiceNode(data);
+            LOG.info("De-serialized service node: {}", path);
+        } catch (IOException ex) {
+            LOG.error("Service node de-serialization FAILED! " + ex);
         }
-    };
+        return node;
+    }
+
+    /**
+     * <p>
+     * Resolves a list of service names to the service paths.
+     *
+     * @param srvNames the service names to resolve.
+     * @return a list with the service paths.
+     */
+    public List<String> resolveServicePaths(List<String> srvNames) {
+        List<String> srvPaths = new ArrayList<>();
+        srvNames.stream().forEach((srvName) -> {
+            srvPaths.add(resolveSrvName(srvName));
+        });
+        return srvPaths;
+    }
 
 }

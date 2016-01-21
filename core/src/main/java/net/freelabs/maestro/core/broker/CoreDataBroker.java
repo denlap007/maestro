@@ -28,7 +28,8 @@ import net.freelabs.maestro.core.zookeeper.ZkConfig;
 
 /**
  *
- * @author Dionysis Lappas <dio@freelabs.net>
+ * Class that provides methods to handle initialization and bootstrapping of 
+ * a Data container type.
  */
 public class CoreDataBroker extends CoreBroker {
 

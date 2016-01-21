@@ -29,7 +29,7 @@ import org.slf4j.Logger;
  *
  * Class that establishes a zookeeper connection.
  */
-public class ConnectionWatcher implements Watcher {
+public class ZkConnectionWatcher implements Watcher {
 
     /**
      * A zookeeper handler.
@@ -51,7 +51,7 @@ public class ConnectionWatcher implements Watcher {
     /**
      * A Logger.
      */
-    private final Logger LOG = LoggerFactory.getLogger(ConnectionWatcher.class);
+    private final Logger LOG = LoggerFactory.getLogger(ZkConnectionWatcher.class);
 
     /**
      * Constructor.
@@ -59,7 +59,7 @@ public class ConnectionWatcher implements Watcher {
      * @param zkHosts the zookeeper host:port list.
      * @param zkSessionTimeout the client session timeout.
      */
-    public ConnectionWatcher(String zkHosts, int zkSessionTimeout) {
+    public ZkConnectionWatcher(String zkHosts, int zkSessionTimeout) {
         this.zkHosts = zkHosts;
         this.zkSessionTimeout = zkSessionTimeout;
     }
@@ -85,7 +85,7 @@ public class ConnectionWatcher implements Watcher {
 
     /**
      * Processes a watched event when a
-     * {@link ConnectionWatcher ConnectionWatcher} object is passed as a
+     * {@link ZkConnectionWatcher ZkConnectionWatcher} object is passed as a
      * watcher.
      *
      * @param event a watched event.

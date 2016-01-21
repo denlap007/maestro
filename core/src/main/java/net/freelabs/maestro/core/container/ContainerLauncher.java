@@ -31,7 +31,7 @@ import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.handler.ContainerHandler;
-import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
+import net.freelabs.maestro.core.zookeeper.ZkConnectionWatcher;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
 import net.freelabs.maestro.core.zookeeper.ZkNode;
 import org.apache.zookeeper.Watcher;
@@ -42,7 +42,7 @@ import org.slf4j.LoggerFactory;
  *
  * Class that provides methods to start a container.
  */
-public class ContainerLauncher extends ConnectionWatcher implements Watcher, Runnable {
+public class ContainerLauncher extends ZkConnectionWatcher implements Watcher, Runnable {
 
     /**
      * The docker client that will communicate with the docker deamon.
