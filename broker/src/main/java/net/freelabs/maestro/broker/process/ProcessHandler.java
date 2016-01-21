@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.broker;
+package net.freelabs.maestro.broker.process;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
  * Class that provides methods to initialize, start, run and monitor the main
  * container process.
  */
-final class ProcessHandler {
+public final class ProcessHandler {
 
     /**
      * A Logger object.
@@ -86,7 +86,7 @@ final class ProcessHandler {
      * @param outerEnv the environment to add to the new process.
      * @param entrypointPath the path of the entrypoint script to execute.
      */
-    protected void initProc(Map<String, String> outerEnv, String entrypointPath, List<String> entrypointArgs) {
+    public void initProc(Map<String, String> outerEnv, String entrypointPath, List<String> entrypointArgs) {
         // get the environmente of the new process
         Map<String, String> env = pb.environment();
         // add the necessary external environment 
@@ -115,16 +115,15 @@ final class ProcessHandler {
      *
      * @return true if main container process started successfully.
      */
-    protected boolean startProc() {
+    public boolean startProc() {
         try {
             // start the new process
             _proc = pb.start();
-            LOG.info("STARTING entrypoint process.");
+            
             // start the entrypoint monitor
             entryProcMon.start(_proc);
             // if entrypoint initialized, main process is spawned
             if (entryProcMon.isInitialized()) {
-                LOG.info("STARTED main process with pid: {}", entryProcMon.getMain_proc_pid());
                 mainProcMon.start(_proc, entryProcMon.getMain_proc_pid());
             }
         } catch (IOException ex) {
@@ -164,7 +163,7 @@ final class ProcessHandler {
     /**
      * Blocks until the main container process stops running.
      */
-    protected void waitForMainProc() {
+    public void waitForMainProc() {
         mainProcMon.setWaitOnMainProc();
     }
 

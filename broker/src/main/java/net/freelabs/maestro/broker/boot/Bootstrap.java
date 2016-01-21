@@ -14,9 +14,13 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.broker;
+package net.freelabs.maestro.broker.boot;
 
 import java.io.IOException;
+import net.freelabs.maestro.broker.Broker;
+import net.freelabs.maestro.broker.BusinessBroker;
+import net.freelabs.maestro.broker.DataBroker;
+import net.freelabs.maestro.broker.WebBroker;
 import org.slf4j.LoggerFactory;
 import org.slf4j.Logger;
 
@@ -45,7 +49,7 @@ public class Bootstrap {
                     args[5] // userConfNode
             );
             // get the container name
-            String name = broker.resolveServicePath(args[2]);// zkContainerPath
+            String name = broker.resolveConPath(args[2]);// zkContainerPath
             // set the thread name
             brokerThreadName = name + "-WebBrokerThraed";
         } else if (args[2].contains("BusinessContainer")) {
@@ -57,7 +61,7 @@ public class Bootstrap {
                     args[5] // userConfNode
             );
             // get the container name
-            String name = broker.resolveServicePath(args[2]);// zkContainerPath
+            String name = broker.resolveConPath(args[2]);// zkContainerPath
             // set the thread name
             brokerThreadName = name + "-BusinessBrokerThread";
         } else if (args[2].contains("DataContainer")) {
@@ -69,7 +73,7 @@ public class Bootstrap {
                     args[5] // userConfNode
             );
             // get the container name
-            String name = broker.resolveServicePath(args[2]);// zkContainerPath
+            String name = broker.resolveConPath(args[2]);// zkContainerPath
             // set the thread name
             brokerThreadName = name + "-DataBrokerThread";
         } else {

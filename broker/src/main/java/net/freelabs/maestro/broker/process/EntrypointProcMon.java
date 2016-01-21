@@ -14,22 +14,23 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.broker;
+package net.freelabs.maestro.broker.process;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.util.Scanner;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import static net.freelabs.maestro.broker.EntrypointHandler.CONTROL_STRING;
+import static net.freelabs.maestro.broker.process.EntrypointHandler.CONTROL_STRING;
 
 /**
  *
  * Class that provides methods to monitor the entrypoint process.
  */
-final class EntrypointProcMon {
+public final class EntrypointProcMon {
 
     /**
      * The possible states of the entrypoint process.
@@ -62,6 +63,10 @@ final class EntrypointProcMon {
      * The pid of the main container process.
      */
     private int main_proc_pid;
+    /**
+     * A blocking queue used to store {@link #_proc _proc} output.
+     */
+    private final LinkedBlockingQueue<String> lbq = new LinkedBlockingQueue<>();
 
     /**
      * A Logger object.
@@ -96,7 +101,6 @@ final class EntrypointProcMon {
         monProcRun();
         // start monitoring initialization
         monProcInit();
-
     }
 
     /**
@@ -106,8 +110,10 @@ final class EntrypointProcMon {
     private synchronized void transition() {
         if (curState == STATE.NOT_RUNNING && running == true) {
             curState = STATE.RUNNING;
-        } else if (curState == STATE.RUNNING && initialized == true) {
+        } else if (curState == STATE.RUNNING && initialized == true && running == true) {
             curState = STATE.INITIALIZED;
+        } else if (curState == STATE.RUNNING && initialized == true && running == false) {
+            curState = STATE.NOT_INITIALIZED;
         } else if (curState == STATE.RUNNING && initialized == false) {
             curState = STATE.NOT_INITIALIZED;
         } else if (curState == STATE.INITIALIZED && running == false) {
@@ -125,7 +131,9 @@ final class EntrypointProcMon {
             case NOT_RUNNING:
                 break;
             case RUNNING:
+                LOG.info("STARTED entrypoint process.");
                 initializedSignal = new CountDownLatch(1);
+                LOG.info("Waiting for the process to initialize...");
                 break;
             case INITIALIZED:
                 LOG.info("Process initialization complete.");
@@ -156,32 +164,25 @@ final class EntrypointProcMon {
                     // set not running status
                     setRunning(false);
                 } catch (InterruptedException ex) {
-                    LOG.warn("Interruption attempted: {}", ex.getMessage());
+                    LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
                     Thread.currentThread().interrupt();
                 }
             }
         }
         ).start();
-        LOG.info("Started monitoring the entrypoint process.");
     }
 
     /**
      * <p>
-     * Reads the output of {@link #_proc _proc} process and sets the process
-     * state to initialized or not.
+     * Reads output stream of {@link #_proc _proc} process and writes it to the
+     * {@link #lbq linkedBlockingQueue} queue for other threads to consume it.
+     * When the queue has exceeded its capacity, waits until space is freed.
      * <p>
-     * The method reads the output and searches for the {@link #CONTROL_STRING
-     * CONTROL_STRING}. If the CONTROL_STRING is found then the process is
-     * initialized and will spawn the main container process.
-     * <p>
-     * By finding the CONTROL_STRING the method extracts also the pid of the
-     * main container process that is spawned.
-     * <p>
-     * Logic is executed in a new thread, consequently the method doesn't block.
+     * The method blocks is queue exceeds its capacity.
      */
-   private void readOutForInit() {
+    private void readOutForInit() {
         // create a new thread to read proc output
-        new Thread(() -> {
+        Thread t = new Thread(() -> {
             // set id for logging
             MDC.put("id", "entrypoint");
             // read process output
@@ -190,33 +191,61 @@ final class EntrypointProcMon {
             Scanner scan = new Scanner(inStream);
             while (scan.hasNextLine()) {
                 line = scan.nextLine();
-                // check if process is initialized 
-                if (checkInit(line)){
-                }else{
-                    LOG.info(line);
+                // put data to queue to be read by other threads
+                try {
+                    lbq.put(line);
+                } catch (InterruptedException ex) {
+                    LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
+                    Thread.currentThread().interrupt();
+                    return;
                 }
             }
         }
-        ).start();
+        );
+        t.setName("readThread");
+        t.start();
     }
 
     /**
+     * <p>
+     * Consumes data from {@link #lbq linkedBlockingQueue} queue.
+     * <P>
      * Checks for the initialization {@link #CONTROL_STRING CONTROL_STRING} and
      * if found extracts the main process pid and sets entrypoint process status
      * to INITIALIZED.
-     *
-     * @param line input to be checked for the
-     * {@link #CONTROL_STRING CONTROL_STRING}.
+     * <p>
+     * If the queue is empty, waits for more elements to be available.
+     * <p>
+     * The method blocks.
      */
-    private boolean checkInit(String line) {
-        if (line.contains(CONTROL_STRING)) {
-            main_proc_pid = Integer.parseInt(line.substring(line.indexOf("=") + 1, line.length()));
-            // set initialized status
-            setInitialized(true);
-            return true;
-        }else{
-            return false;
-        }
+    private void checkInitAndLog() {
+        Thread t = new Thread(() -> {
+            // set id for logging
+            MDC.put("id", "entrypoint");
+            String line;
+            while (true) {
+                try {
+                    line = lbq.take();
+                    if (!initialized) {
+                        if (line.contains(CONTROL_STRING)) {
+                            main_proc_pid = Integer.parseInt(line.substring(line.indexOf("=") + 1, line.length()));
+                            // set initialized status
+                            setInitialized(true);
+                        } else {
+                            LOG.info(line);
+                        }
+                    } else {
+                        LOG.info(line);
+                    }
+                } catch (InterruptedException ex) {
+                    LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        });
+        t.setName("logThread");
+        t.start();
     }
 
     /**
@@ -226,15 +255,16 @@ final class EntrypointProcMon {
      * The method blocks.
      */
     protected void monProcInit() {
-        LOG.info("Waiting for the process to initialize...");
-
-        // create a thread and read proc output, watch for CONTROL_STRING.
+        // create thread that reads queue where proc output is piped, checks init
+        // and logs the output
+        checkInitAndLog();
+        // create thread that reads proc out and writes it to a queus 
         readOutForInit();
 
         try {
             initializedSignal.await();
         } catch (InterruptedException ex) {
-            LOG.warn("Interruption attempted: {}", ex.getMessage());
+            LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
             Thread.currentThread().interrupt();
         }
     }

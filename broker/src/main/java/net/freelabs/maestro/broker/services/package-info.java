@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Dionysis Lappas (dio@freelabs.net)
+ * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
  */
 
 /**
- * Specifies interfaces and classes for Brokers. 
+ * Provides classes to store information about services required by the container
+ * and manage the interaction.
  */
-package net.freelabs.maestro.broker;
+package net.freelabs.maestro.broker.services;

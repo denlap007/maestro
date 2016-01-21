@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.broker;
+package net.freelabs.maestro.broker.process;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
  * Class that provides methods to handle the entrypoint script for the main
  * process.
  */
-final class EntrypointHandler {
+public final class EntrypointHandler {
 
     /**
      * The path of the entrypoint script.
@@ -76,7 +76,7 @@ final class EntrypointHandler {
      *
      * @param entrypointPath the path of the entrypoint script.
      */
-    protected EntrypointHandler(String entrypointPath) {
+    public EntrypointHandler(String entrypointPath) {
         this.entrypointPath = entrypointPath;
         entrypointArgs = new ArrayList<>();
     }
@@ -91,10 +91,8 @@ final class EntrypointHandler {
      * user. Afterwards, the entrypoint copy is updated with a custom script.
      * Finally, the entrypoint path is updated to point to the updated copy.
      *
-     * @throws IOException if there was a problem creating a temp file, copying
-     * the entrypoint or writing the custom script.
      */
-    protected void processEntrypoint() {
+    public void processEntrypoint() {
         boolean fileExists = Files.exists(Paths.get(entrypointPath));
         if (fileExists) {
             // set permissions for a new file
@@ -115,16 +113,18 @@ final class EntrypointHandler {
             } catch (IOException ex) {
                 LOG.error("Something went wrong: " + ex);
             }
-        }else{
+        } else {
             LOG.error("Entrypoint script NOT FOUND!");
         }
     }
-    
+
     /**
-     * Returns true if the {@link EntrypointHandler EntrypointHandler} is 
+     * Returns the status of {@link EntrypointHandler EntrypointHandler}.
+     *
+     * @return true if {@link EntrypointHandler EntrypointHandler} is
      * initialized and ready to be used.
      */
-    protected boolean isReady(){
+    public boolean isReady() {
         return areArgsSet && isProcessed;
     }
 
@@ -132,21 +132,24 @@ final class EntrypointHandler {
      * Sets the command to execute with the entrypoint script and possible
      * arguments.
      *
-     * @param cmdArgs command and arguments for the entrypoint.
+     * @param entrypointArgs arguments for the entrypoint script.
      */
-    protected void setEntrypointArgs(List<String> entrypointArgs) {
+    public void setEntrypointArgs(List<String> entrypointArgs) {
         this.entrypointArgs = entrypointArgs;
         areArgsSet = true;
     }
 
-    protected List<String> getEntrypointArgs() {
+    /**
+     *
+     * @return the arguments of the entrypoint script.
+     */
+    public List<String> getEntrypointArgs() {
         return entrypointArgs;
     }
 
     /**
-     * Returns the updated entrypoint script path.
      *
-     * @return {@link #updatedEntrypointPath updatedEntrypointPath}.
+     * @return the {@link #updatedEntrypointPath updatedEntrypointPath}.
      */
     public String getUpdatedEntrypointPath() {
         return updatedEntrypointPath;

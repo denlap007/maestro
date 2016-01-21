@@ -18,8 +18,6 @@ package net.freelabs.maestro.broker;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
@@ -28,12 +26,18 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import net.freelabs.maestro.broker.process.EntrypointHandler;
+import net.freelabs.maestro.broker.process.ProcessHandler;
+import net.freelabs.maestro.broker.services.ServiceManager;
+import net.freelabs.maestro.broker.services.ServiceNode;
+import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
-import net.freelabs.maestro.core.zookeeper.ConnectionWatcher;
+import net.freelabs.maestro.core.zookeeper.ZkConnectionWatcher;
+import net.freelabs.maestro.core.zookeeper.ZkNamingService;
 import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode;
 import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
@@ -54,16 +58,12 @@ import org.slf4j.MDC;
 /**
  * Class that defines a Broker client to the zookeeper configuration store.
  */
-public abstract class Broker extends ConnectionWatcher implements Runnable {
+public abstract class Broker extends ZkConnectionWatcher implements Runnable {
 
     /**
      * The path of the Container to the zookeeper namespace.
      */
     private final String zkContainerPath;
-    /**
-     * The path of the Naming service to the zookeeper namespace.
-     */
-    private final String zkNamingService;
     /**
      * Initial data for the zookeeper Broker node.
      */
@@ -85,17 +85,6 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * container.
      */
     private final String conConfNode;
-
-    /**
-     * The status of a service-dependency, required by the container.
-     */
-    private static enum DEPENDENCY_STATUS {
-        PROCESSED, NOT_PROCESSED
-    };
-    /**
-     * A map of services (Key) and their STATUS (Value).
-     */
-    private final Map<String, DEPENDENCY_STATUS> dependenciesState = new HashMap<>();
     /**
      * An object to handle execution of operations on another thread.
      */
@@ -105,25 +94,30 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      */
     private String containerName;
     /**
-     * The type of the container.
-     */
-    private final String containerType;
-    /**
      * The work dir of the Broker, where created files will be stored.
      */
     private final String BROKER_WORK_DIR_PATH;
-    /**
-     * A Map that holds the configuration of all the dependency containers.
-     */
-    private final Map<String, Container> servicesConfiguration = new HashMap<>();
     /**
      * The container associated with the broker. Holds the configuration.
      */
     private Container container;
     /**
-     * The node of the container service to the naming service.
+     * The znode of the container service to the naming service.
      */
-    private final ZkNamingServiceNode serviceNode;
+    private final ZkNamingServiceNode conZkSrvNode;
+    /**
+     * Service Manager. Stores all the data for services-dependencies of the 
+     * container.
+     */
+    private ServiceManager srvMngr;
+    /**
+     * Handles the interaction with the naming service.
+     */
+    private final ZkNamingService ns;
+    /**
+     * Indicates weather the container is initialized.
+     */
+    private volatile boolean conInitialized;
 
     /**
      * Constructor
@@ -140,14 +134,14 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
     public Broker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String conConfNode) {
         super(zkHosts, zkSessionTimeout);
         this.zkContainerPath = zkContainerPath;
-        this.zkNamingService = zkNamingService;
         this.shutdownNode = shutdownNode;
         this.conConfNode = conConfNode;
-        containerName = resolveServicePath(zkContainerPath);
-        containerType = getContainerType(zkContainerPath);
+        containerName = resolveConPath(zkContainerPath);
         BROKER_WORK_DIR_PATH = BrokerConf.BROKER_BASE_DIR_PATH + File.separator + containerName + "-broker";
         // create a new naming service node
-        serviceNode = new ZkNamingServiceNode(zkContainerPath);
+        conZkSrvNode = new ZkNamingServiceNode(zkContainerPath);
+        // initialize the naming service object
+        ns = new ZkNamingService(zkNamingService);
         // stores the context data of the particular thread for logging
         MDC.put("id", containerName);
     }
@@ -310,10 +304,10 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
                 waitForConDescription();
                 break;
             case NONODE:
-                LOG.info("Watch registered on: " + path);
+                LOG.info("Waiting for container description: " + path);
                 break;
             case OK:
-                LOG.info("Configuration Node found: " + path);
+                LOG.info("Container description found: " + path);
                 // get the description from the configuration zNode
                 getConDescription();
                 break;
@@ -338,14 +332,14 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * Gets the container description.
      */
     public void getConDescription() {
-        zk.getData(conConfNode, false, getUserConfCallback, null);
+        zk.getData(conConfNode, false, getConDescriptionCallback, null);
     }
 
     /**
      * The object to call back with
      * {@link #getConDescription() getConDescription} method.
      */
-    private final DataCallback getUserConfCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
+    private final DataCallback getConDescriptionCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
                 LOG.warn("Connection loss was detected");
@@ -355,7 +349,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
                 LOG.error("Node does NOT EXIST: " + path);
                 break;
             case OK:
-                LOG.info("ZkNode initialized with configuration: " + path);
+                LOG.info("Getting container description: " + path);
                 // process container description
                 processConDescription(data);
 
@@ -379,49 +373,46 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
     private void processConDescription(byte[] data) {
         // deserialize container 
         container = deserializeConType(data);
+        /* initialize the services manager to manage services-dependencies
+        The dependencies are retrieved from the current cotnainer configuration,
+        from "connectWith" field.        
+        */        
+        List<String> srvNames = container.getConnectWith();
+        List<String> srvPaths = ns.resolveServicePaths(srvNames);
+        srvMngr = new ServiceManager(srvPaths);
         // set data to the container zNode 
-        setNodeData(data);
-        // register container as service to the naming service
-        registerToServices();
-        /* query for service - get the configurarion of needed containers
-        A service is offered by a container. The needed services are retrieved
-        from the current cotnainer configuration from "connectWith" field.
-         */
-        for (String service : container.getConnectWith()) {
-            // set the service-dependency status to NOT_PROCESSED
-            dependenciesState.put(service, DEPENDENCY_STATUS.NOT_PROCESSED);
-            // query tha naming service for the required service
-            queryForService(service);
-        }
+        setZkConNodeData(data);
     }
 
     /**
      * Sets data to the container's zNode.
      */
-    private void setNodeData(byte[] data) {
-        zk.setData(zkContainerPath, data, -1, setNodeDataCallback, data);
+    private void setZkConNodeData(byte[] data) {
+        zk.setData(zkContainerPath, data, -1, setConZkNodeDataCallback, data);
     }
 
     /**
-     * Callback to be used with {@link #setNodeData(byte[]) setNodeDate} method.
+     * Callback to be used with {@link #setZkConNodeData(byte[]) setZkConNodeData} method.
      */
-    private final StatCallback setNodeDataCallback = (int rc, String path, Object ctx, Stat stat) -> {
+    private final StatCallback setConZkNodeDataCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                setNodeData((byte[]) ctx);
+                setZkConNodeData((byte[]) ctx);
                 break;
             case NONODE:
-                LOG.error("Cannot set data to node. NODE DOES NOT EXITST: " + path);
+                LOG.error("Cannot set data to znode. ZNODE DOES NOT EXIST: " + path);
                 break;
             case OK:
-                LOG.info("Data set to node: " + path);
+                LOG.info("Data set to container zNode: " + path);
+                // register container service to naming service
+                registerToServices();
                 break;
             default:
                 LOG.error("Something went wrong: ",
                         KeeperException.create(KeeperException.Code.get(rc), path));
         }
     };
-
+    
     /**
      * <p>
      * Registers the container as a service to the naming service.
@@ -435,12 +426,58 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      */
     public void registerToServices() {
         // create the service path for the naming service
-        String path = resolveServiceName(containerName);
+        String path = ns.resolveSrvName(containerName);
         // serialize the node to byte array
-        byte[] data = serializeServiceNode(path, serviceNode);
+        byte[] data = ns.serializeZkSrvNode(path, conZkSrvNode);
         // create the zNode of the service to the naming service
-        createZkNodeEphemeral(path, data);
+        createZkConSrvNode(path, data);
     }
+    
+     /**
+     * Creates the service node for this container to the naming service.
+     *
+     * @param path the path of the zNode to the zookeeper namespace.
+     * @param data the data of the zNode.
+     */
+    public void createZkConSrvNode(String path, byte[] data) {
+        zk.create(path, data, OPEN_ACL_UNSAFE,
+                CreateMode.EPHEMERAL, createZkConSrvNodeCallback, data);
+    }
+
+    /**
+     * The object to call back with {@link #createZkConSrvNode(java.lang.String, byte[])
+     * createZkConSrvNode} method.
+     */
+    private final StringCallback createZkConSrvNodeCallback = (int rc, String path, Object ctx, String name) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                LOG.warn("Connection loss was detected");
+                checkContainerNode(path, (byte[]) ctx);
+                break;
+            case NODEEXISTS:
+                LOG.error("Service zNode already exists: " + path);
+                break;
+            case OK:
+                LOG.info("Registered to naming service: " + path);
+                /* query for service - get the configurarion of needed containers
+                A service is offered by a container. 
+                 */
+                if (srvMngr.hasServices()){
+                    srvMngr.getServices().stream().forEach((service) -> {
+                        queryForService(service);
+                    });
+                }else{
+                    executorService.execute(() -> {
+                        checkInitialization();
+                    });
+                }
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
+        }
+    };
+    
 
     /**
      * Queries the naming service for a service. A service is offered by a
@@ -453,12 +490,10 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      *
      * @param name the name of the service (the container name).
      */
-    private void queryForService(String name) {
-        LOG.info("Querying for service: " + name);
-        // create the path of the service to query the naming service
-        String servicePath = resolveServiceName(name);
+    private void queryForService(String srvPath) {
+        LOG.info("Querying for service: " + ns.resolveSrvPath(srvPath));
         // check if service has started
-        serviceExists(servicePath);
+        serviceExists(srvPath);
     }
 
     /**
@@ -468,7 +503,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * namespace.
      */
     private void serviceExists(String servicePath) {
-        zk.exists(servicePath, serviceExistsWatcher, serviceExistsCallback, null);
+        zk.exists(servicePath, serviceWatcher, serviceExistsCallback, null);
     }
 
     /**
@@ -487,26 +522,32 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
             case OK:
                 LOG.info("Requested service found: " + path);
                 // get data from service zNode.
-                getServiceData(path);
+                getZkSrvData(path);
                 break;
             default:
                 LOG.error("Something went wrong: ",
                         KeeperException.create(KeeperException.Code.get(rc), path));
         }
-
     };
 
     /**
      * Watcher to be used with
      * {@link  #serviceExists(java.lang.String) serviceExists} method.
      */
-    private final Watcher serviceExistsWatcher = (WatchedEvent event) -> {
+    private final Watcher serviceWatcher = (WatchedEvent event) -> {
         LOG.info(event.getType() + ", " + event.getPath());
 
         if (event.getType() == NodeCreated) {
             LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
-            // get data from container
-            getServiceData(event.getPath());
+            // get data from service node
+            getZkSrvData(event.getPath());
+        }else if (event.getType() == NodeDataChanged){
+            LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
+            //            
+            // CODE TO MONITOR FOR UPDATES ON THE SERVICE NODE
+            //
+            //  get data from node
+            getZkSrvUpdatedData(event.getPath());
         }
     };
 
@@ -515,19 +556,19 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      *
      * @param zkPath the path of the container to the zookeeper namespace.
      */
-    private void getServiceData(String zkPath) {
-        zk.getData(zkPath, false, getServiceDataCallback, null);
+    private void getZkSrvData(String zkPath) {
+        zk.getData(zkPath, serviceWatcher, getServiceDataCallback, null);
     }
 
     /**
      * The callback to be used with
-     * {@link #getServiceData(java.lang.String) getServiceData(String)} method.
+     * {@link #getZkSrvData(java.lang.String) getZkSrvData(String)} method.
      */
     private final DataCallback getServiceDataCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
                 LOG.warn("Connection loss was detected");
-                getServiceData(path);
+                getZkSrvData(path);
                 break;
             case NONODE:
                 LOG.error("CANNOT GET DATA from SERVICE. Service node DOES NOT EXIST: " + path);
@@ -555,13 +596,15 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      */
     private void processServiceData(byte[] data, String path) {
         // de-serialize service node
-        ZkNamingServiceNode node = deserializeServiceNode(path, data);
+        ZkNamingServiceNode node = ns.deserializeZkSrvNode(path, data);
         // get the zNode path of the container of this service
-        String containerPath = node.getZkContainerPath();
-        // print data
-        LOG.info("Service:Container -> {}:{} ", path, containerPath);
-        // GET CONDIGURATION DATA FROM the container of the retrieved zkPath.
-        getConData(containerPath);
+        String zkConPath = node.getZkContainerPath();
+        // create a new service node to store to the service manager along with info
+        ServiceNode srvNode = new ServiceNode(ns.resolveSrvPath(path), path, zkConPath, node.getStatus());
+        // add the service node to the service manager
+        srvMngr.addSrvNode(path, srvNode);
+        // GET CONFIGURATION DATA FROM the container of the retrieved zkPath.
+        getConData(zkConPath);
     }
 
     /**
@@ -570,7 +613,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * @param zkPath the path of the container zNode.
      */
     private void getConData(String zkPath) {
-        zk.getData(zkPath, false, getConDataDataCallback, null);
+        zk.getData(zkPath, setConWatcher, getConDataDataCallback, null);
     }
 
     /**
@@ -594,8 +637,6 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
                     processConData(data, path);
                 });
 
-                setServiceWatch(path);
-
                 break;
             default:
                 LOG.error("Something went wrong: ",
@@ -607,21 +648,21 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * Processes data retrieved from container zNode.
      *
      * @param data the data of the container zNode.
-     * @param path the path of the container zNode.
+     * @param zkConpath the path of the container zNode.
      */
-    private void processConData(byte[] data, String path) {
-        LOG.info("Processing container data: {}", path);
+    private void processConData(byte[] data, String zkConPath) {
+        LOG.info("Processing container data: {}", zkConPath);
         // deserialize container data 
-        Container serviceContainer = deserializeDependency(path, data);
+        Container srvCon = deserializeDependency(zkConPath, data);
         // get cotnainer name
-        String conName = resolveServicePath(path);
-        // save configuration to memory
-        servicesConfiguration.put(path, serviceContainer);
+        String conName = resolveConPath(zkConPath);
         // save configuration to file named after the container
-        createConfFile(serviceContainer, conName);
-        // set service-dependency status and log the event
-        dependenciesState.replace(conName, DEPENDENCY_STATUS.PROCESSED);
-        LOG.info("Service: {}\tStatus: {}.", conName, DEPENDENCY_STATUS.PROCESSED.toString());
+        createConfFile(srvCon, conName);
+        // save container to service node
+        srvMngr.setSrvNodeCon(zkConPath, srvCon);
+        // set the service conf status of service-dependency to PROCESSED
+        srvMngr.setSrvConfStatusProc(ns.resolveSrvName(conName));
+        LOG.info("Service: {}\tStatus: {}.", conName, SRV_CONF_STATUS.PROCESSED.toString());
         // check if container is initialized in order to start the entrypoint process
         checkInitialization();
     }
@@ -632,45 +673,52 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      * *************************************************************************
      */
     /**
-     * Checks if all container dependencies are resolved and if so initiates the
-     * entrypoint container process.
+     * <p>
+     * Checks the necessary conditions for the container to be initialized
+     * and for the entrypoint processes to get started.
+     * <p>
+     * Checks if all container services-dependencies are processed and sets 
+     * {@link #conInitialized conInitialized} flag to true.
+     * <p>
+     * If {@link #conInitialized conInitialized} flag is true, checks if all
+     * services-dependencies are initialized and bootstraps the entrypoint process.
      */
-    private void checkInitialization() {
-        // if container is initialized
-        if (isContainerInitialized()) {
-            // start the entryoint process
-            startEntrypointProcess();
+    private synchronized void checkInitialization() {
+        if (srvMngr.hasServices()){
+            // if container is not initialized
+            if (!conInitialized){
+                // check if srvs are processed
+                if (srvMngr.areSrvProcessed()) {
+                    conInitialized = true;
+                    LOG.info("Container INITIALIZED!");
+                    // check if srvs are initialized
+                    if (srvMngr.areSrvInitialized()){
+                        // start the entryoint process
+                        bootstrapProcess();
+                    }
+                }
+            }else{
+                // check if srvs are initialized
+                if (srvMngr.areSrvInitialized()){
+                    // start the entryoint process
+                    bootstrapProcess();
+                }
+            }
+        }else{
+            conInitialized = true;
+            LOG.info("Container INITIALIZED!");
+            bootstrapProcess();
         }
     }
 
     /**
-     * Checks if the container is initialized. A container is initialized after
-     * it has processed all the necessary configuration for the container and
-     * the required services.
-     *
-     * @return true if the container is initialized.
+     * Bootstraps the entrypoint process.
      */
-    private boolean isContainerInitialized() {
-        // check if there are not processes services and set value accoordingly
-        boolean initialized = !dependenciesState.containsValue(DEPENDENCY_STATUS.NOT_PROCESSED);
-        // print messages according to state
-        if (initialized) {
-            LOG.info("Container INITIALIZED!");
-        } else {
-            // log services that have not started yet.
-            StringBuilder waitingServices = new StringBuilder();
-            for (Map.Entry<String, DEPENDENCY_STATUS> entry : dependenciesState.entrySet()) {
-                String key = entry.getKey();
-                DEPENDENCY_STATUS value = entry.getValue();
-
-                if (value == DEPENDENCY_STATUS.NOT_PROCESSED) {
-                    waitingServices.append(key).append(" ");
-                }
-            }
-            LOG.info("Waiting for services: {}", waitingServices);
-        }
-
-        return initialized;
+    private void bootstrapProcess(){
+        // start the entryoint process
+        executorService.execute(() -> {
+            startEntrypointProcess();
+        });
     }
 
     /**
@@ -723,8 +771,6 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         Map<String, String> env = getConEnv();
         // get environment from dependencies and add to environment
         Map<String, String> dependenciesEnv = getDependenciesEnv();
-
-        // CHECK RESULT
         env.putAll(dependenciesEnv);
         // get the rest configuration
         String entrypointPath = entryHandler.getUpdatedEntrypointPath();
@@ -735,12 +781,12 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         // check if process has started successfully
         if (procStarted) {
             // change service status to INITIALIZED
-            updateZkServiceStatus(serviceNode::setStatusInitialized);
+            updateZkSrvStatus(conZkSrvNode::setStatusInitialized);
             // monitor service and update status accordingly for zk service node
             monService(procHandler);
         } else {
             // change service status to NOT_INITIALIZED
-            updateZkServiceStatus(serviceNode::setStatusNotInitialized);
+            updateZkSrvStatus(conZkSrvNode::setStatusNotInitialized);
         }
     }
 
@@ -752,7 +798,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         Map<String, String> env = new HashMap<>();
 
         // iterate through the container dependencies
-        for (Container con : servicesConfiguration.values()) {
+        for (Container con : srvMngr.getConsOfSrvs()) {
             if (con instanceof WebContainer) {
                 // cast to instance class
                 WebContainer web = (WebContainer) con;
@@ -795,7 +841,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         new Thread(() -> {
             procHandler.waitForMainProc();
             // change service status to NOT RUNNING
-            updateZkServiceStatus(serviceNode::setStatusNotRunning);
+            updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
         }
         ).start();
     }
@@ -807,17 +853,21 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
      */
     protected abstract Map<String, String> getConEnv();
 
+
     /**
-     * Updates the service status to INITIALIZED or NOT, RUNNING, NOT RUNNING.
+     * Updates the service state status of a {@link ZkNamingServiceNode 
+     * ZkNamingServiceNode}.
+     * 
+     * @param updateInterface the update action.
      */
-    private void updateZkServiceStatus(Updatable updateInterface) {
-        // get the service path
-        String servicePath = resolveServiceName(containerName);
+    private void updateZkSrvStatus(Updatable updateInterface) {
+          // get the service path
+        String servicePath = ns.resolveSrvName(containerName);
         // update status
         updateInterface.updateStatus();
-        LOG.info("Updating service status to {}: {}", serviceNode.getStatus(), servicePath);
+        LOG.info("Updating service status to {}: {}", conZkSrvNode.getStatus(), servicePath);
         // serialize data
-        byte[] updatedData = serializeServiceNode(servicePath, serviceNode);
+        byte[] updatedData = ns.serializeZkSrvNode(servicePath, conZkSrvNode);
         // update service node data
         setZNodeData(servicePath, updatedData);
     }
@@ -850,96 +900,81 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         }
     };
 
-    /**
-     * Registers watches for updates to a service required by the container.
-     *
-     * @param service a servicer required by the container.
-     */
-    private void watchServiceUpdates(String serviceName) {
-        String servicePath = resolveServiceName(serviceName);
-        setServiceWatch(servicePath);
-    }
-
-    /**
-     * Sets a watch to a service node to monitor for updates.
-     *
-     * @param servicePath the path of the service to the zookeeper namespace.
-     */
-    private void setServiceWatch(String servicePath) {
-        zk.exists(servicePath, setServiceWatchWatcher, setServiceWatchCallback, null);
-    }
-
-    /**
-     * Callback to be used in
-     * {@link  #setServiceWatch(java.lang.String) setServiceWatch(String)}
-     * method.
-     */
-    private final StatCallback setServiceWatchCallback = (int rc, String path, Object ctx, Stat stat) -> {
-        switch (KeeperException.Code.get(rc)) {
-            case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
-                setServiceWatch(path);
-                break;
-            case NONODE:
-                LOG.error("Service node NOT FOUND: " + path);
-                break;
-            case OK:
-                LOG.info("Setting Watch for updates to: " + path);
-                break;
-            default:
-                LOG.error("Something went wrong: ",
-                        KeeperException.create(KeeperException.Code.get(rc), path));
-        }
-    };
-
-    /**
+        /**
      * Watcher to be used in
-     * {@link  #setServiceWatch(java.lang.String) setServiceWatch(String)}
+     * {@link  #setConWatch(java.lang.String) setConWatch(String)}
      * method.
      */
-    private final Watcher setServiceWatchWatcher = (WatchedEvent event) -> {
+    private final Watcher setConWatcher = (WatchedEvent event) -> {
         LOG.info(event.getType() + ", " + event.getPath());
 
         if (event.getType() == NodeDataChanged) {
             LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
             /**
              *
-             * CODE FOR RETRIEVING UPDATES ON SERVICE STATE
+             * CODE FOR RETRIEVING UPDATES ON CONTAINER STATE
              *
              *
              */
 
-            // RE-SET WATCH TO KEEP MONITORING THE SERVICE
-            setServiceWatch(event.getPath());
+            // RE-SET WATCH TO KEEP MONITORING THE CONTAINER
         }
     };
-
+    
     /**
-     * <p>
-     * Resolves a service name to the service path.
-     * <p>
-     * A service name is a container name. Every running container, after
-     * initialization, registers itself to the naming service as a service. The
-     * path of the zNode created by this service under the naming service zNode
-     * is the service path.
-     * <p>
-     * The service zNode stores data: the path of the zNode of the corresponding
-     * container.
+     * Gets data from the requested service zNode.
      *
-     * @param service the service name.
-     * @return the service path to the zookeeper namespace.
+     * @param zkPath the path of the container to the zookeeper namespace.
      */
-    protected final String resolveServiceName(String service) {
-        return zkNamingService.concat("/").concat(service);
+    private void getZkSrvUpdatedData(String zkPath) {
+        zk.getData(zkPath, serviceWatcher, getZkSrvUpdatedDataDataCallback, null);
     }
 
     /**
-     * Resolves a service/container path to the service/container name.
-     *
-     * @param path the service/container path to the zookeeper namespace.
-     * @return the service name.
+     * The callback to be used with
+     * {@link #getZkSrvUpdatedData(java.lang.String) getZkSrvUpdatedData(String)} method.
      */
-    protected final String resolveServicePath(String path) {
+    private final DataCallback getZkSrvUpdatedDataDataCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                LOG.warn("Connection loss was detected");
+                getZkSrvUpdatedData(path);
+                break;
+            case NONODE:
+                LOG.error("CANNOT GET DATA from SERVICE. Service node DOES NOT EXIST: " + path);
+                break;
+            case OK:
+                LOG.info("Getting data from service: " + path);
+                // process retrieved data from requested service zNode
+                executorService.execute(() -> {
+                    processZkSrvUpdatedData(path, data);
+                });
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
+        }
+    };
+    
+    private void processZkSrvUpdatedData(String path, byte[] data){
+        // de-serialize service node
+        ZkNamingServiceNode srvNode = ns.deserializeZkSrvNode(path, data);
+        // set the new service status
+        srvMngr.setSrvStateStatus(path, srvNode.getStatus());
+        // log
+        LOG.info("Status of service {} is: {}", path, srvNode.getStatus().toString());
+        // check if all services are initialized
+        checkInitialization();
+    }
+    
+
+    /**
+     * Resolves a container path to the container name.
+     *
+     * @param path the zxNode container path to the zookeeper namespace.
+     * @return the container name.
+     */
+    public final String resolveConPath(String path) {
         return path.substring(path.lastIndexOf("/") + 1, path.length());
     }
 
@@ -981,16 +1016,6 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         }
     }
 
-    private void exportEnvVars() {
-        try {
-            // read configuration file
-            FileReader reader = new FileReader(BrokerConf.BROKER_SERVICE_SCRIPT_PATH);
-        } catch (FileNotFoundException ex) {
-            LOG.error("" + ex);
-        }
-
-        // JSONParser jsonParser = new JSONParser();
-    }
 
     /**
      * <p>
@@ -1029,7 +1054,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
             }
 
             if (con != null) {
-                LOG.info("De-serialized dependency: {}. Printing: \n {}", resolveServicePath(path),
+                LOG.info("De-serialized dependency: {}. Printing: \n {}", resolveConPath(path),
                         JsonSerializer.deserializeToString(data));
             } else {
                 LOG.error("De-serialization of dependency {} FAILED", path);
@@ -1058,40 +1083,7 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         return data;
     }
 
-    /**
-     * Serializes a service node.
-     *
-     * @param node the service node to serialize.
-     * @return a byte array representing the serialized node.
-     */
-    private byte[] serializeServiceNode(String path, ZkNamingServiceNode node) {
-        byte[] data = null;
-        try {
-            data = JsonSerializer.serializeServiceNode(node);
-            LOG.info("Serialized service node: {}", path);
-        } catch (JsonProcessingException ex) {
-            LOG.error("Service node Serialization FAILED: " + ex);
-        }
-        return data;
-    }
 
-    /**
-     * De-serializes a byte array to a
-     * {@link ZkNamingServiceNode ZkNamingServiceNode}.
-     *
-     * @param data the data to de-serialize.
-     * @return a {@link ZkNamingServiceNode ZkNamingServiceNode}.
-     */
-    private ZkNamingServiceNode deserializeServiceNode(String path, byte[] data) {
-        ZkNamingServiceNode node = null;
-        try {
-            node = JsonSerializer.deserializeServiceNode(data);
-            LOG.info("De-serialized service node: {}", path);
-        } catch (IOException ex) {
-            LOG.error("Service node de-serialization FAILED! " + ex);
-        }
-        return node;
-    }
 
     /**
      * Sets a latch to wait for shutdown.
@@ -1117,22 +1109,4 @@ public abstract class Broker extends ConnectionWatcher implements Runnable {
         LOG.info("Initiating Broker shutdown " + zkContainerPath);
     }
 
-    /* ------------------------------- MAIN ------------------------------------
-    public static void main(String[] args) throws IOException, InterruptedException {
-        // Create and initialize broker
-        Broker broker = new Broker(args[0], // zkHosts
-                Integer.parseInt(args[1]), // zkSessionTimeout
-                args[2], // zkContainerPath
-                args[3], // namingService
-                args[4], // shutdownNode
-                args[5] // conConfNode
-        );
-
-        // connect to zookeeper
-        broker.connect();
-        // create a new thread and start broker
-        Thread thread = new Thread(broker, "BrokerThread-" + args[2]);
-        thread.start();
-    }
-     */
 }

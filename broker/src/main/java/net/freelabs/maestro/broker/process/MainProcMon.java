@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.broker;
+package net.freelabs.maestro.broker.process;
 
 import java.util.concurrent.CountDownLatch;
 import org.slf4j.Logger;
@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
  * Class that holds the main container process state and monitors weather the
  * process is running or not.
  */
-public class MainProcMon {
+public final class MainProcMon {
 
     /**
      * The pid of the main container process.
@@ -57,6 +57,7 @@ public class MainProcMon {
      */
     public void start(Process _proc, int pid) {
         this._proc = _proc;
+        this.pid = pid;
         running = true;
         monRunning();
     }
@@ -79,10 +80,11 @@ public class MainProcMon {
      * <p>
      * The method blocks.
      */
-    protected void monRunning() {
+    private void monRunning() {
         new Thread(() -> {
             if (_proc != null) {
                 try {
+                    LOG.info("STARTED main process with pid: {}", pid);
                     _proc.waitFor();
                     running = false;
                     // notify all waiting threads that process stopped
@@ -95,7 +97,6 @@ public class MainProcMon {
             }
         }
         ).start();
-        LOG.info("Started monitoring the main process.");
     }
     /**
      * Sets the main process pid.
