@@ -39,6 +39,7 @@ import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConnectionWatcher;
 import net.freelabs.maestro.core.zookeeper.ZkNamingService;
 import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode;
+import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode.SRV_STATE_STATUS;
 import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
 import org.apache.zookeeper.AsyncCallback.StatCallback;
@@ -378,8 +379,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
         from "connectWith" field.        
         */        
         List<String> srvNames = container.getConnectWith();
-        List<String> srvPaths = ns.resolveServicePaths(srvNames);
-        srvMngr = new ServiceManager(srvPaths);
+        Map<String, String> srvsNamePath = ns.getSrvsNamePath(srvNames);
+        srvMngr = new ServiceManager(srvsNamePath);
         // set data to the container zNode 
         setZkConNodeData(data);
     }
@@ -427,6 +428,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
     public void registerToServices() {
         // create the service path for the naming service
         String path = ns.resolveSrvName(containerName);
+        // set service status to NOT_INITIALIZED
+        conZkSrvNode.setStatusNotInitialized();
         // serialize the node to byte array
         byte[] data = ns.serializeZkSrvNode(path, conZkSrvNode);
         // create the zNode of the service to the naming service
@@ -594,15 +597,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * @param data the data from a service zNode to process.
      * @param path the path of the service zNode.
      */
-    private void processServiceData(byte[] data, String path) {
+    private void processServiceData(byte[] data, String srvPath) {
         // de-serialize service node
-        ZkNamingServiceNode node = ns.deserializeZkSrvNode(path, data);
+        ZkNamingServiceNode node = ns.deserializeZkSrvNode(srvPath, data);
         // get the zNode path of the container of this service
         String zkConPath = node.getZkContainerPath();
-        // create a new service node to store to the service manager along with info
-        ServiceNode srvNode = new ServiceNode(ns.resolveSrvPath(path), path, zkConPath, node.getStatus());
-        // add the service node to the service manager
-        srvMngr.addSrvNode(path, srvNode);
+        // store service info to the service manager 
+        srvMngr.setSrvStateStatus(srvPath, node.getStatus());
+        srvMngr.setSrvZkConPath(srvPath, zkConPath);
         // GET CONFIGURATION DATA FROM the container of the retrieved zkPath.
         getConData(zkConPath);
     }
@@ -743,8 +745,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * arguments specified to be executed by the entrypoint.
      */
     private EntrypointHandler handleEntrypoint() {
+        // get entrypoint path
+        String path = container.getEntrypointPath();
         // create entrypoint handler
-        EntrypointHandler entryHandler = new EntrypointHandler(("/broker/data-entrypoint.sh"));
+        EntrypointHandler entryHandler = new EntrypointHandler(path);
         // process entrypoint
         entryHandler.processEntrypoint();
         // set entrypoint arguments

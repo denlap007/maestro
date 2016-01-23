@@ -63,21 +63,20 @@ public class ServiceNode {
      * @param srvName the name of the service.
      * @param srvPath the zNode path of the service under the naming service 
      * namepsace.
-     * @param zkConPath
-     * @param srvStateStatus the service state status.
+     * @param zkConPath the znode path of the container offering the service.
      */
-    public ServiceNode(String srvName, String srvPath, String zkConPath, SRV_STATE_STATUS srvStateStatus) {
+    public ServiceNode(String srvName, String srvPath, String zkConPath) {
         this.srvName = srvName;
         this.srvPath = srvPath;
         this.zkConPath = zkConPath;
         // set service state status
-        this.srvStateStatus = srvStateStatus;
+        this.srvStateStatus = SRV_STATE_STATUS.NOT_RUNNING;
         // set configuration status 
         srvConfStatus = SRV_CONF_STATUS.NOT_PROCESSED;
     }
 
     /**
-     * Default constructor, necessary for de-serialization with Jackson.
+     * Default constructor, NECESSARY for de-serialization with Jackson.
      */
     public ServiceNode() {
 

@@ -93,8 +93,7 @@ public final class EntrypointHandler {
      *
      */
     public void processEntrypoint() {
-        boolean fileExists = Files.exists(Paths.get(entrypointPath));
-        if (fileExists) {
+        if (isEntrypointOk()) {
             // set permissions for a new file
             Set<PosixFilePermission> perms = PosixFilePermissions.fromString("rwxrwxrwx");
             try {
@@ -113,9 +112,28 @@ public final class EntrypointHandler {
             } catch (IOException ex) {
                 LOG.error("Something went wrong: " + ex);
             }
-        } else {
+        }
+    }
+
+    /**
+     * <p>
+     * Checks if the entrypoint script exists and if so if it is a file.
+     * <p>
+     * This method is used for error checking for the entrypoint script.
+     *
+     * @return true if entrypoint script exists and is a file.
+     */
+    private boolean isEntrypointOk() {
+        boolean fileExists = Files.exists(Paths.get(entrypointPath));
+        boolean isFile = !Files.isDirectory(Paths.get(entrypointPath));
+
+        if (fileExists && !isFile) {
+            LOG.error("Entrypoint is a directory. File expected!");
+        } else if (!fileExists) {
             LOG.error("Entrypoint script NOT FOUND!");
         }
+
+        return (fileExists && isFile);
     }
 
     /**

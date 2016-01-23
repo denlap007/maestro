@@ -42,7 +42,7 @@ public final class ServiceManager {
      * The required services by the container. The list holds the zNode service
      * path to the naming service namespace.
      */
-    private final List<String> services;
+    private final List<String> services = new ArrayList<>();
     /**
      * The service nodes of the required services.
      */
@@ -56,11 +56,17 @@ public final class ServiceManager {
     /**
      * Constructor.
      *
-     * @param services the services-dependencies of the container.
+     * @param srvsNamePath a Map with K=service name, V=service znode path.
      */
-    public ServiceManager(List<String> services) {
-        // initialize list of services
-        this.services = services;
+    public ServiceManager(Map<String, String> srvsNamePath) {
+        // create service nodes
+        srvsNamePath.entrySet().stream().forEach((entry) -> {
+            ServiceNode srvNode = new ServiceNode(entry.getKey(), entry.getValue(), "");
+            // add to list with paths
+            services.add(entry.getValue());
+            // add to service nodes 
+            srvNodes.put(entry.getValue(), srvNode);
+        });
     }
 
     /**
@@ -82,9 +88,9 @@ public final class ServiceManager {
                 waitingServices.append(srvNode.getServiceName()).append(" ");
             }
         });
-        
+
         if (waitingServices.toString().isEmpty()) {
-            if (!srvNodes.isEmpty()){
+            if (!srvNodes.isEmpty()) {
                 LOG.info("All services PROCESSED.");
             }
             return true;
@@ -105,9 +111,9 @@ public final class ServiceManager {
         });
 
         if (waitingServices.toString().isEmpty()) {
-            if (!srvNodes.isEmpty()){
+            if (!srvNodes.isEmpty()) {
                 LOG.info("All services INITIALIZED.");
-            }            
+            }
             return true;
         } else {
             LOG.info("Waiting for services to initialize: {}", waitingServices);
@@ -124,7 +130,7 @@ public final class ServiceManager {
     public void setSrvConfStatusProc(String srvPath) {
         srvNodes.get(srvPath).setSrvConfStatus(SRV_CONF_STATUS.PROCESSED);
     }
-    
+
     /**
      * Sets the service state status.
      *
@@ -139,29 +145,33 @@ public final class ServiceManager {
     public void getSrvConfStatus(String srvPath) {
         srvNodes.get(srvPath).getSrvConfStatus();
     }
-    
-    public void setSrvNodeCon(String conPath, Container con){
-        for (ServiceNode srvNode : srvNodes.values()){
-            if (srvNode.getZkConPath().equals(conPath)){
+
+    public void setSrvNodeCon(String conPath, Container con) {
+        for (ServiceNode srvNode : srvNodes.values()) {
+            if (srvNode.getZkConPath().equals(conPath)) {
                 srvNode.setCon(con);
             }
         }
     }
-    
-    public boolean hasServices(){
-        return !services.isEmpty();
+
+    public void setSrvZkConPath(String srvPath, String zkConPath) {
+        srvNodes.get(srvPath).setZkConPath(zkConPath);
+    }
+
+    public boolean hasServices() {
+        return !srvNodes.isEmpty();
     }
 
     public List<String> getServices() {
         return services;
     }
-    
+
     /**
-     * 
-     * @return a {@link List List} with the {@link Container Container} objects of
-     * all services.
+     *
+     * @return a {@link List List} with the {@link Container Container} objects
+     * of all services.
      */
-    public List<Container> getConsOfSrvs(){
+    public List<Container> getConsOfSrvs() {
         List<Container> srvConList = new ArrayList<>();
         srvNodes.values().stream().forEach((srvNode) -> {
             srvConList.add(srvNode.getCon());

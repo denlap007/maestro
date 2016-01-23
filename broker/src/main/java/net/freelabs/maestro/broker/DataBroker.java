@@ -77,36 +77,5 @@ public class DataBroker extends Broker {
     protected Map<String, String> getConEnv(){
         return dataCon.getEnvironment().getEnvMap(dataCon.getEnvironment(), "");
     }
-    
-    
-
-    /**
-     * Gets the environment of a DataContainer to a string.
-     *
-     * @return a Map with key/value pairs in the form key1=value1, key2=value2
-     * e.t.c. with all the fields declared in the
-     * {@link DataEnvironment DataEnvironment} class.
-     */
-    @Deprecated
-    protected Map<String, String> getConEnv_OLD() {
-        DataEnvironment env = dataCon.getEnvironment();
-
-        String DB_PORT = String.valueOf(env.getDb_Port());
-        String DB_URL = env.getHost_Url();
-        String DB_USER = env.getDb_User();
-        String DB_PASS = env.getDb_Pass();
-        String DB_NAME = env.getDb_Name();
-        String DB_HOST = dataCon.getIP();
-
-        Map<String, String> envMap = new HashMap<>();
-        envMap.put("DB_PORT", DB_PORT);
-        envMap.put("DB_URL", DB_URL);
-        envMap.put("DB_USER", DB_USER);
-        envMap.put("DB_PASS", DB_PASS);
-        envMap.put("DB_NAME", DB_NAME);
-        envMap.put("DB_HOST", DB_HOST);
-        
-        return envMap;
-    }
 
 }
