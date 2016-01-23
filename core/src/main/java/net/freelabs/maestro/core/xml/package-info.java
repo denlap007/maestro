@@ -18,4 +18,4 @@
 /**
  * Provides Java Classes for xml pre-processing.
  */
-package net.freelabs.maestro.core.conf;
+package net.freelabs.maestro.core.xml;

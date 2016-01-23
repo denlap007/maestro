@@ -25,37 +25,27 @@ import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
 
 /**
- * Class that provides methods to handle initialization and bootstrapping of 
- * a Web container type.
+ * Class that provides methods to handle initialization and bootstrapping of a
+ * Web container type.
  */
-public class CoreWebBroker extends CoreBroker{
-    private final WebContainer webCon; 
+public class CoreWebBroker extends CoreBroker {
+
+    private final WebContainer webCon;
 
     public CoreWebBroker(ZkConfig zkConf, WebContainer con, DockerClient dockerClient) {
         super(zkConf, con, dockerClient);
         webCon = con;
     }
 
-     @Override
+    @Override
     public String bootContainer() {
         // boot configuration
         String containerName = webCon.getName();
+        Volume volume1 = new Volume("/broker");
+        // get the container description
+        String conEnv = getBootEnv();
 
         // set environment configuration
-        String ZK_HOSTS = zkConf.getHosts();
-        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSESSION_TIMEOUT());
-        String ZK_CONTAINER_PATH = zNode.getPath();
-        String ZK_NAMING_SERVICE = zkConf.getNamingServicePath();
-        String SHUTDOWN_NODE = zkConf.getShutDownPath();
-        String CONF_NODE = zNode.getConfNodePath();
-
-        Volume volume1 = new Volume("/broker");
-
-        String environment = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
-                + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
-                + "CONF_NODE=%s,TEST=", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
-                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
-
         String runBrokerCmd = "java -jar /broker/broker.jar $ZK_HOSTS $ZK_SESSION_TIMEOUT $ZK_CONTAINER_PATH $ZK_NAMING_SERVICE $SHUTDOWN_NODE $CONF_NODE";
 
         // set container configuration
@@ -65,7 +55,7 @@ public class CoreWebBroker extends CoreBroker{
                 .withCmd("/bin/sh", "-c", runBrokerCmd)
                 .withName(containerName)
                 .withNetworkMode("bridge")
-                .withEnv(environment.split(","))
+                .withEnv(conEnv.split(","))
                 .withPrivileged(true)
                 .exec();
 
@@ -76,4 +66,27 @@ public class CoreWebBroker extends CoreBroker{
         return container.getId();
     }
     
+    @Override
+    protected String getBootEnv() {
+        // set boot environment configuration
+        String ZK_HOSTS = zkConf.getHosts();
+        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSESSION_TIMEOUT());
+        String ZK_CONTAINER_PATH = zNode.getPath();
+        String ZK_NAMING_SERVICE = zkConf.getNamingServicePath();
+        String SHUTDOWN_NODE = zkConf.getShutDownPath();
+        String CONF_NODE = zNode.getConfNodePath();
+        // create a string with all the key-value pairs
+        String env = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
+                + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
+                + "CONF_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
+                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
+        
+        return env;
+    }
+
+    @Override
+    protected void setIP(String IP) {
+        webCon.getEnvironment().setHost_Ip(IP);
+    }
+
 }

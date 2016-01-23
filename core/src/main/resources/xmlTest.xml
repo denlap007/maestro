@@ -4,8 +4,8 @@
         <webContainer>
             <name>web</name>
             <connectWith>data </connectWith>
-            <dockerImage>java</dockerImage>
-            <entrypointPath></entrypointPath>
+            <dockerImage>dio/mysql_jre:v2</dockerImage>
+            <entrypointPath>/broker/web-entrypoint.sh</entrypointPath>
             <entrypointArgs></entrypointArgs>
             <environment>
                 <host_url>localhost:4848</host_url>
@@ -14,20 +14,9 @@
         </webContainer>
 
         <businessContainer>
-            <name>business1</name>
+            <name>business</name>
             <connectWith>web data</connectWith>
-            <dockerImage>ubuntu</dockerImage>
-            <entrypointPath></entrypointPath>
-            <entrypointArgs></entrypointArgs>
-            <environment>
-                <host_url>http://something.com</host_url>
-                <host_port>8080</host_port>
-            </environment>
-        </businessContainer>
-        <businessContainer>
-            <name>business2</name>
-            <connectWith>web data</connectWith>
-            <dockerImage>ubuntu</dockerImage>
+            <dockerImage>java</dockerImage>
             <entrypointPath></entrypointPath>
             <entrypointArgs></entrypointArgs>
             <environment>
@@ -55,7 +44,7 @@
 
     </containers>
 
-    <containersNum>2</containersNum>
+    <containersNum>3</containersNum>
 
     <webAppName>WebApp</webAppName>
 </webApp>

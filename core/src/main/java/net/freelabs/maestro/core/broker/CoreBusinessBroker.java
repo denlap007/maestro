@@ -16,10 +16,78 @@
  */
 package net.freelabs.maestro.core.broker;
 
+import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.command.CreateContainerResponse;
+import com.github.dockerjava.api.model.AccessMode;
+import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.Volume;
+import static net.freelabs.maestro.core.broker.CoreBroker.LOG;
+import net.freelabs.maestro.core.generated.BusinessContainer;
+import net.freelabs.maestro.core.zookeeper.ZkConfig;
+
 /**
- * Class that provides methods to handle initialization and bootstrapping of 
- * a Business container type.
+ * Class that provides methods to handle initialization and bootstrapping of a
+ * Business container type.
  */
-public class CoreBusinessBroker {
-    
+public class CoreBusinessBroker extends CoreBroker {
+
+    private final BusinessContainer businessCon;
+
+    public CoreBusinessBroker(ZkConfig zkConf, BusinessContainer con, DockerClient dockerClient) {
+        super(zkConf, con, dockerClient);
+        businessCon = con;
+    }
+
+    @Override
+    public String bootContainer() {
+        // boot configuration
+        String containerName = businessCon.getName();
+        Volume volume1 = new Volume("/broker");
+        // get the container description
+        String conEnv = getBootEnv();
+
+        // set environment configuration
+        String runBrokerCmd = "java -jar /broker/broker.jar $ZK_HOSTS $ZK_SESSION_TIMEOUT $ZK_CONTAINER_PATH $ZK_NAMING_SERVICE $SHUTDOWN_NODE $CONF_NODE";
+
+        // set container configuration
+        CreateContainerResponse container = dockerClient.createContainerCmd(businessCon.getDockerImage())
+                .withVolumes(volume1)
+                .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
+                .withCmd("/bin/sh", "-c", runBrokerCmd)
+                .withName(containerName)
+                .withNetworkMode("bridge")
+                .withEnv(conEnv.split(","))
+                .withPrivileged(true)
+                .exec();
+
+        // START CONTAINER
+        dockerClient.startContainerCmd(container.getId()).exec();
+        LOG.info("STARTING CONTAINER: " + containerName);
+
+        return container.getId();
+    }
+
+    @Override
+    protected String getBootEnv() {
+        // set boot environment configuration
+        String ZK_HOSTS = zkConf.getHosts();
+        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSESSION_TIMEOUT());
+        String ZK_CONTAINER_PATH = zNode.getPath();
+        String ZK_NAMING_SERVICE = zkConf.getNamingServicePath();
+        String SHUTDOWN_NODE = zkConf.getShutDownPath();
+        String CONF_NODE = zNode.getConfNodePath();
+        // create a string with all the key-value pairs
+        String env = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
+                + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
+                + "CONF_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
+                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
+
+        return env;
+    }
+
+    @Override
+    protected void setIP(String IP) {
+        businessCon.getEnvironment().setHost_Ip(IP);
+    }
+
 }

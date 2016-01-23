@@ -19,7 +19,9 @@ package net.freelabs.maestro.core.zookeeper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -126,6 +128,21 @@ public class ZkNamingService {
             srvPaths.add(resolveSrvName(srvName));
         });
         return srvPaths;
+    }
+    
+    /**
+     * 
+     * @param srvNames the service names.
+     * @return A Map with the service names as key and service paths as value.
+     */
+    public Map<String, String> getSrvsNamePath(List<String> srvNames){
+        Map<String, String> srvsNamePath = new HashMap<>();
+        
+        srvNames.stream().forEach((srvName) -> {
+            srvsNamePath.put(srvName, resolveSrvName(srvName));
+        });
+        
+        return srvsNamePath;
     }
 
 }

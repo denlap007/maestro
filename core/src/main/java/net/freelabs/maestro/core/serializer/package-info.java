@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Dionysis Lappas (dio@freelabs.net)
+ * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,6 @@
  */
 
 /**
- * Provides classes to handle the container types.
+ * Provides classes to handle serialization from/to objects from/to json format.
  */
-package net.freelabs.maestro.core.handler;
+package net.freelabs.maestro.core.serializer;

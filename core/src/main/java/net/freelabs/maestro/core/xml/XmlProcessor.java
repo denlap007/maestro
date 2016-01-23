@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.core.conf;
+package net.freelabs.maestro.core.xml;
 
 import static net.freelabs.maestro.core.utils.Utils.print;
 
@@ -59,12 +59,12 @@ import org.slf4j.Logger;
  * and also dynamically compile, load, instantiate classes and invoke methods to
  * objects through reflection.
  */
-public class ConfProcessor {
+public class XmlProcessor {
     
         /**
      * A Logger object.
      */
-    private static final Logger LOG = LoggerFactory.getLogger(ConfProcessor.class);
+    private static final Logger LOG = LoggerFactory.getLogger(XmlProcessor.class);
 
     /**
      * Dynamically loads a class based on its binary name using the ClassLoader

@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.core.conf;
+package net.freelabs.maestro.core.xml;
 
 import net.freelabs.maestro.core.cl.CmdLineOptions;
 import java.io.File;
@@ -32,7 +32,7 @@ import org.apache.commons.cli.ParseException;
 public class TheMainXml {
 
     public static void main(String[] args) throws IOException, Exception {
-        ConfProcessor classGen = new ConfProcessor();
+        XmlProcessor classGen = new XmlProcessor();
 
         CmdLineOptions opt = new CmdLineOptions();
         opt.initOptions();

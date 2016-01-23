@@ -14,13 +14,12 @@ import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlList;
 import javax.xml.bind.annotation.XmlSchemaType;
 import javax.xml.bind.annotation.XmlSeeAlso;
-import javax.xml.bind.annotation.XmlTransient;
 import javax.xml.bind.annotation.XmlType;
 import javax.xml.bind.annotation.adapters.CollapsedStringAdapter;
 import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 
 /**
- * <p>
+ * <p> 
  * Java class for container complex type.
  *
  * <p>
@@ -79,16 +78,6 @@ public abstract class Container {
     @XmlList
     @XmlElement(required = true)
     protected List<String> entrypointArgs;
-    @XmlTransient
-    protected String IP;
-
-    public String getIP() {
-        return IP;
-    }
-
-    public void setIP(String IP) {
-        this.IP = IP;
-    }
 
     /**
      * Gets the value of the name property.
@@ -233,5 +222,5 @@ public abstract class Container {
         }
         return this.entrypointArgs;
     }
-
+    
 }

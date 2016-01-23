@@ -18,14 +18,15 @@ package net.freelabs.maestro.core.boot;
 
 import com.github.dockerjava.api.DockerClient;
 import java.io.IOException;
-import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.broker.CoreBroker;
+import net.freelabs.maestro.core.broker.CoreBusinessBroker;
 import net.freelabs.maestro.core.broker.CoreDataBroker;
 import net.freelabs.maestro.core.broker.CoreWebBroker;
 import net.freelabs.maestro.core.cl.CommandLineOptions;
-import net.freelabs.maestro.core.conf.ConfProcessor;
+import net.freelabs.maestro.core.xml.XmlProcessor;
 import net.freelabs.maestro.core.container.ContainerLauncher;
 import net.freelabs.maestro.core.docker.DockerInitializer;
+import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.WebApp;
@@ -75,33 +76,58 @@ public final class Bootstrap {
             ZkConfig zkConf = createZkConf(progConf.getZkHosts(), progConf.getZkSessionTimeout(), handler, webAppName);
             // initialize zk and start master process
             initZk(zkConf);
-            // launch containers
-            //launchContainers(zkConf, handler, progConf.getDockerURI());
-
             // create a docker client customized for the app
             DockerInitializer appDocker = new DockerInitializer(progConf.getDockerURI());
             DockerClient docker = appDocker.getDockerClient();
-
-            //get a DATA container
-            DataContainer con = handler.getDataContainer();
-            // launch Core Broker
-            CoreBroker cb = new CoreDataBroker(zkConf, con, docker);
-            cb.connect();
-            // create new Thread and start it
-            Thread cbThread = new Thread(cb, "CoreBroker-" + con.getName() + "-thread");
-            cbThread.start();
-
-            // get a WEB container
-            WebContainer con2 = handler.getWebContainer();
-            // launch Core Broker
-            CoreBroker cb2 = new CoreWebBroker(zkConf, con2, docker);
-            cb2.connect();
-            // create new Thread and start it
-            Thread cbThread2 = new Thread(cb2, "CoreBroker-" + con.getName() + "-thread-2");
-            cbThread2.start();
-
+            // launch the CoreBrokers
+            launchBrokers(handler, zkConf, docker);
         } catch (Exception ex) {
             exitProgram(ex);
+        }
+    }
+
+    /**
+     * <p>
+     * Launches the {@link CoreBroker CoreBrokers} that boot the containers.
+     * <p>
+     * A {@link Container Container} is obtained from the {@link ContainerHandler
+     * ContainerHandler}. A {@link CoreBroker CoreBroker} is created and then
+     * connects to zk and starts execution a new thread.
+     * <p>
+     * The method gets all {@link Container Containers} exhaustively and starts
+     * all {@link CoreBroker CoreBrokers} necessary for the program.
+     *
+     * @param handler object to query for containers.
+     * @param zkConf the zk configuration.
+     * @param docker a docker client.
+     * @throws IOException if connection to zk cannot be established.
+     * @throws InterruptedException if thread is interrupted.
+     */
+    public void launchBrokers(ContainerHandler handler, ZkConfig zkConf, DockerClient docker) throws IOException, InterruptedException {
+        /*  Get a Container from the container handler. The Container can be of 
+            any type. Create the CoreBroker and initialize it. The Broker will 
+            connect to zk and then start execution on a new thread.
+         */
+        while (handler.hasContainers()) {
+            Container con = handler.getContainer();
+            CoreBroker cb = null;
+            
+            if (con instanceof WebContainer){
+                WebContainer webCon = (WebContainer) con;
+                cb =  new CoreWebBroker(zkConf, webCon, docker);
+            }else if (con instanceof BusinessContainer){
+                BusinessContainer businessCon = (BusinessContainer) con;
+                cb =  new CoreBusinessBroker(zkConf, businessCon, docker);
+            }else if (con instanceof DataContainer){
+                DataContainer dataCon = (DataContainer) con;
+                cb =  new CoreDataBroker(zkConf, dataCon, docker);
+            }
+            // connect to zk
+            cb.connect();
+            // create new Thread and start it
+            Thread cbThread2 = new Thread(cb, con.getName() + "-CB-" + "Thread");
+            LOG.info("Starting {} CoreBroker.", con.getName());
+            cbThread2.start();
         }
     }
 
@@ -114,7 +140,7 @@ public final class Bootstrap {
      */
     public WebApp unmarshalXml(String schemaPath, String xmlFilePath) {
         // create an object that processes initial configuration
-        ConfProcessor proc = new ConfProcessor();
+        XmlProcessor proc = new XmlProcessor();
         // Get root Object 
         WebApp webApp = (WebApp) proc.unmarshal("net.freelabs.maestro.core.generated", schemaPath, xmlFilePath);
 
@@ -235,23 +261,17 @@ public final class Bootstrap {
      * @throws IOException in cases of network failure.
      */
     public void initZk(ZkConfig zkConf) throws InterruptedException, IOException {
-        // create a latch with a count of one (1). When the master process is
-        // initialized the latch is released
-        CountDownLatch masterReadySignal = new CountDownLatch(1);
         // create a master object and initialize it with zk configuration
         master = new ZkMaster(zkConf);
         // connect to zookeeper and create a session
         master.connect();
-        // set latch to wait for initialization
-        master.setMasterReadySignal(masterReadySignal);
         // Create a new thread to run the master 
         Thread masterThread = new Thread(master, "Master-thread");
         // start the master process
         masterThread.start();
         // wait for initialization
         LOG.info("WAITING FOR MASTER INITIALIZATION");
-        masterReadySignal.await();
-
+        master.waitMasterInit();
     }
 
     public void launchContainers(ZkConfig zkConf, ContainerHandler handler, String dockerUri) {
@@ -292,7 +312,7 @@ public final class Bootstrap {
         // create a parser to parse cli options
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd = null;
-        
+
         try {
             // parse cli arguments
             cmd = parser.parse(opt.getOptions(), args);

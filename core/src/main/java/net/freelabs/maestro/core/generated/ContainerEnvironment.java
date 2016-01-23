@@ -58,6 +58,18 @@ public abstract class ContainerEnvironment {
     @XmlElement(name = "host_url", required = true)
     @XmlSchemaType(name = "anyURI")
     protected String host_Url;
+    @XmlTransient
+    protected String host_Ip;
+
+    public String getHost_Ip() {
+        return host_Ip;
+    }
+
+    public void setHost_Ip(String host_Ip) {
+        this.host_Ip = host_Ip;
+    }
+
+
     /**
      * A Logger object.
      */
@@ -88,7 +100,7 @@ public abstract class ContainerEnvironment {
      * Returns the environment of a ContainerEnvironment subtype via reflection.
      *
      * @param obj an object of a ContainerEnvironment subclass.
-     * @param prefix the prefix to be applied to all keys of the returned map. 
+     * @param prefix the prefix to be applied to all keys of the returned map.
      * Usually, the container name, whose environment is returned, is provided.
      * @return a map with all the declared fields and values.
      */
@@ -107,17 +119,17 @@ public abstract class ContainerEnvironment {
             // get the name of the field
             String fieldName = field.getName();
             // if it's the LOGGER object skip it
-            if (fieldName.equals("LOG")){
+            if (fieldName.equals("LOG")) {
                 continue;
             }
             // create the final name for the key, if prefix is empty do not use it
             String key;
-            if (prefix.isEmpty()){
+            if (prefix.isEmpty()) {
                 key = (fieldName).toUpperCase();
-            }else{
+            } else {
                 key = (prefix + "_" + fieldName).toUpperCase();
             }
-            
+
             Object fieldValue = null;
             try {
                 // get the value of the field and convert it to String

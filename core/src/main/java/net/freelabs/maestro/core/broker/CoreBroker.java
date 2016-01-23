@@ -64,7 +64,7 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      */
     protected static final Logger LOG = LoggerFactory.getLogger(CoreBroker.class);
     /**
-     * The container's id.
+     * The container id.
      */
     private String CID;
     /**
@@ -102,7 +102,7 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
         // get container IP
         String IP = getContainerIP(CID);
         // update container ip
-        con.setIP(IP);
+        setIP(IP);
 
         try {
             // update zNode configuration
@@ -127,7 +127,25 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      *
      * @return the container ID of the started container.
      */
-    public abstract String bootContainer();
+    protected abstract String bootContainer();
+
+    /**
+     * <p>
+     * Generates the container boot environment.
+     * <p>
+     * The container boot environment is all the necessary configuration for the
+     * environment of the container in order to boot and initialize.
+     *
+     * @return a String with key/value pairs in the form key1=value1,
+     * key2=value2 e.t.c. representing the container description.
+     */
+    protected abstract String getBootEnv();
+    
+    /**
+     * Sets the IP of the container.
+     * @param IP the container IP.
+     */
+    protected abstract void setIP(String IP);
 
     /**
      * Gets the IP of the container with this container ID.

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Dionysis Lappas (dio@freelabs.net)
+ * Copyright (C) 2015-2016 Dionysis Lappas (dio@freelabs.net)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -66,24 +66,27 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      */
     private final CountDownLatch shutdownSignal = new CountDownLatch(1);
     /**
-     * A map of containers (Key) and their STATE (Value).
+     * Map with the created znodes by the Master process and their state.
      */
-    private final Map<String, CONTAINER_STATE> containerState = new HashMap<>();
-
     private volatile Map<String, STATE> zkNamespaceState = new HashMap<>();
     /**
-     * The node that signals the shutdown of the master
+     * The node that signals the shutdown of the master.
      */
     private final String shutDownNode;
 
-    private volatile STATE masterState;
-
+    /**
+     * Enum for the state of a znode.
+     */
     private enum STATE {
 
         INITIALIZED, NOT_INITIALIZED
     };
+    /**
+     * Latch set when Master process starts and is released when it initializes.
+     */
+    private final CountDownLatch masterReadySignal = new CountDownLatch(1);
 
-    private CountDownLatch masterReadySignal;
+    ;
 
     @Override
     public void run() {
@@ -99,14 +102,6 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     }
 
     /**
-     * The state of a container.
-     */
-    private static enum CONTAINER_STATE {
-
-        NOT_RUNNING, RUNNING
-    };
-
-    /**
      * Constructor
      *
      * @param zkConf the zookeeper configuration
@@ -116,7 +111,6 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
         super(zkConf.getHosts(), zkConf.getSESSION_TIMEOUT());
         this.zkConf = zkConf;
         shutDownNode = zkConf.getShutDownPath();
-        masterState = STATE.NOT_INITIALIZED;
     }
 
     /**
@@ -151,15 +145,6 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
         // create zk configuration node
         zkNamespaceState.put(zkConf.getUserConfPath(), STATE.NOT_INITIALIZED);
         createNode(zkConf.getUserConfPath(), MASTER_ID.getBytes());
-
-        /* create zk container configuration nodes
-        HashMap<String, ZkNode> map = zkConf.getZkContainers();
-        for (Map.Entry pair : map.entrySet()) {
-            ZkNode node = (ZkNode) pair.getValue();
-            String confNode = zkConf.getUserConfPath() + node.getName();
-            zkNamespaceState.put(confNode, STATE.NOT_INITIALIZED);
-            createNode(confNode, node.getData());
-        } */
 
         // craete zk naming service node
         zkNamespaceState.put(zkConf.getNamingServicePath(), STATE.NOT_INITIALIZED);
@@ -199,6 +184,8 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
             case OK:
                 LOG.info("Created zNode: " + path);
                 zkNamespaceState.put(path, STATE.INITIALIZED);
+                // check if master is initialized.
+                isMasterReady();
                 break;
             default:
                 LOG.error("Something went wrong: ",
@@ -237,6 +224,8 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 if (Arrays.equals(data, (byte[]) ctx) == true) {
                     LOG.info("ZkNode created successfully: " + path);
                     zkNamespaceState.put(path, STATE.INITIALIZED);
+                    // check if master is initialized.
+                    isMasterReady();
                 } else {
                     LOG.error("ΖkNode already exists: " + path);
                 }
@@ -315,6 +304,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 break;
             } catch (ConnectionLossException ex) {
                 LOG.warn("Connection loss was detected");
+                break;
             } catch (KeeperException ex) {
                 LOG.error("Something went wrong", ex);
                 break;
@@ -323,6 +313,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 LOG.error("Interruption attempted", ex);
                 // set interupt flag
                 Thread.currentThread().interrupt();
+                break;
             }
         }
     }
@@ -342,22 +333,24 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 break;
             } catch (ConnectionLossException ex) {
                 LOG.warn("Connection loss was detected");
+                break;
             } catch (NoNodeException ex) {
-                 LOG.info("Node already detected: {}", path);
-            }
-            catch (KeeperException ex) {
+                LOG.info("Node already detected: {}", path);
+                break;
+            } catch (KeeperException ex) {
                 LOG.error("Something went wrong", ex);
                 break;
             }
         }
     }
 
-    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     /**
-     * Checks the data from a zkNode.
+     * Checks the data from a zkNode. FOR DEBUGGIND.
      *
-     * @param path
-     * @return
+     * @param path the path of the znode to check.
+     * @return the size of the znode data in bytes.
+     * @throws org.apache.zookeeper.KeeperException error handling from zk.
+     * @throws java.lang.InterruptedException if interrupted.
      */
     public byte[] checkData(String path) throws KeeperException, InterruptedException {
         byte[] data = zk.getData(path, false, null);
@@ -366,7 +359,6 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
         return data;
     }
 
-    // @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     /**
      * Sets data to container node.
      *
@@ -384,6 +376,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     private final StatCallback setChildDataCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (Code.get(rc)) {
             case CONNECTIONLOSS:
+                LOG.warn("Connection loss was detected");
                 setContainerData(path, (byte[]) ctx);
                 break;
             case NONODE:
@@ -399,20 +392,33 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
         }
     };
 
+    /**
+     * Blocks until shutdown.
+     *
+     * @throws InterruptedException if thread is interrupted.
+     */
     public void waitForShutdown() throws InterruptedException {
         shutdownSignal.await();
     }
 
+    /**
+     * Initiates shutdown.
+     */
     public void shutdown() {
         shutdownSignal.countDown();
         LOG.info("Initiating master shutdown.");
     }
 
+    /**
+     * Sets a watch for the znode that indicates the program shutdown.
+     */
     public void setShutDownWatch() {
-        zk.exists(shutDownNode, cleanUpWatcher, cleanUpCallback, zk);
+        zk.exists(shutDownNode, shutDownWatcher, setShutDownWatchCallback, zk);
     }
-
-    private final StatCallback cleanUpCallback = (int rc, String path, Object ctx, Stat stat) -> {
+    /**
+     * Callback to be used with {@link #setShutDownWatch() setShutDownWatch}.
+     */
+    private final StatCallback setShutDownWatchCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (Code.get(rc)) {
             case CONNECTIONLOSS:
                 setShutDownWatch();
@@ -428,15 +434,21 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                         KeeperException.create(Code.get(rc), path));
         }
     };
-
-    private final Watcher cleanUpWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
-
+    /**
+     * Watcher to process watched event: shutdown node created.
+     */
+    private final Watcher shutDownWatcher = (WatchedEvent event) -> {
         if (event.getType() == NodeCreated) {
+            LOG.info(event.getType() + ", " + event.getPath());
             shutdown();
         }
     };
 
+    /**
+     * Checks the state of all necessary znodes.
+     *
+     * @return true if all nodes were created.
+     */
     public boolean isZkNamespaceInitialized() {
         return !zkNamespaceState.containsValue(STATE.NOT_INITIALIZED);
     }
@@ -445,25 +457,22 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * Checks if master is initialized and unblocks
      */
     public void isMasterReady() {
-        Runnable checkMaster = () -> {
-            while (true) {
-                if (zkNamespaceState.containsValue(STATE.NOT_INITIALIZED) == false) {
-                    LOG.info("Master is INITIALIZED.");
-                    masterReadySignal.countDown();
-                    break;
-                }
-            }
-        };
-
-        Thread checkMasterThread = new Thread(checkMaster);
-        checkMasterThread.start();
+        if (isZkNamespaceInitialized()) {
+            LOG.info("Master is INITIALIZED.");
+            masterReadySignal.countDown();
+        }
     }
 
     /**
-     * @param masterReadySignal the masterReadySignal to set
+     * <p>
+     * Waits until the Master process initializes.
+     * <p>
+     * Method blocks.
+     *
+     * @throws InterruptedException if thread is interrupted.
      */
-    public void setMasterReadySignal(CountDownLatch masterReadySignal) {
-        this.masterReadySignal = masterReadySignal;
+    public void waitMasterInit() throws InterruptedException {
+        masterReadySignal.await();
     }
 
 }
