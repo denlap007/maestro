@@ -29,7 +29,6 @@ import java.util.concurrent.Executors;
 import net.freelabs.maestro.broker.process.EntrypointHandler;
 import net.freelabs.maestro.broker.process.ProcessHandler;
 import net.freelabs.maestro.broker.services.ServiceManager;
-import net.freelabs.maestro.broker.services.ServiceNode;
 import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
@@ -39,7 +38,6 @@ import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConnectionWatcher;
 import net.freelabs.maestro.core.zookeeper.ZkNamingService;
 import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode;
-import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode.SRV_STATE_STATUS;
 import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
 import org.apache.zookeeper.AsyncCallback.StatCallback;
@@ -731,7 +729,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
         // handle the entrypoint processing
         EntrypointHandler entryHandler = handleEntrypoint();
         // if entryoint handler is ready, handle the interaction with the new process
-        if (entryHandler.isReady()){
+        if (entryHandler.isEntrypointOk()){
             handleProcess(entryHandler);
         }
     }
@@ -747,14 +745,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
     private EntrypointHandler handleEntrypoint() {
         // get entrypoint path
         String path = container.getEntrypointPath();
-        // create entrypoint handler
-        EntrypointHandler entryHandler = new EntrypointHandler(path);
-        // process entrypoint
-        entryHandler.processEntrypoint();
         // set entrypoint arguments
         List<String> args = container.getEntrypointArgs();
-        entryHandler.setEntrypointArgs(args);
-
+        // create entrypoint handler
+        EntrypointHandler entryHandler = new EntrypointHandler(path, args);
         return entryHandler;
     }
 
@@ -769,15 +763,16 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * @param entryHandler
      */
     private void handleProcess(EntrypointHandler entryHandler) {
+        int procPort = getHostPort();
         // create a process handler to manage the new process initiation.
-        ProcessHandler procHandler = new ProcessHandler();
+        ProcessHandler procHandler = new ProcessHandler(procPort);
         // initialize with the environment
         Map<String, String> env = getConEnv();
         // get environment from dependencies and add to environment
         Map<String, String> dependenciesEnv = getDependenciesEnv();
         env.putAll(dependenciesEnv);
         // get the rest configuration
-        String entrypointPath = entryHandler.getUpdatedEntrypointPath();
+        String entrypointPath = entryHandler.getEntrypointPath();
         List<String> entrypointArgs = entryHandler.getEntrypointArgs();
         procHandler.initProc(env, entrypointPath, entrypointArgs);
         // start process
@@ -856,6 +851,11 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * @return a map with the container environment.
      */
     protected abstract Map<String, String> getConEnv();
+    /**
+     * 
+     * @return the port on which the main process runs.
+     */
+    protected abstract int getHostPort();
 
 
     /**

@@ -61,4 +61,8 @@ public class BusinessBroker extends Broker {
         return business.getEnvironment().getEnvMap(business.getEnvironment(), "");
     }
 
+    @Override
+    protected int getHostPort() {
+        return business.getEnvironment().getHost_Port();
+    }
 }

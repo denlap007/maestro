@@ -16,15 +16,16 @@
  */
 package net.freelabs.maestro.broker.process;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.util.Scanner;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
-import static net.freelabs.maestro.broker.process.EntrypointHandler.CONTROL_STRING;
 
 /**
  *
@@ -58,26 +59,39 @@ public final class EntrypointProcMon {
      * Latch that is set when the process is waiting for initialization and
      * releases when initialized or failed to initialize.
      */
-    private CountDownLatch initializedSignal;
+    private CountDownLatch initSignal;
     /**
-     * The pid of the main container process.
+     * Time to wait for initialization before aborting process.
      */
-    private int main_proc_pid;
+    private static final int INIT_TIMEOUT = (int) TimeUnit.MINUTES.toMillis(2);
     /**
-     * A blocking queue used to store {@link #_proc _proc} output.
+     * Latch that is used to wait for the process while running.
      */
-    private final LinkedBlockingQueue<String> lbq = new LinkedBlockingQueue<>();
-
+    private CountDownLatch runningSignal;
+    /**
+     * Holds the IP and port where the process is running. Used to make a socket
+     * connection and check process initialization. The host is the localhost.
+     */
+    private final InetSocketAddress isa;
     /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(EntrypointProcMon.class);
+    /**
+     * The port at which the entrypoint process is listening.
+     */
+    private final int procPort;
 
     /**
      * Constructor.
+     *
+     * @param procPort the port at which the process is listening.
      */
-    public EntrypointProcMon() {
+    public EntrypointProcMon(int procPort) {
         curState = STATE.NOT_RUNNING;
+        this.procPort = procPort;
+        // create the host port socketAddress object. Host is localhost
+        isa = new InetSocketAddress(InetAddress.getLoopbackAddress(), procPort);
     }
 
     /**
@@ -100,7 +114,7 @@ public final class EntrypointProcMon {
         // start monitoring running
         monProcRun();
         // start monitoring initialization
-        monProcInit();
+        waitProcInit();
     }
 
     /**
@@ -113,8 +127,10 @@ public final class EntrypointProcMon {
         } else if (curState == STATE.RUNNING && initialized == true && running == true) {
             curState = STATE.INITIALIZED;
         } else if (curState == STATE.RUNNING && initialized == true && running == false) {
-            curState = STATE.NOT_INITIALIZED;
-        } else if (curState == STATE.RUNNING && initialized == false) {
+            curState = STATE.NOT_RUNNING;
+        } else if (curState == STATE.RUNNING && initialized == false && running == false) {
+            curState = STATE.NOT_RUNNING;
+        } else if (curState == STATE.RUNNING && initialized == false && running == true) {
             curState = STATE.NOT_INITIALIZED;
         } else if (curState == STATE.INITIALIZED && running == false) {
             curState = STATE.NOT_RUNNING;
@@ -129,19 +145,23 @@ public final class EntrypointProcMon {
     private void action() {
         switch (curState) {
             case NOT_RUNNING:
+                LOG.warn("Entrypoint process STOPPED.");
+                runningSignal.countDown();
+                initSignal.countDown();
                 break;
             case RUNNING:
                 LOG.info("STARTED entrypoint process.");
-                initializedSignal = new CountDownLatch(1);
+                runningSignal = new CountDownLatch(1);
+                initSignal = new CountDownLatch(1);
                 LOG.info("Waiting for the process to initialize...");
                 break;
             case INITIALIZED:
                 LOG.info("Process initialization complete.");
-                initializedSignal.countDown();
+                initSignal.countDown();
                 break;
             case NOT_INITIALIZED:
                 LOG.error("Process initialization FAILED.");
-                initializedSignal.countDown();
+                initSignal.countDown();
                 break;
             default:
                 break;
@@ -154,7 +174,7 @@ public final class EntrypointProcMon {
      * <p>
      * Sets entrypoint process status to not running when then process stops.
      * <p>
-     * Logic is executed in a new thread, consequently the method doesn't block.
+     * Logic is executed on a new thread, consequently the method doesn't block.
      */
     protected void monProcRun() {
         new Thread(() -> {
@@ -174,99 +194,75 @@ public final class EntrypointProcMon {
 
     /**
      * <p>
-     * Reads output stream of {@link #_proc _proc} process and writes it to the
-     * {@link #lbq linkedBlockingQueue} queue for other threads to consume it.
-     * When the queue has exceeded its capacity, waits until space is freed.
-     * <p>
-     * The method blocks is queue exceeds its capacity.
-     */
-    private void readOutForInit() {
-        // create a new thread to read proc output
-        Thread t = new Thread(() -> {
-            // set id for logging
-            MDC.put("id", "entrypoint");
-            // read process output
-            BufferedReader inStream = new BufferedReader(new InputStreamReader(_proc.getInputStream()));
-            String line;
-            Scanner scan = new Scanner(inStream);
-            while (scan.hasNextLine()) {
-                line = scan.nextLine();
-                // put data to queue to be read by other threads
-                try {
-                    lbq.put(line);
-                } catch (InterruptedException ex) {
-                    LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
-        }
-        );
-        t.setName("readThread");
-        t.start();
-    }
-
-    /**
-     * <p>
-     * Consumes data from {@link #lbq linkedBlockingQueue} queue.
-     * <P>
-     * Checks for the initialization {@link #CONTROL_STRING CONTROL_STRING} and
-     * if found extracts the main process pid and sets entrypoint process status
-     * to INITIALIZED.
-     * <p>
-     * If the queue is empty, waits for more elements to be available.
-     * <p>
-     * The method blocks.
-     */
-    private void checkInitAndLog() {
-        Thread t = new Thread(() -> {
-            // set id for logging
-            MDC.put("id", "entrypoint");
-            String line;
-            while (true) {
-                try {
-                    line = lbq.take();
-                    if (!initialized) {
-                        if (line.contains(CONTROL_STRING)) {
-                            main_proc_pid = Integer.parseInt(line.substring(line.indexOf("=") + 1, line.length()));
-                            // set initialized status
-                            setInitialized(true);
-                        } else {
-                            LOG.info(line);
-                        }
-                    } else {
-                        LOG.info(line);
-                    }
-                } catch (InterruptedException ex) {
-                    LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
-        });
-        t.setName("logThread");
-        t.start();
-    }
-
-    /**
-     * <p>
      * Monitors the process initialization. Waits until initialized.
      * <p>
      * The method blocks.
      */
-    protected void monProcInit() {
-        // create thread that reads queue where proc output is piped, checks init
-        // and logs the output
-        checkInitAndLog();
-        // create thread that reads proc out and writes it to a queus 
-        readOutForInit();
-
+    public void waitProcInit() {
+        // create new thread, check initialization condition and set init status
+        checkInit();
         try {
-            initializedSignal.await();
+            // block and wait until initialization status changes
+            initSignal.await();
         } catch (InterruptedException ex) {
-            LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
+            LOG.warn("Interruption attempted: {}", ex.getMessage());
             Thread.currentThread().interrupt();
         }
+    }
+
+    /**
+     * <p>
+     * Checks the initialization condition and sets the init process status.
+     * <p>
+     * A new thread is created which handles the initialization condition. In
+     * order to determine if the process is initialized and ready a
+     * {@link java.net.Socket socket} is created and tries to make a connection,
+     * within a {@link #INIT_TIMEOUT timeout} limit as long as the process is
+     * running. If the connection succeeds, the process is set initialized. If
+     * not, the connection is re-tried until timed out. If the connection times
+     * out the process is set not initialized.
+     * <p>
+     */
+    private void checkInit() {
+        new Thread(() -> {
+            // create a socket 
+            Socket client = new Socket();
+            long start = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+            long end = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+            while (running) {
+                if (end - start < INIT_TIMEOUT) {
+                    try {
+                        // try to connect 
+                        client.connect(isa, INIT_TIMEOUT);
+                        // connection succeeded so set process status to initialized
+                        setInitialized(true);
+                        break;
+                    } catch (SocketTimeoutException ex) {
+                        LOG.error("Process initialization TIMEOUT!");
+                        setInitialized(false);
+                        break;
+                    } catch (SocketException ex) {
+                        // create a new socket as the socket is now closed.
+                        client = new Socket();
+                    } catch (IOException ex) {
+                        // catch the exception to allow loop to continue                        
+                    }
+                    LOG.warn("Waiting server: {} on port: {}", isa.getHostName(), String.valueOf(procPort));
+                    try {
+                        TimeUnit.SECONDS.sleep(2);
+                    } catch (InterruptedException ex1) {
+                        LOG.warn("Interruption attempted: {}", ex1.getMessage());
+                        Thread.currentThread().interrupt();
+                    }
+                } else {
+                    LOG.error("Process initialization TIMEOUT!");
+                    // set process status to NOT initialized
+                    setInitialized(false);
+                    break;
+                }
+                end = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+            }// end while
+        }).start();
     }
 
     /**
@@ -275,6 +271,14 @@ public final class EntrypointProcMon {
      */
     public boolean isInitialized() {
         return curState == STATE.INITIALIZED;
+    }
+
+    /**
+     *
+     * @return true if the entrypoint process is running.
+     */
+    public boolean isRunning() {
+        return running;
     }
 
     /**
@@ -304,10 +308,22 @@ public final class EntrypointProcMon {
     }
 
     /**
-     * @return the {@link $main_proc_pid main_proc_pid}
+     * <p>
+     * The method sets the caller into waiting for the entrypoint process to
+     * stop.
+     * <p>
+     * The method blocks.
      */
-    public int getMain_proc_pid() {
-        return main_proc_pid;
+    public void waitProc() {
+        try {
+            if (running) {
+                runningSignal.await();
+            } else {
+                LOG.error("Cannot wait for process. Process is NOT RUNNING.");
+            }
+        } catch (InterruptedException ex) {
+            LOG.warn("Interruption attempted: {}", ex.getMessage());
+            Thread.currentThread().interrupt();
+        }
     }
-
 }

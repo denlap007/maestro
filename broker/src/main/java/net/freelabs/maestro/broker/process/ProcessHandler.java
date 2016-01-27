@@ -17,6 +17,7 @@
 package net.freelabs.maestro.broker.process;
 
 import java.io.IOException;
+import java.lang.ProcessBuilder.Redirect;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
@@ -47,21 +48,16 @@ public final class ProcessHandler {
      * Monitors the entrypoint process state.
      */
     private final EntrypointProcMon entryProcMon;
-    /**
-     * Monitors the main process state.
-     */
-    private final MainProcMon mainProcMon;
 
     /**
      * Constructor
+     * @param procPort the port at which the entrypoint process is listening.
      */
-    public ProcessHandler() {
+    public ProcessHandler(int procPort) {
         // create a ProcessBuidler to spawn a new process
         pb = createProc();
         // create an entrypoint process monitor
-        entryProcMon = new EntrypointProcMon();
-        // create a main process monitor
-        mainProcMon = new MainProcMon();
+        entryProcMon = new EntrypointProcMon(procPort);
     }
 
     /**
@@ -85,14 +81,16 @@ public final class ProcessHandler {
      *
      * @param outerEnv the environment to add to the new process.
      * @param entrypointPath the path of the entrypoint script to execute.
+     * @param entrypointArgs the arguments to the entrypoint script.
      */
     public void initProc(Map<String, String> outerEnv, String entrypointPath, List<String> entrypointArgs) {
         // get the environmente of the new process
         Map<String, String> env = pb.environment();
         // add the necessary external environment 
         env.putAll(outerEnv);
-        // redirect error stream
-        pb.redirectError();
+        // redirect error stream and output stream
+        pb.redirectError(Redirect.INHERIT);
+        pb.redirectOutput(Redirect.INHERIT);
         /* set process command and arguments. The process will execute the entrypoint 
         script. The entrypoint may specify possible arguments. Add all to list.*/
         List<String> procCmdArgs = new ArrayList<>();
@@ -119,17 +117,17 @@ public final class ProcessHandler {
         try {
             // start the new process
             _proc = pb.start();
-            
             // start the entrypoint monitor
             entryProcMon.start(_proc);
-            // if entrypoint initialized, main process is spawned
+            // if entrypoint initialized, main process is spawned successfully
             if (entryProcMon.isInitialized()) {
-                mainProcMon.start(_proc, entryProcMon.getMain_proc_pid());
+                
+                //mainProcMon.start(_proc, entryProcMon.getMain_proc_pid());
             }
         } catch (IOException ex) {
             LOG.error("FAILED to start entrypoint process: " + ex);
         }
-        return mainProcMon.isRunning();
+        return entryProcMon.isInitialized();
     }
 
     /**
@@ -157,14 +155,14 @@ public final class ProcessHandler {
      * @return true if the main container process is running.
      */
     protected boolean isMainProcRunning() {
-        return mainProcMon.isRunning();
+        return entryProcMon.isRunning();
     }
 
     /**
      * Blocks until the main container process stops running.
      */
     public void waitForMainProc() {
-        mainProcMon.setWaitOnMainProc();
+        entryProcMon.waitProc();
     }
 
 }

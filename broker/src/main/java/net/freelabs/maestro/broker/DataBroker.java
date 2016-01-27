@@ -17,11 +17,9 @@
 package net.freelabs.maestro.broker;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
-import net.freelabs.maestro.core.generated.DataEnvironment;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,6 +74,11 @@ public class DataBroker extends Broker {
     @Override
     protected Map<String, String> getConEnv(){
         return dataCon.getEnvironment().getEnvMap(dataCon.getEnvironment(), "");
+    }
+
+    @Override
+    protected int getHostPort() {
+        return dataCon.getEnvironment().getDb_Port();
     }
 
 }

@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
  * Class that holds the main container process state and monitors weather the
  * process is running or not.
  */
+@Deprecated
 public final class MainProcMon {
 
     /**
@@ -48,6 +49,8 @@ public final class MainProcMon {
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(MainProcMon.class);
+
+    private final CountDownLatch initSignal = new CountDownLatch(1);
 
     /**
      * Starts monitoring the process. Sets state to RUNNING.
@@ -98,16 +101,21 @@ public final class MainProcMon {
         }
         ).start();
     }
+
+
     /**
      * Sets the main process pid.
-     * @param pid 
+     *
+     * @param pid
      */
     public void setPid(int pid) {
         this.pid = pid;
     }
+
     /**
      * Gets the main process pid.
-     * @return 
+     *
+     * @return
      */
     public int getPid() {
         return pid;

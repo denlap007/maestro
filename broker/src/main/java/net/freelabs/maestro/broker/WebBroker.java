@@ -61,4 +61,9 @@ public class WebBroker extends Broker {
         return web.getEnvironment().getEnvMap(web.getEnvironment(), "");
     }
 
+    @Override
+    protected int getHostPort() {
+        return web.getEnvironment().getHost_Port();
+    }
+
 }
