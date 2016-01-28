@@ -27,7 +27,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import net.freelabs.maestro.broker.process.EntrypointHandler;
-import net.freelabs.maestro.broker.process.ProcessHandler;
+import net.freelabs.maestro.broker.process.MainProcessData;
+import net.freelabs.maestro.broker.process.MainProcessHandler;
 import net.freelabs.maestro.broker.services.ServiceManager;
 import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
 import net.freelabs.maestro.core.generated.BusinessContainer;
@@ -763,10 +764,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * @param entryHandler
      */
     private void handleProcess(EntrypointHandler entryHandler) {
+        // get the port the proc is listening
         int procPort = getHostPort();
-        // create a process handler to manage the new process initiation.
-        ProcessHandler procHandler = new ProcessHandler(procPort);
-        // initialize with the environment
+        // get environment from the container
         Map<String, String> env = getConEnv();
         // get environment from dependencies and add to environment
         Map<String, String> dependenciesEnv = getDependenciesEnv();
@@ -774,9 +774,13 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
         // get the rest configuration
         String entrypointPath = entryHandler.getEntrypointPath();
         List<String> entrypointArgs = entryHandler.getEntrypointArgs();
-        procHandler.initProc(env, entrypointPath, entrypointArgs);
+        // create process data object that stores all the configuration
+        MainProcessData data = new MainProcessData(entrypointPath, entrypointArgs, env, "localhost", procPort);
+        // create a process handler to manage the new process initiation.
+        MainProcessHandler procHandler = new MainProcessHandler(data);
+        
         // start process
-        boolean procStarted = procHandler.startProc();
+        boolean procStarted = procHandler.execute();
         // check if process has started successfully
         if (procStarted) {
             // change service status to INITIALIZED
@@ -833,9 +837,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * Monitors the running service and updates the zk service node status
      * accordingly in case it stops.
      *
-     * @param procHandler the {@link ProcessHandler ProcessHandler} object.
+     * @param procHandler the {@link MainProcessHandler MainProcessHandler} object.
      */
-    private void monService(ProcessHandler procHandler) {
+    private void monService(MainProcessHandler procHandler) {
         // run in a new thread
         new Thread(() -> {
             procHandler.waitForMainProc();

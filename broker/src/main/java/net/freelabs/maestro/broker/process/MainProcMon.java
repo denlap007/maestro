@@ -16,85 +16,176 @@
  */
 package net.freelabs.maestro.broker.process;
 
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  *
- * Class that holds the main container process state and monitors weather the
- * process is running or not.
+ * Class that provides methods to monitor the main process. Also, handles transition
+ * of states for the main process.
  */
-@Deprecated
 public final class MainProcMon {
 
     /**
-     * The pid of the main container process.
+     * The possible states of the main process.
      */
-    private int pid;
+    private enum STATE {
+        NOT_RUNNING, RUNNING, INITIALIZED, NOT_INITIALIZED
+    };
     /**
-     * The state of the main container process.
+     * The current state of the main process.
+     */
+    private volatile STATE curState;
+    /**
+     * Indicates the process is running.
      */
     private volatile boolean running;
     /**
-     * The process to be monitored. This is not the main container process. It
-     * is the process that spawned the main container process.
+     * Indicates the process is initialized.
+     */
+    private volatile boolean initialized;
+    /**
+     * The main process.
      */
     private Process _proc;
     /**
+     * Latch that is set when the process is waiting for initialization and
+     * releases when initialized or failed to initialize.
+     */
+    private CountDownLatch initSignal;
+    /**
+     * Time to wait for initialization before aborting process.
+     */
+    private static final int INIT_TIMEOUT = (int) TimeUnit.MINUTES.toMillis(2);
+    /**
      * Latch that is used to wait for the process while running.
      */
-    private final CountDownLatch runningSignal = new CountDownLatch(1);
+    private CountDownLatch runningSignal;
+    /**
+     * Holds the IP and port where the process is running. Used to make a socket
+     * connection and check process initialization. The host is the localhost.
+     */
+    private final InetSocketAddress isa;
     /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(MainProcMon.class);
-
-    private final CountDownLatch initSignal = new CountDownLatch(1);
+    /**
+     * The port at which the main process is listening.
+     */
+    private final int procPort;
 
     /**
-     * Starts monitoring the process. Sets state to RUNNING.
+     * Constructor.
      *
-     * @param _proc the process to monitor.
-     * @param pid the pid of the main container process.
+     * @param procPort the port at which the process is listening.
      */
-    public void start(Process _proc, int pid) {
-        this._proc = _proc;
-        this.pid = pid;
-        running = true;
-        monRunning();
-    }
-
-    /**
-     *
-     * @return true if the main container process is running.
-     */
-    public boolean isRunning() {
-        return running;
+    public MainProcMon(int procPort) {
+        curState = STATE.NOT_RUNNING;
+        this.procPort = procPort;
+        // create the host port socketAddress object. Host is localhost
+        isa = new InetSocketAddress(InetAddress.getLoopbackAddress(), procPort);
     }
 
     /**
      * <p>
-     * Monitors if the process is running
+     * Starts monitoring the main process
+     * state.
      * <p>
-     * The method waits for the process and when it exits sets state to NOT
-     * RUNNING, while releases the {@link #runningSignal runningSingal} latch,
-     * in order to notify the threads waiting.
+     * Sets state to RUNNING.
+     * <p>
+     * Starts monitoring the running and initialization state. Waits until
+     * initialization is complete.
      * <p>
      * The method blocks.
+     *
+     * @param _proc the process to monitor.
      */
-    private void monRunning() {
+    public void start(Process _proc) {
+        this._proc = _proc;
+        setRunning(true);
+        // start monitoring running
+        monProcRun();
+        // start monitoring initialization
+        waitProcInit();
+    }
+
+    /**
+     * Transition function. Calculates next state based on current state and
+     * {@link #initialized initialized}, {@link #running running} values.*
+     */
+    private synchronized void transition() {
+        if (curState == STATE.NOT_RUNNING && running == true) {
+            curState = STATE.RUNNING;
+        } else if (curState == STATE.RUNNING && initialized == true && running == true) {
+            curState = STATE.INITIALIZED;
+        } else if (curState == STATE.RUNNING && initialized == true && running == false) {
+            curState = STATE.NOT_RUNNING;
+        } else if (curState == STATE.RUNNING && initialized == false && running == false) {
+            curState = STATE.NOT_RUNNING;
+        } else if (curState == STATE.RUNNING && initialized == false && running == true) {
+            curState = STATE.NOT_INITIALIZED;
+        } else if (curState == STATE.INITIALIZED && running == false) {
+            curState = STATE.NOT_RUNNING;
+        } else if (curState == STATE.NOT_INITIALIZED && running == false) {
+            curState = STATE.NOT_RUNNING;
+        }
+    }
+
+    /**
+     * Implements the logic that needs to be executed on various states.
+     */
+    private void action() {
+        switch (curState) {
+            case NOT_RUNNING:
+                LOG.warn("Entrypoint process STOPPED.");
+                runningSignal.countDown();
+                initSignal.countDown();
+                break;
+            case RUNNING:
+                LOG.info("STARTED main process.");
+                runningSignal = new CountDownLatch(1);
+                initSignal = new CountDownLatch(1);
+                LOG.info("Waiting for the process to initialize...");
+                break;
+            case INITIALIZED:
+                LOG.info("Process initialization complete.");
+                initSignal.countDown();
+                break;
+            case NOT_INITIALIZED:
+                LOG.error("Process initialization FAILED.");
+                initSignal.countDown();
+                break;
+            default:
+                break;
+        }
+    }
+
+    /**
+     * <p>
+     * Monitors if the main process is running.
+     * <p>
+     * Sets the main process status to not running when then process stops.
+     * <p>
+     * Logic is executed on a new thread, consequently the method doesn't block.
+     */
+    protected void monProcRun() {
         new Thread(() -> {
             if (_proc != null) {
                 try {
-                    LOG.info("STARTED main process with pid: {}", pid);
                     _proc.waitFor();
-                    running = false;
-                    // notify all waiting threads that process stopped
-                    runningSignal.countDown();
-                    LOG.warn("Main process stopped.");
+                    // set not running status
+                    setRunning(false);
                 } catch (InterruptedException ex) {
-                    LOG.warn("Interruption attempted: {}", ex.getMessage());
+                    LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
                     Thread.currentThread().interrupt();
                 }
             }
@@ -102,34 +193,135 @@ public final class MainProcMon {
         ).start();
     }
 
-
-    /**
-     * Sets the main process pid.
-     *
-     * @param pid
-     */
-    public void setPid(int pid) {
-        this.pid = pid;
-    }
-
-    /**
-     * Gets the main process pid.
-     *
-     * @return
-     */
-    public int getPid() {
-        return pid;
-    }
-
     /**
      * <p>
-     * The method sets the caller into waiting for the main process to stop.
+     * Monitors the process initialization. Waits until initialized.
      * <p>
      * The method blocks.
      */
-    public void setWaitOnMainProc() {
+    public void waitProcInit() {
+        // create new thread, check initialization condition and set init status
+        checkInit();
         try {
-            runningSignal.await();
+            // block and wait until initialization status changes
+            initSignal.await();
+        } catch (InterruptedException ex) {
+            LOG.warn("Interruption attempted: {}", ex.getMessage());
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * <p>
+     * Checks the initialization condition and sets the init process status.
+     * <p>
+     * A new thread is created which handles the initialization condition. In
+     * order to determine if the process is initialized and ready a
+     * {@link java.net.Socket socket} is created and tries to make a connection,
+     * within a {@link #INIT_TIMEOUT timeout} limit as long as the process is
+     * running. If the connection succeeds, the process is set initialized. If
+     * not, the connection is re-tried until timed out. If the connection times
+     * out the process is set not initialized.
+     * <p>
+     */
+    private void checkInit() {
+        new Thread(() -> {
+            // create a socket 
+            Socket client = new Socket();
+            long start = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+            long end = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+            while (running) {
+                if (end - start < INIT_TIMEOUT) {
+                    try {
+                        // try to connect 
+                        client.connect(isa, INIT_TIMEOUT);
+                        // connection succeeded so set process status to initialized
+                        setInitialized(true);
+                        break;
+                    } catch (SocketTimeoutException ex) {
+                        LOG.error("Process initialization TIMEOUT!");
+                        setInitialized(false);
+                        break;
+                    } catch (SocketException ex) {
+                        // create a new socket as the socket is now closed.
+                        client = new Socket();
+                    } catch (IOException ex) {
+                        // catch the exception to allow loop to continue                        
+                    }
+                    LOG.warn("Waiting server: {} on port: {}", isa.getHostName(), String.valueOf(procPort));
+                    try {
+                        TimeUnit.SECONDS.sleep(2);
+                    } catch (InterruptedException ex1) {
+                        LOG.warn("Interruption attempted: {}", ex1.getMessage());
+                        Thread.currentThread().interrupt();
+                    }
+                } else {
+                    LOG.error("Process initialization TIMEOUT!");
+                    // set process status to NOT initialized
+                    setInitialized(false);
+                    break;
+                }
+                end = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
+            }// end while
+        }).start();
+    }
+
+    /**
+     *
+     * @return true if the process is in INITIALIZED state.
+     */
+    public boolean isInitialized() {
+        return curState == STATE.INITIALIZED;
+    }
+
+    /**
+     *
+     * @return true if the main process is running.
+     */
+    public boolean isRunning() {
+        return running;
+    }
+
+    /**
+     * Sets {@link #initialized initialized} field, calls {@link #transition()
+     * transition} to calculate next state and {@link #action() action} to apply
+     * any actions based on the process state.
+     *
+     * @param initialized true if the process is initialized.
+     */
+    private void setInitialized(boolean initialized) {
+        this.initialized = initialized;
+        transition();
+        action();
+    }
+
+    /**
+     * Sets {@link #running running} field, calls {@link #transition()
+     * transition} to calculate next state and {@link #action() action} to apply
+     * any actions based on the process state.
+     *
+     * @param running true if the process is running.
+     */
+    private void setRunning(boolean running) {
+        this.running = running;
+        transition();
+        action();
+    }
+
+    /**
+     * <p>
+     * The method sets the caller into waiting for the main process to
+     * stop.
+     * <p>
+     * The method blocks.
+     */
+    public void waitProc() {
+        try {
+            if (running) {
+                runningSignal.await();
+            } else {
+                LOG.error("Cannot wait for process. Process is NOT RUNNING.");
+            }
         } catch (InterruptedException ex) {
             LOG.warn("Interruption attempted: {}", ex.getMessage());
             Thread.currentThread().interrupt();

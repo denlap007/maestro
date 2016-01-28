@@ -30,45 +30,48 @@ import org.slf4j.LoggerFactory;
  * Class that provides methods to initialize, start, run and monitor the main
  * container process.
  */
-public final class ProcessHandler {
+public final class MainProcessHandler {
 
     /**
      * A Logger object.
      */
-    private static final Logger LOG = LoggerFactory.getLogger(ProcessHandler.class);
+    private static final Logger LOG = LoggerFactory.getLogger(MainProcessHandler.class);
     /**
-     * The processs associated with the {@link ProcessHandler ProcessHandler}.
+     * The process associated with the {@link MainProcessHandler MainProcessHandler}.
      */
     private Process _proc;
     /**
      * Used to initialize and start a new process.
      */
-    private final ProcessBuilder pb;
+    private ProcessBuilder pb;
     /**
-     * Monitors the entrypoint process state.
+     * Monitors the main process state.
      */
-    private final EntrypointProcMon entryProcMon;
+    private final MainProcMon entryProcMon;
+    /**
+     * Stores all the initialization data for the process.
+     */
+    private final MainProcessData pData;
 
     /**
      * Constructor
-     * @param procPort the port at which the entrypoint process is listening.
+     *
+     * @param pData the object that stores all the data necessary for the
+     * process initialization.
      */
-    public ProcessHandler(int procPort) {
-        // create a ProcessBuidler to spawn a new process
-        pb = createProc();
-        // create an entrypoint process monitor
-        entryProcMon = new EntrypointProcMon(procPort);
+    public MainProcessHandler(MainProcessData pData) {
+        this.pData = pData;
+        // create the main process monitor
+        entryProcMon = new MainProcMon(pData.getProcPort());
     }
 
     /**
-     * Returns a new {@link ProcessHandler ProcessHandler} to initialize a
-     * process
+     * Creates a new {@link MainProcessHandler MainProcessHandler} to initialize a
+     * process.
      *
-     * @return a {@link ProcessHandler ProcessHandler} object.
      */
-    private ProcessBuilder createProc() {
-        ProcessBuilder procBuild = new ProcessBuilder();
-        return procBuild;
+    private void create() {
+        pb = new ProcessBuilder();
     }
 
     /**
@@ -76,18 +79,15 @@ public final class ProcessHandler {
      * Initializes a new process.
      * <p>
      * The method adds an external environment to the process, redirects the
-     * stderr stream to the parent process, and then executes the entrypoint
-     * script.
+     * stderr and stdout stream to the parent process, and then executes the
+     * entrypoint script.
      *
-     * @param outerEnv the environment to add to the new process.
-     * @param entrypointPath the path of the entrypoint script to execute.
-     * @param entrypointArgs the arguments to the entrypoint script.
      */
-    public void initProc(Map<String, String> outerEnv, String entrypointPath, List<String> entrypointArgs) {
+    private void init() {
         // get the environmente of the new process
         Map<String, String> env = pb.environment();
         // add the necessary external environment 
-        env.putAll(outerEnv);
+        env.putAll(pData.getEnvironment());
         // redirect error stream and output stream
         pb.redirectError(Redirect.INHERIT);
         pb.redirectOutput(Redirect.INHERIT);
@@ -95,8 +95,8 @@ public final class ProcessHandler {
         script. The entrypoint may specify possible arguments. Add all to list.*/
         List<String> procCmdArgs = new ArrayList<>();
         // add the entrypoint path and args
-        procCmdArgs.add(entrypointPath);
-        procCmdArgs.addAll(entrypointArgs);
+        procCmdArgs.add(pData.getScriptPath());
+        procCmdArgs.addAll(pData.getScriptArgs());
         // set command and arguments
         pb.command(procCmdArgs);
     }
@@ -105,33 +105,49 @@ public final class ProcessHandler {
      * <p>
      * Starts the main process.
      * <p>
-     * Spawns a new process and runs the entrypoint script. This is the
-     * entrypoint process. Waits until initialization is complete and then the
-     * main container process is spawned.
+     * Spawns a new process and runs the entrypoint script. Waits until 
+     * initialization is complete.
      * <p>
      * The method blocks.
      *
-     * @return true if main container process started successfully.
+     * @return true if main process started successfully.
      */
-    public boolean startProc() {
+    private boolean start() {
         try {
             // start the new process
             _proc = pb.start();
             // start the entrypoint monitor
             entryProcMon.start(_proc);
-            // if entrypoint initialized, main process is spawned successfully
-            if (entryProcMon.isInitialized()) {
-                
-                //mainProcMon.start(_proc, entryProcMon.getMain_proc_pid());
-            }
         } catch (IOException ex) {
             LOG.error("FAILED to start entrypoint process: " + ex);
         }
+        // if initialized, main process started successfully
         return entryProcMon.isInitialized();
     }
 
     /**
-     * Returns the process's pid through reflection.
+     * <p>
+     * Executes methods in succession: {@link #create() create}, {@link #init() 
+     * init} and {@link #start() start} to create, initialize and start the new
+     * process accordingly.
+     * <p>
+     * The method waits for {@link #start() start} method to return.
+     * <p>
+     * The method blocks.
+     *
+     * @return true if process executed successfully.
+     */
+    public boolean execute() {
+        // creates a new ProcessBuilder to initialize a process
+        create();
+        // initializes the new process
+        init();
+        // starts the new process
+        return start();
+    }
+
+    /**
+     * Returns the process pid through reflection.
      *
      * @return the process pid.
      */
@@ -150,7 +166,7 @@ public final class ProcessHandler {
     }
 
     /**
-     * Checks if the main container process is running.
+     * Checks if the main process is running.
      *
      * @return true if the main container process is running.
      */
@@ -159,7 +175,7 @@ public final class ProcessHandler {
     }
 
     /**
-     * Blocks until the main container process stops running.
+     * Blocks until the main process stops running.
      */
     public void waitForMainProc() {
         entryProcMon.waitProc();
