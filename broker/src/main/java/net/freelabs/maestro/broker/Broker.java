@@ -769,8 +769,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
         // get environment from the container
         Map<String, String> env = getConEnv();
         // get environment from dependencies and add to environment
-        Map<String, String> dependenciesEnv = getDependenciesEnv();
-        env.putAll(dependenciesEnv);
+        env.putAll(getDependenciesEnv());
         // get the rest configuration
         String entrypointPath = entryHandler.getEntrypointPath();
         List<String> entrypointArgs = entryHandler.getEntrypointArgs();
@@ -780,9 +779,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
         MainProcessHandler procHandler = new MainProcessHandler(data);
         
         // start process
-        boolean procStarted = procHandler.execute();
-        // check if process has started successfully
-        if (procStarted) {
+        boolean procExecuted = procHandler.execute();
+        // check if process was executed successfully
+        if (procExecuted) {
             // change service status to INITIALIZED
             updateZkSrvStatus(conZkSrvNode::setStatusInitialized);
             // monitor service and update status accordingly for zk service node
