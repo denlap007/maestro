@@ -3,10 +3,22 @@
     <containers>
         <webContainer>
             <name>web</name>
-            <connectWith>data </connectWith>
-            <dockerImage>dio/mysql_jre:v2</dockerImage>
-            <entrypointPath>/broker/web-entrypoint.sh</entrypointPath>
-            <entrypointArgs></entrypointArgs>
+            <connectWith>data</connectWith>
+            <dockerImage>glassfish</dockerImage>
+            <scripts>
+            	<entrypoint>
+            		<path>/broker/testCases/2tierapp/web-entrypoint.sh</path>
+            		<args></args>
+            	</entrypoint>
+                <postEntrypoint>
+                    <path>/broker/testCases/2tierapp/load-env-vars-to-xml.sh</path>
+                    <args></args>
+                </postEntrypoint>
+                <postEntrypoint>
+                    <path>/broker/testCases/2tierapp/web-post-entrypoint.sh</path>
+                    <args></args>
+                </postEntrypoint>
+            </scripts>
             <environment>
                 <host_url>localhost:4848</host_url>
                 <host_port>4848</host_port>
@@ -17,8 +29,12 @@
             <name>business</name>
             <connectWith>web data</connectWith>
             <dockerImage>java</dockerImage>
-            <entrypointPath></entrypointPath>
-            <entrypointArgs></entrypointArgs>
+            <scripts>
+            	<entrypoint>
+            		<path></path>
+            		<args></args>
+            	</entrypoint>
+            </scripts>
             <environment>
                 <host_url>http://something.com</host_url>
                 <host_port>8080</host_port>
@@ -29,22 +45,24 @@
             <name>data</name>
             <connectWith></connectWith>
             <dockerImage>dio/mysql_jre:v2</dockerImage>
-            <entrypointPath>/broker/data-entrypoint.sh</entrypointPath>
-            <entrypointArgs>mysqld</entrypointArgs>
+            <scripts>
+            	<entrypoint>
+            		<path>/broker/testCases/2tierapp/data-entrypoint.sh</path>
+            		<args>mysqld</args>
+            	</entrypoint>
+            </scripts>
             <environment>
                 <host_url>jdbc:mysql://localhost:3306/test?profileSQL=true</host_url>
                 <db_port>3306</db_port>
                 <db_user>root</db_user>
                 <db_pass>root</db_pass>
-                <db_name></db_name>
+                <db_name>2TIERAPP</db_name>
                 <db_driver></db_driver>
             </environment>
         </dataContainer>
 
 
     </containers>
-
-    <containersNum>3</containersNum>
 
     <webAppName>WebApp</webAppName>
 </webApp>

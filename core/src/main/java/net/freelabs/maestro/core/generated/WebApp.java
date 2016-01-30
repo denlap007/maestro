@@ -8,7 +8,6 @@
 
 package net.freelabs.maestro.core.generated;
 
-import java.math.BigInteger;
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
@@ -27,7 +26,6 @@ import javax.xml.bind.annotation.XmlType;
  *     &lt;restriction base="{http://www.w3.org/2001/XMLSchema}anyType">
  *       &lt;sequence>
  *         &lt;element name="containers" type="{}containers"/>
- *         &lt;element name="containersNum" type="{http://www.w3.org/2001/XMLSchema}integer"/>
  *         &lt;element name="webAppName" type="{http://www.w3.org/2001/XMLSchema}string"/>
  *       &lt;/sequence>
  *     &lt;/restriction>
@@ -40,7 +38,6 @@ import javax.xml.bind.annotation.XmlType;
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "", propOrder = {
     "containers",
-    "containersNum",
     "webAppName"
 })
 @XmlRootElement(name = "webApp")
@@ -48,8 +45,6 @@ public class WebApp {
 
     @XmlElement(required = true)
     protected Containers containers;
-    @XmlElement(required = true)
-    protected BigInteger containersNum;
     @XmlElement(required = true)
     protected String webAppName;
 
@@ -75,30 +70,6 @@ public class WebApp {
      */
     public void setContainers(Containers value) {
         this.containers = value;
-    }
-
-    /**
-     * Gets the value of the containersNum property.
-     * 
-     * @return
-     *     possible object is
-     *     {@link BigInteger }
-     *     
-     */
-    public BigInteger getContainersNum() {
-        return containersNum;
-    }
-
-    /**
-     * Sets the value of the containersNum property.
-     * 
-     * @param value
-     *     allowed object is
-     *     {@link BigInteger }
-     *     
-     */
-    public void setContainersNum(BigInteger value) {
-        this.containersNum = value;
     }
 
     /**

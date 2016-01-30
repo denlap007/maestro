@@ -257,27 +257,46 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * the nodes under this rootNode (including rootNode). The children of every
      * node are returned first!
      *
-     * @param node the root node of the zookeeper namespace to populate
-     * hierarchy.
+     * @param node the root node of the zookeeper namespace for the app to
+     * populate hierarchy.
      * @return a list of all the nodes of the hierarchy defined under the param
      * rootNode (including rootNode).
-     * @throws KeeperException
-     * @throws InterruptedException if thread is interrupted.
      */
-    private List<String> getAllNodes(String node) throws KeeperException, InterruptedException {
+    private List<String> getAllNodes(String node) {
         // a list to hold the returned nodes
         List<String> allNodes = new ArrayList<>();
         // get the children of the node
-        List<String> children = zk.getChildren(node, false);
-        // if node has children, for every child recurse and add returned node to list
-        if (children.isEmpty() == false) {
-            for (String child : children) {
-                List<String> tmpList = getAllNodes(node + "/" + child);
-                allNodes.addAll(tmpList);
+        List<String> children = null;
+        while (true) {
+            try {
+                children = zk.getChildren(node, false);
+                break;
+            } catch (InterruptedException ex) {
+                // log event
+                LOG.error("Interruption attempted! Will stop after cleanup.", ex);
+                // set interupt flag
+                Thread.currentThread().interrupt();
+            } catch (ConnectionLossException ex) {
+                LOG.warn("Connection loss was detected! Retrying...");
+            } catch (NoNodeException ex) {
+                LOG.info("Node already deleted: {}", ex.getMessage());
+                break;
+            } catch (KeeperException ex) {
+                LOG.error("Something went wrong", ex);
+                break;
             }
         }
-        // add the node with wich the method was called to the list
-        allNodes.add(node);
+        // if node has children, for every child recurse and add returned node to list
+        if (children != null) {
+            if (!children.isEmpty()) {
+                for (String child : children) {
+                    List<String> tmpList = getAllNodes(node + "/" + child);
+                    allNodes.addAll(tmpList);
+                }
+            }
+            // add the node with wich the method was called to the list
+            allNodes.add(node);
+        }
 
         return allNodes;
     }
@@ -289,32 +308,14 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     public void cleanZkNamespace() {
         LOG.info("Cleaning zookeeper namespace.");
 
-        while (true) {
-            try {
-                List<String> nodesToDelete = getAllNodes(zkConf.getZK_ROOT());
-                ListIterator<String> iter = nodesToDelete.listIterator();
+        List<String> nodesToDelete = getAllNodes(zkConf.getZK_ROOT());
+        ListIterator<String> iter = nodesToDelete.listIterator();
 
-                while (iter.hasNext()) {
-                    // get a node
-                    String node = iter.next();
-                    // delete the node, don't check for version
-                    deleteNode(node, -1);
-                }
-
-                break;
-            } catch (ConnectionLossException ex) {
-                LOG.warn("Connection loss was detected");
-                break;
-            } catch (KeeperException ex) {
-                LOG.error("Something went wrong", ex);
-                break;
-            } catch (InterruptedException ex) {
-                // log event
-                LOG.error("Interruption attempted", ex);
-                // set interupt flag
-                Thread.currentThread().interrupt();
-                break;
-            }
+        while (iter.hasNext()) {
+            // get a node
+            String node = iter.next();
+            // delete the node, don't check for version
+            deleteNode(node, -1);
         }
     }
 
@@ -323,19 +324,23 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      *
      * @param path the zNode to delete.
      * @param version the data version of the zNode.
-     * @throws InterruptedException
      */
-    public void deleteNode(String path, int version) throws InterruptedException {
+    public void deleteNode(String path, int version) {
         while (true) {
             try {
                 zk.delete(path, version);
                 LOG.info("Deleted node: {}", path);
                 break;
+            } catch (InterruptedException ex) {
+                // log event
+                LOG.error("Interruption attempted! Will stop after cleanup", ex);
+                // set interupt flag
+                Thread.currentThread().interrupt();
             } catch (ConnectionLossException ex) {
                 LOG.warn("Connection loss was detected");
                 break;
             } catch (NoNodeException ex) {
-                LOG.info("Node already detected: {}", path);
+                LOG.info("Node already deleted: {}", path);
                 break;
             } catch (KeeperException ex) {
                 LOG.error("Something went wrong", ex);
