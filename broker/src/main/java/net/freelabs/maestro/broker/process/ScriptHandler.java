@@ -19,37 +19,33 @@ package net.freelabs.maestro.broker.process;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
+import net.freelabs.maestro.core.generated.Script;
+import net.freelabs.maestro.core.generated.Scripts;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  *
- * Class that provides methods to handle the entrypoint script for the main
- * process.
+ * Class that provides methods to handle the scripts for the main process and
+ * other processes.
  */
-public final class EntrypointHandler {
+public final class ScriptHandler {
 
-    /**
-     * The path of the entrypoint script.
-     */
-    public final String entrypointPath;
-    /**
-     * Possible arguments with the entrypoint script.
-     */
-    private final List<String> entrypointArgs;
+    private final Scripts scripts;
+
     /**
      * A Logger object.
      */
-    private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(EntrypointHandler.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ScriptHandler.class);
 
     /**
      * Constructor.
      *
-     * @param entrypointPath the path of the entrypoint script.
-     * @param entrypointArgs possible arguments with the entrypoint script.
+     * @param scripts a {@link Scripts Scripts} object with all the info for the
+     * scripts to run.
      */
-    public EntrypointHandler(String entrypointPath, List<String> entrypointArgs) {
-        this.entrypointPath = entrypointPath;
-        this.entrypointArgs = entrypointArgs;
+    public ScriptHandler(Scripts scripts) {
+        this.scripts = scripts;
     }
 
     /**
@@ -61,8 +57,8 @@ public final class EntrypointHandler {
      * @return true if entrypoint script exists and is a file.
      */
     public boolean isEntrypointOk() {
-        boolean fileExists = Files.exists(Paths.get(entrypointPath));
-        boolean isDir = Files.isDirectory(Paths.get(entrypointPath));
+        boolean fileExists = Files.exists(Paths.get(scripts.getEntrypoint().getPath()));
+        boolean isDir = Files.isDirectory(Paths.get(scripts.getEntrypoint().getPath()));
 
         if (fileExists && isDir) {
             LOG.error("No entrypoint script specified!");
@@ -73,12 +69,25 @@ public final class EntrypointHandler {
         return (fileExists && !isDir);
     }
 
+    public boolean isScriptOk(Script script) {
+        boolean fileExists = Files.exists(Paths.get(script.getPath()));
+        boolean isDir = Files.isDirectory(Paths.get(script.getPath()));
+
+        if (fileExists && isDir) {
+            LOG.error("No script specified for process!");
+        } else if (!fileExists) {
+            LOG.error("No script specified for process!");
+        }
+
+        return (fileExists && !isDir);
+    }
+
     /**
      *
      * @return the arguments of the entrypoint script.
      */
     public List<String> getEntrypointArgs() {
-        return entrypointArgs;
+        return scripts.getEntrypoint().getArgs();
     }
 
     /**
@@ -86,7 +95,13 @@ public final class EntrypointHandler {
      * @return the path of the entrypoint script.
      */
     public String getEntrypointPath() {
-        return entrypointPath;
+        return scripts.getEntrypoint().getPath();
+
+    }
+
+    public List<Script> getPostEntrypointScirpts() {
+        return scripts.getPostEntrypoint();
+
     }
 
 }

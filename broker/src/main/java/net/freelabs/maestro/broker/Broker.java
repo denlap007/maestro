@@ -19,6 +19,7 @@ package net.freelabs.maestro.broker;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,14 +27,19 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import net.freelabs.maestro.broker.process.EntrypointHandler;
+import net.freelabs.maestro.broker.process.DefaultProcessHandler;
+import net.freelabs.maestro.broker.process.ScriptHandler;
 import net.freelabs.maestro.broker.process.MainProcessData;
 import net.freelabs.maestro.broker.process.MainProcessHandler;
+import net.freelabs.maestro.broker.process.ProcessData;
+import net.freelabs.maestro.broker.process.ProcessHandler;
+import net.freelabs.maestro.broker.process.ProcessManager;
 import net.freelabs.maestro.broker.services.ServiceManager;
 import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
+import net.freelabs.maestro.core.generated.Script;
 import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConnectionWatcher;
@@ -88,7 +94,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
     /**
      * An object to handle execution of operations on another thread.
      */
-    private final ExecutorService executorService = Executors.newFixedThreadPool(3);
+    private final ExecutorService executorService = Executors.newFixedThreadPool(5);
     /**
      * The name of the container associated with the broker.
      */
@@ -118,6 +124,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * Indicates weather the container is initialized.
      */
     private volatile boolean conInitialized;
+    /**
+     * Manages process execution.
+     */
+    private ProcessManager procMngr;
 
     /**
      * Constructor
@@ -713,13 +723,100 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
     }
 
     /**
-     * Bootstraps the entrypoint process.
+     * Bootstraps container processes.
      */
     private void bootstrapProcess(){
-        // start the entryoint process
+        // execute in new thread
         executorService.execute(() -> {
-            startEntrypointProcess();
+            // create the process manager that will start processes
+            procMngr = new ProcessManager();
+            // create the script handler to manipulate scripts
+            ScriptHandler scriptHandler = new ScriptHandler(container.getScripts());
+            // create the environment shared with main and other processes, if any
+            Map<String, String> env = createEnvForMainProc();
+            // get object to handle the interaction with the main process
+            MainProcessHandler mainProcHandler = initMainProc(scriptHandler, env);
+            // get List of objects to handle interaction with other processes, if any
+            List<ProcessHandler> procHandlerList = initOtherProcs(scriptHandler, env);
+            // set configuration to process manager
+            procMngr.setMainProcHandler(mainProcHandler);
+            procMngr.setProcHandlers(procHandlerList);
+            
+            // start processes
+            procMngr.startProcesses();
         });
+    }
+    
+    /**
+     * <p>Sets all initialization configuration for the main process.
+     * <p>Creates and initializes the {@link MainProcessData MainProcessData} object 
+     * that stores all data related to the process.
+     * <p>Creates and initializes the  {@link MainProcessHandler MainProcessHandler} 
+     * object that handles the interaction with the main process.
+     * @param sh the script handler to query for scripts.
+     * @param env the environment of the process.
+     * @return the {@link MainProcessHandler MainProcessHandler} object that 
+     * handles the interaction with the main process. NUll if there was a problem 
+     * with the entrypoint script.
+     */
+    private MainProcessHandler initMainProc(ScriptHandler sh, Map<String, String> env){
+        MainProcessHandler pHandler = null;
+        // check if entrypoint is ok
+        if (sh.isEntrypointOk()){
+            // get the port the proc is listening
+            int procPort = getHostPort();
+            // create and init the object that stores all the process configuration
+            MainProcessData pdata = new MainProcessData(sh.getEntrypointPath(), sh.getEntrypointArgs(), env, "localhost", procPort);
+            // create and init obj to handle main process execution
+            pHandler = new MainProcessHandler(pdata);
+            // set code to execute if process executed successfully
+            pHandler.setExecOnSuccess(()->{
+                // change service status to INITIALIZED
+                updateZkSrvStatus(conZkSrvNode::setStatusInitialized);
+                // monitor service and update status accordingly for zk service node
+                monService();
+            });
+            // set code to execute if process failed to execute
+            pHandler.setExecOnFailure(()->{
+                // change service status to NOT_INITIALIZED
+                updateZkSrvStatus(conZkSrvNode::setStatusNotInitialized);
+            });
+        } 
+        return pHandler;
+    }
+    
+    
+    private List<ProcessHandler> initOtherProcs(ScriptHandler sh, Map<String, String> env){
+        List<ProcessHandler> pHandlers = new ArrayList<>();
+        List<Script> scripts = sh.getPostEntrypointScirpts();
+        // iterate through scripts
+        for(Script script : scripts){
+            if (sh.isScriptOk(script)){
+                // create and init the obj that stores all necessary process data
+                ProcessData pData = new ProcessData(script.getPath(), script.getArgs(), env);
+                // create and init the obj that handles the process execution
+                DefaultProcessHandler ph = new DefaultProcessHandler(pData);
+                 // add handler to list
+                pHandlers.add(ph);
+            }
+        }
+        return pHandlers;        
+    }
+    
+    /**
+     * <p>Creates the environment for the main process that will be shared with 
+     * other processes, if any.
+     * <p>The environment consists of all the environment variables that are 
+     * available to the container to run processes.
+     * @return a map with all the environment variables needed for the container 
+     * processes.
+     */
+    private Map<String, String> createEnvForMainProc(){
+        // get environment from the container
+        Map<String, String> env = getConEnv();
+        // get environment from dependencies and add to environment
+        env.putAll(getDependenciesEnv());
+        return env;
     }
 
     /**
@@ -728,7 +825,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      */
     private void startEntrypointProcess() {
         // handle the entrypoint processing
-        EntrypointHandler entryHandler = handleEntrypoint();
+        ScriptHandler entryHandler = handleEntrypoint();
         // if entryoint handler is ready, handle the interaction with the new process
         if (entryHandler.isEntrypointOk()){
             handleProcess(entryHandler);
@@ -739,17 +836,13 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * <p>
      * Handles the interaction with the entrypoint script.
      * <p>
-     * The method creates an {@link EntrypointHandler EntrypointHandler} that
+     * The method creates an {@link ScriptHandler ScriptHandler} that
      * loads the entrypoint and processes it accordingly. Also, sets cmd and
      * arguments specified to be executed by the entrypoint.
      */
-    private EntrypointHandler handleEntrypoint() {
-        // get entrypoint path
-        String path = container.getEntrypointPath();
-        // set entrypoint arguments
-        List<String> args = container.getEntrypointArgs();
+    private ScriptHandler handleEntrypoint() {
         // create entrypoint handler
-        EntrypointHandler entryHandler = new EntrypointHandler(path, args);
+        ScriptHandler entryHandler = new ScriptHandler(container.getScripts());
         return entryHandler;
     }
 
@@ -758,12 +851,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * Handles the interaction with the new process.
      * <p>
      * The method creates a new process, initializes it with the environment,
-     * starts the process, monitors its execution and updates the service status
-     * to initialized, if it is initialized.
+     * starts the process, monitors its execution and updates the container 
+     * service status to initialized, if it is initialized.
      *
      * @param entryHandler
      */
-    private void handleProcess(EntrypointHandler entryHandler) {
+    private void handleProcess(ScriptHandler entryHandler) {
         // get the port the proc is listening
         int procPort = getHostPort();
         // get environment from the container
@@ -785,7 +878,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
             // change service status to INITIALIZED
             updateZkSrvStatus(conZkSrvNode::setStatusInitialized);
             // monitor service and update status accordingly for zk service node
-            monService(procHandler);
+            //monService(procHandler);
         } else {
             // change service status to NOT_INITIALIZED
             updateZkSrvStatus(conZkSrvNode::setStatusNotInitialized);
@@ -838,10 +931,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      *
      * @param procHandler the {@link MainProcessHandler MainProcessHandler} object.
      */
-    private void monService(MainProcessHandler procHandler) {
+    private void monService() {
         // run in a new thread
         new Thread(() -> {
-            procHandler.waitForMainProc();
+            procMngr.waitForMainProc();
             // change service status to NOT RUNNING
             updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
         }
@@ -856,7 +949,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
     protected abstract Map<String, String> getConEnv();
     /**
      * 
-     * @return the port on which the main process runs.
+     * @return the port at which the main process runs.
      */
     protected abstract int getHostPort();
 
@@ -868,7 +961,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * @param updateInterface the update action.
      */
     private void updateZkSrvStatus(Updatable updateInterface) {
-          // get the service path
+        // get the service path
         String servicePath = ns.resolveSrvName(containerName);
         // update status
         updateInterface.updateStatus();

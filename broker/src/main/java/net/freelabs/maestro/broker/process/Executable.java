@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
+ * Copyright (C) 2016 Dionysis Lappas <dio@freelabs.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,15 +14,19 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.broker;
+package net.freelabs.maestro.broker.process;
 
 /**
  *
- * @author Dionysis Lappas <dio@freelabs.net>
+ * The Executable interface is intended to be used to pass Executable objects 
+ * that will be able to execute code on demand. It is targeted to be used as a 
+ * container for code and not to be implemented by a class.
  */
 @FunctionalInterface
-public interface Updatable {
-
-    public void updateStatus();
-
+public interface Executable {
+    /**
+     * Executes the provided code.
+     */
+    public void execute();
+    
 }

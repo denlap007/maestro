@@ -18,8 +18,6 @@ package net.freelabs.maestro.broker.process;
 
 import java.io.IOException;
 import java.lang.ProcessBuilder.Redirect;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -29,17 +27,13 @@ import org.slf4j.LoggerFactory;
 public final class MainProcessHandler extends ProcessHandler {
 
     /**
-     * A Logger object.
-     */
-    private static final Logger LOG = LoggerFactory.getLogger(MainProcessHandler.class);
-    /**
      * Monitors the main process state.
      */
     private final MainProcMon mainProcMon;
     /**
      * Stores all the initialization data for the process.
      */
-    private final MainProcessData pData;
+    private final MainProcessData mainPData;
 
     /**
      * Constructor
@@ -49,7 +43,7 @@ public final class MainProcessHandler extends ProcessHandler {
      */
     public MainProcessHandler(MainProcessData pData) {
         super(pData);
-        this.pData = pData;
+        mainPData = pData;
         // create the main process monitor
         mainProcMon = new MainProcMon(pData.getProcPort());
     }
@@ -69,7 +63,6 @@ public final class MainProcessHandler extends ProcessHandler {
         // redirect error stream and output stream
         pb.redirectError(Redirect.INHERIT);
         pb.redirectOutput(Redirect.INHERIT);
-
     }
 
     /**
@@ -100,6 +93,22 @@ public final class MainProcessHandler extends ProcessHandler {
     @Override
     public void stop() {
         _proc.destroyForcibly();
+    }
+
+    /**
+     * <p>
+     * Checks if {@link MainProcessHandler MainProcessHandler} is initialized
+     * properly.
+     * <p>
+     * In order to be properly initialized, fields {@link #pData pData},
+     * {@link #execOnSuccess execOnSuccess} and
+     * {@link #execOnFailure execOnFailure} must be set.
+     *
+     * @return true if handler is properly initialized.
+     */
+    @Override
+    protected boolean isHandlerInitialized() {
+        return (pData != null && execOnSuccess != null && execOnFailure != null);
     }
 
     /**

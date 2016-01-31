@@ -38,7 +38,7 @@ public abstract class ProcessHandler {
      * Holds all the data needed for the process handled by the
      * {@link ProcessHandler ProcessHandler}.
      */
-    protected ProcessData data;
+    protected ProcessData pData;
     /**
      * The process object associated with the
      * {@link ProcessHandler ProcessHandler}.
@@ -49,17 +49,32 @@ public abstract class ProcessHandler {
      */
     protected ProcessBuilder pb;
     /**
+     * Executes when process started and initialized successfully.
+     */
+    protected Executable execOnSuccess;
+    /**
+     * Executes when process did not start or initialize (or both) successfully.
+     */
+    protected Executable execOnFailure;
+    /**
+     * If process was successfully started and initialized.
+     */
+    protected boolean success;
+    /**
      * A Logger object.
      */
-    private static final Logger LOG = LoggerFactory.getLogger(ProcessHandler.class);
+    protected final Logger LOG = LoggerFactory.getLogger(ProcessHandler.class);
+
+    ;
 
     /**
      * Constructor.
      *
-     * @param data the object holding all the required data for the new process.
+     * @param pData the object holding all the required data for the new
+     * process.
      */
-    public ProcessHandler(ProcessData data) {
-        this.data = data;
+    public ProcessHandler(ProcessData pData) {
+        this.pData = pData;
     }
 
     /**
@@ -84,13 +99,13 @@ public abstract class ProcessHandler {
         // get the environmente of the new process
         Map<String, String> env = pb.environment();
         // add the necessary external environment defined in ProcessData obj
-        env.putAll(data.getEnvironment());
+        env.putAll(pData.getEnvironment());
         /* set process command and arguments. The process will execute the script. 
         The script may specify possible external arguments. Add all to list.*/
         List<String> procCmdArgs = new ArrayList<>();
         // add the script path and args
-        procCmdArgs.add(data.getScriptPath());
-        procCmdArgs.addAll(data.getScriptArgs());
+        procCmdArgs.add(pData.getScriptPath());
+        procCmdArgs.addAll(pData.getScriptArgs());
         // set command and arguments
         pb.command(procCmdArgs);
     }
@@ -122,11 +137,41 @@ public abstract class ProcessHandler {
      * Consequently, the return value matches the one from start method.
      */
     public final boolean execute() {
-        create();
+        if (isHandlerInitialized()) {
+            // create Process Builder to initialize process
+            create();
+            // initialize process
+            init();
+            // execute process
+            success = start();
+            // execute code depending on process execution sucess or not
+            if (success) {
+                if (execOnSuccess != null) {
+                    execOnSuccess.execute();
+                }
+            } else {
+                if (execOnFailure != null) {
+                    execOnFailure.execute();
+                }
+            }
+        } else {
+            LOG.error("Process Handler NOT INITIALIZED properly.");
+        }
 
-        init();
+        return success;
+    }
 
-        return start(); 
+    /**
+     * <p>
+     * Checks if {@link ProcessHandler ProcessHandler} is initialized properly.
+     * <p>
+     * In order to be properly initialized, field {@link #pData pData},
+     * {@link #execOnSuccess execOnSuccess} must be set.
+     *
+     * @return true if handler is properly initialized.
+     */
+    protected boolean isHandlerInitialized() {
+        return (pData != null);
     }
 
     /**
@@ -150,6 +195,34 @@ public abstract class ProcessHandler {
         }
 
         return pid;
+    }
+
+    /**
+     *
+     * @return true if process execution was successful. False in case
+     * {@link ProcessHandler ProcessHandler} was not properly initialized, the
+     * process did not start or initialize successfully.
+     */
+    public boolean isSuccess() {
+        return success;
+    }
+
+    /**
+     * Set code to execute if process was executed successfully.
+     *
+     * @param execOnSuccess
+     */
+    public void setExecOnSuccess(Executable execOnSuccess) {
+        this.execOnSuccess = execOnSuccess;
+    }
+
+    /**
+     * Set code to execute if process execution failed.
+     *
+     * @param execOnFailure
+     */
+    public void setExecOnFailure(Executable execOnFailure) {
+        this.execOnFailure = execOnFailure;
     }
 
 }
