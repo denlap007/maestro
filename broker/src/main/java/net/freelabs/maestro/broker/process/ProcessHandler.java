@@ -17,7 +17,6 @@
 package net.freelabs.maestro.broker.process;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -90,8 +89,8 @@ public abstract class ProcessHandler {
      * Initializes a new process.
      * <p>
      * The method acts on data found on {@link ProcessData ProcessData} object.
-     * Initializes the environment and sets the script path and possible script
-     * args.
+     * Initializes the environment and sets the command and arguments to be
+     * executed by the new process.
      * <p>
      * Subclasses should Override this method to implements extra functionality.
      */
@@ -100,14 +99,14 @@ public abstract class ProcessHandler {
         Map<String, String> env = pb.environment();
         // add the necessary external environment defined in ProcessData obj
         env.putAll(pData.getEnvironment());
-        /* set process command and arguments. The process will execute the script. 
-        The script may specify possible external arguments. Add all to list.*/
-        List<String> procCmdArgs = new ArrayList<>();
-        // add the script path and args
-        procCmdArgs.add(pData.getScriptPath());
-        procCmdArgs.addAll(pData.getScriptArgs());
-        // set command and arguments
-        pb.command(procCmdArgs);
+        // get a list with cmd and args of the resource
+        List<String> procCmdArgs = pData.getResCmdArgs();
+        if (procCmdArgs.isEmpty()) {
+            LOG.error("NO resource for execution.");
+        } else {
+            // set command and arguments
+            pb.command(procCmdArgs);
+        }
     }
 
     /**
@@ -149,10 +148,8 @@ public abstract class ProcessHandler {
                 if (execOnSuccess != null) {
                     execOnSuccess.execute();
                 }
-            } else {
-                if (execOnFailure != null) {
-                    execOnFailure.execute();
-                }
+            } else if (execOnFailure != null) {
+                execOnFailure.execute();
             }
         } else {
             LOG.error("Process Handler NOT INITIALIZED properly.");

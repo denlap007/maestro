@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  *
- * Class that executes processes.
+ * Class that manages process execution.
  */
 public final class ProcessManager {
 
@@ -31,10 +31,15 @@ public final class ProcessManager {
      */
     private MainProcessHandler mainProcHandler;
     /**
-     * List of handlers for other processes to be executed after main process
-     * executed successfully.
+     * List of handlers for other processes to be executed before the main
+     * process.
      */
-    private List<ProcessHandler> procHandlers;
+    private List<ProcessHandler> preMainProcHandlers;
+    /**
+     * List of handlers for other processes to be executed after the main
+     * process is executed successfully.
+     */
+    private List<ProcessHandler> postMainProcHandlers;
     /**
      * A Logger object.
      */
@@ -44,8 +49,9 @@ public final class ProcessManager {
      * <p>
      * Starts executing declared processes.
      * <p>
-     * The main container process is started first. If executed successfully the
-     * other processes are spawned.
+     * If declared, any process to be run before the main is executed. Then, the
+     * main container process is started. If executed successfully the other
+     * processes are spawned.
      * <p>
      * The method waits for {@link MainProcessHandler#start() start} method of
      * {@link MainProcessHandler MainProcessHandler} to return.
@@ -54,13 +60,19 @@ public final class ProcessManager {
      */
     public void startProcesses() {
         if (isProcMngrInitialized()) {
+            // execute pre-main processes, if any
+            if (!preMainProcHandlers.isEmpty()) {
+                preMainProcHandlers.stream().forEach((procHandler) -> {
+                    procHandler.execute();
+                });
+            }
             // execute the main Process
             boolean success = mainProcHandler.execute();
 
             if (success) {
-                // execute other processes, if any
-                if (!procHandlers.isEmpty()) {
-                    procHandlers.stream().forEach((procHandler) -> {
+                // execute post-main processes, if any
+                if (!postMainProcHandlers.isEmpty()) {
+                    postMainProcHandlers.stream().forEach((procHandler) -> {
                         procHandler.execute();
                     });
                 }
@@ -110,10 +122,20 @@ public final class ProcessManager {
      * Set the list of handlers for other processes to be executed after main
      * process executed successfully.
      *
-     * @param procHandlers the list of handlers for other processes.
+     * @param postMainProcHandlers a list of handlers for other processes.
      */
-    public void setProcHandlers(List<ProcessHandler> procHandlers) {
-        this.procHandlers = procHandlers;
+    public void setPostMainProcHandlers(List<ProcessHandler> postMainProcHandlers) {
+        this.postMainProcHandlers = postMainProcHandlers;
+    }
+
+    /**
+     * Set the list of handlers for other processes to be executed before main
+     * process.
+     *
+     * @param preMainProcHandlers a list of handlers for other processes.
+     */
+    public void setPreMainProcHandlers(List<ProcessHandler> preMainProcHandlers) {
+        this.preMainProcHandlers = preMainProcHandlers;
     }
 
 }

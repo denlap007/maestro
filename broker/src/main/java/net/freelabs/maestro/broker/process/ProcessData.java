@@ -16,8 +16,12 @@
  */
 package net.freelabs.maestro.broker.process;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import net.freelabs.maestro.core.generated.Resource;
+import net.freelabs.maestro.core.generated.Script;
 
 /**
  *
@@ -25,20 +29,16 @@ import java.util.Map;
  * Class that handles all the configuration for the initialization and run of a
  * new process.
  * <p>
- * The class provides the basic structure of a context object for a new process.
+ * The class provides the basic structure of a data object for a new process.
  * <p>
- * Subclasses should define extra functionality.
+ * Subclasses should implement extra functionality.
  */
 public class ProcessData {
 
     /**
-     * The path of the script.
+     * A resource to execute.
      */
-    private final String scriptPath;
-    /**
-     * The arguments, if any, to the script.
-     */
-    private final List<String> scriptArgs;
+    private final Resource res;
     /**
      * The environment of the process, which includes the necessary environment
      * for the main process to initialize and the environment from the required
@@ -49,29 +49,87 @@ public class ProcessData {
     /**
      * Constructor.
      *
-     * @param scriptPath the path of the script to execute.
-     * @param scriptArgs the arguments, if any, to the script.
+     * @param res a resource to execute.
      * @param env the environment of the process.
      */
-    public ProcessData(String scriptPath, List<String> scriptArgs, Map<String, String> env) {
-        this.scriptPath = scriptPath;
-        this.scriptArgs = scriptArgs;
+    public ProcessData(Resource res, Map<String, String> env) {
+        this.res = res;
         environment = env;
     }
 
     // Getters - Setters
-
-
-    public String getScriptPath() {
-        return scriptPath;
-    }
-
-    public List<String> getScriptArgs() {
-        return scriptArgs;
+    public Resource getRes() {
+        return res;
     }
 
     public Map<String, String> getEnvironment() {
         return environment;
     }
 
+    /**
+     * Gets the command and arguments of a resource, in order to be used for a
+     * new process initialization.
+     *
+     * @return a list with the command and arguments of the resource.
+     */
+    public List<String> getResCmdArgs() {
+        List<String> cmdArgs = new ArrayList<>();
+        if (res != null) {
+            if (res.getCmd() != null) {
+                if (!res.getCmd().isEmpty()) {
+                    // split to tokens using space delimeter
+                    String[] args = res.getCmd().split(" ");
+                    // convert array to list and add to returnes list 
+                    cmdArgs.addAll(Arrays.asList(args));
+                } else if (res.getScript() != null) {
+                    Script script = res.getScript();
+                    // get the script path and args and add to list
+                    String path = script.getPath();
+                    if (!path.isEmpty()) {
+                        List<String> args = script.getArgs();
+                        // THE ORDER IS IMPORTANT(!)
+                        cmdArgs.add(path);
+                        cmdArgs.addAll(args);
+                    }
+                }
+            } else if (res.getScript() != null) {
+                Script script = res.getScript();
+                // get the script path and args and add to list
+                String path = script.getPath();
+                if (!path.isEmpty()) {
+                    List<String> args = script.getArgs();
+                    // THE ORDER IS IMPORTANT(!)
+                    cmdArgs.add(path);
+                    cmdArgs.addAll(args);
+                }
+            }
+        }
+        return cmdArgs;
+    }
+
+    /**
+     * <p>
+     * Returns the resource description. The resource description is the path of
+     * the script or the command that this resource represents. Used mainly for
+     * logging purposes.
+     * <p>
+     * If the resource is not initialized an empty string is returned.
+     *
+     * @return the description of the resource.
+     */
+    public String getResDescription() {
+        String desc = "";
+        if (res != null) {
+            if (res.getCmd() != null) {
+                if (!res.getCmd().isEmpty()) {
+                    desc = res.getCmd();
+                } else if (res.getScript() != null) {
+                    desc = res.getScript().getPath();
+                }
+            } else if (res.getScript() != null) {
+                desc = res.getScript().getPath();
+            }
+        }
+        return desc;
+    }
 }

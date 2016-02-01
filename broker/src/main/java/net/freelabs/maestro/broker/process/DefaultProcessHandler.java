@@ -56,7 +56,7 @@ public class DefaultProcessHandler extends ProcessHandler {
             // start the new process
             _proc = pb.start();
             // log the event
-            LOG.info("Started process: {}", pData.getScriptPath());
+            LOG.info("Started process: {}", pData.getResDescription());
             // set flag to true
             started = true;
         } catch (IOException ex) {

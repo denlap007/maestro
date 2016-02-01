@@ -16,8 +16,8 @@
  */
 package net.freelabs.maestro.broker.process;
 
-import java.util.List;
 import java.util.Map;
+import net.freelabs.maestro.core.generated.Resource;
 
 /**
  *
@@ -34,15 +34,14 @@ public final class MainProcessData extends ProcessData {
      */
     private final String prochost;
 
-    public MainProcessData(String scriptPath, List<String> scriptArgs, Map<String, String> env, String prochost, int procPort) {
-        super(scriptPath, scriptArgs, env);
+    public MainProcessData(Resource res, Map<String, String> env, String prochost, int procPort) {
+        super(res, env);
         this.prochost = prochost;
         this.procPort = procPort;
     }
     
 
     // Getters - Setters
-
     public int getProcPort() {
         return procPort;
     }

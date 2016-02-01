@@ -146,7 +146,7 @@ public final class MainProcMon {
     private void action() {
         switch (curState) {
             case NOT_RUNNING:
-                LOG.warn("Entrypoint process STOPPED.");
+                LOG.warn("Main process STOPPED.");
                 runningSignal.countDown();
                 initSignal.countDown();
                 break;

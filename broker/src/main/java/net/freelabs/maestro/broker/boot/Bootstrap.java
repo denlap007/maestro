@@ -34,7 +34,12 @@ public class Bootstrap {
      */
     private static final Logger LOG = LoggerFactory.getLogger(Bootstrap.class);
 
-    // ---------------------------- THE MAIN -----------------------------------
+    // ---------------------------- THE MAIN -----------------------------------/
+    /**
+     * @param args args[0] -> zkHosts, args[1] -> zkSessionTimeout, args[2] ->
+     * zkContainerPath, args[3] -> namingService, args[4] -> shutdownNode,
+     * args[5] -> userConfNode
+     */
     public static void main(String[] args) {
         Broker broker = null;
         String brokerThreadName = "";
@@ -99,7 +104,5 @@ public class Bootstrap {
         } else {
             LOG.error("FAILED to initialize broker!");
         }
-
     }
-
 }
