@@ -5,20 +5,26 @@
             <name>web</name>
             <connectWith>data</connectWith>
             <dockerImage>glassfish</dockerImage>
-            <scripts>
-            	<entrypoint>
-            		<path>/broker/testCases/2tierapp/web-entrypoint.sh</path>
-            		<args></args>
-            	</entrypoint>
-                <postEntrypoint>
-                    <path>/broker/testCases/2tierapp/load-env-vars-to-xml.sh</path>
-                    <args></args>
-                </postEntrypoint>
-                <postEntrypoint>
-                    <path>/broker/testCases/2tierapp/web-post-entrypoint.sh</path>
-                    <args></args>
-                </postEntrypoint>
-            </scripts>
+            <run>
+                <preMain>
+                    <script>
+                        <path>/broker/testCases/2tierapp/load-env-vars-to-xml.sh</path>
+                        <args></args>
+                    </script>
+                </preMain>
+            	<main>
+                    <script>
+                        <path>/broker/testCases/2tierapp/web-entrypoint.sh</path>
+                		<args></args>
+                    </script>
+                </main>
+                <postMain> 
+                    <cmd>asadmin add-resources /broker/testCases/2tierapp/glassfish-resources-new.xml</cmd>
+                </postMain>
+                <postMain> 
+                    <cmd>asadmin deploy /broker/testCases/2tierapp/IFPWAFCAD.war</cmd>
+                </postMain> 
+            </run>
             <environment>
                 <host_url>localhost:4848</host_url>
                 <host_port>4848</host_port>
@@ -29,12 +35,13 @@
             <name>business</name>
             <connectWith>web data</connectWith>
             <dockerImage>java</dockerImage>
-            <scripts>
-            	<entrypoint>
-            		<path></path>
-            		<args></args>
-            	</entrypoint>
-            </scripts>
+            <run>
+                <main>
+                    <script>
+                        <path></path>
+                    </script>
+                </main>
+            </run>
             <environment>
                 <host_url>http://something.com</host_url>
                 <host_port>8080</host_port>
@@ -45,12 +52,14 @@
             <name>data</name>
             <connectWith></connectWith>
             <dockerImage>dio/mysql_jre:v2</dockerImage>
-            <scripts>
-            	<entrypoint>
-            		<path>/broker/testCases/2tierapp/data-entrypoint.sh</path>
-            		<args>mysqld</args>
-            	</entrypoint>
-            </scripts>
+            <run>
+                <main>
+                    <script>
+                        <path>/broker/testCases/2tierapp/data-entrypoint.sh</path>
+                        <args>mysqld</args>
+                    </script>
+                </main>
+            </run>
             <environment>
                 <host_url>jdbc:mysql://localhost:3306/test?profileSQL=true</host_url>
                 <db_port>3306</db_port>

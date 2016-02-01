@@ -36,18 +36,25 @@
         </xs:sequence>
     </xs:complexType>
 
+    <xs:complexType name="resource">
+        <xs:choice>
+            <xs:element name="script" type="script"/>
+            <xs:element name="cmd" type="xs:string"/>
+        </xs:choice>
+    </xs:complexType>
 
-    <xs:complexType name="scripts">
+    <xs:complexType name="resources">
         <xs:sequence>
-            <xs:element name="entrypoint" type="script"/>
-            <xs:element name="postEntrypoint" type="script" minOccurs="0" maxOccurs="unbounded"/>
-        </xs:sequence>
+            <xs:element name="preMain" type="resource" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="main" type="resource"/>
+            <xs:element name="postMain" type="resource" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
     </xs:complexType>
 
     <xs:complexType name="docker">
         <xs:sequence>
             <xs:element name="name" type="xs:token"/>
-            <xs:element name="image" type="xs:string" minOccurs="0"/>
+            <xs:element name="image" type="xs:string" />
         </xs:sequence>
     </xs:complexType>
 
@@ -65,7 +72,7 @@
             <xs:element name="name" type="xs:token"/>
             <xs:element name="connectWith" type="stringList"/>
             <xs:element name="dockerImage" type="xs:string"/>
-            <xs:element name="scripts" type="scripts"/>
+            <xs:element name="run" type="resources"/>
         </xs:sequence>
     </xs:complexType>
 

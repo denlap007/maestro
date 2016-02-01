@@ -40,7 +40,7 @@ import javax.xml.bind.annotation.XmlType;
 public class DataContainer
     extends Container
 {
-
+    
     @XmlElement(required = true)
     protected DataEnvironment environment;
 

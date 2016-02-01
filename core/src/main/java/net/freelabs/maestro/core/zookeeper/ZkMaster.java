@@ -273,7 +273,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 break;
             } catch (InterruptedException ex) {
                 // log event
-                LOG.error("Interruption attempted! Will stop after cleanup.", ex);
+                LOG.warn("Interruption attempted! Will stop after cleanup.", ex);
                 // set interupt flag
                 Thread.currentThread().interrupt();
             } catch (ConnectionLossException ex) {
@@ -297,7 +297,6 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
             // add the node with wich the method was called to the list
             allNodes.add(node);
         }
-
         return allNodes;
     }
 
@@ -333,7 +332,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 break;
             } catch (InterruptedException ex) {
                 // log event
-                LOG.error("Interruption attempted! Will stop after cleanup", ex);
+                LOG.warn("Interruption attempted! Will stop after cleanup", ex);
                 // set interupt flag
                 Thread.currentThread().interrupt();
             } catch (ConnectionLossException ex) {
