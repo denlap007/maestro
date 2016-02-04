@@ -37,6 +37,8 @@ public class CoreBusinessBroker extends CoreBroker {
         super(zkConf, con, dockerClient);
         businessCon = con;
     }
+    
+    private String bootCmdArgs;
 
     @Override
     public String bootContainer() {
@@ -47,13 +49,13 @@ public class CoreBusinessBroker extends CoreBroker {
         String conEnv = getBootEnv();
 
         // set environment configuration
-        String runBrokerCmd = "java -jar /broker/broker.jar $ZK_HOSTS $ZK_SESSION_TIMEOUT $ZK_CONTAINER_PATH $ZK_NAMING_SERVICE $SHUTDOWN_NODE $CONF_NODE";
+        String runBrokerCmd = "java -jar /broker/broker.jar " + bootCmdArgs;
 
         // set container configuration
         CreateContainerResponse container = dockerClient.createContainerCmd(businessCon.getDockerImage())
                 .withVolumes(volume1)
                 .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
-                .withCmd("/bin/sh", "-c", runBrokerCmd)
+                .withCmd(runBrokerCmd.split(" "))
                 .withName(containerName)
                 .withNetworkMode("bridge")
                 .withEnv(conEnv.split(","))
@@ -61,8 +63,8 @@ public class CoreBusinessBroker extends CoreBroker {
                 .exec();
 
         // START CONTAINER
-        dockerClient.startContainerCmd(container.getId()).exec();
         LOG.info("STARTING CONTAINER: " + containerName);
+        dockerClient.startContainerCmd(container.getId()).exec();
 
         return container.getId();
     }
@@ -81,6 +83,9 @@ public class CoreBusinessBroker extends CoreBroker {
                 + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
                 + "CONF_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
                 ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
+        // set the arguments for the container boot command
+        bootCmdArgs = String.format("%s %s %s %s %s %s", ZK_HOSTS, ZK_SESSION_TIMEOUT,
+                ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
 
         return env;
     }

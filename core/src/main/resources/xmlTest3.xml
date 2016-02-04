@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<webApp>
+    <containers>
+        <webContainer>
+            <name>web</name>
+            <connectWith>business</connectWith>
+            <dockerImage>dio/nginx_jre:v1</dockerImage>
+            <run>
+                <preMain>envsubst &lt; /broker/testCases/2tierapp/nginx.conf &gt; /etc/nginx/nginx.conf</preMain>
+                <main>nginx -g "daemon off"</main>
+            </run>
+            <environment>
+                <host_url>localhost:80</host_url>
+                <host_port>80</host_port>
+            </environment>
+        </webContainer>
+        <businessContainer>
+            <name>business</name>
+            <connectWith>data</connectWith> 
+            <dockerImage>glassfish</dockerImage>
+            <run>
+                <preMain>/broker/testCases/2tierapp/load-env-vars-to-xml.sh</preMain>
+                <main>/broker/testCases/2tierapp/web-entrypoint.sh</main>
+                <postMain>asadmin add-resources /broker/testCases/2tierapp/glassfish-resources-new.xml</postMain>
+                <postMain>asadmin deploy /broker/testCases/2tierapp/IFPWAFCAD.war</postMain>
+            </run>
+            <environment>
+                <host_url>localhost:8080</host_url>
+                <host_port>8080</host_port>
+            </environment>
+        </businessContainer>
+        <dataContainer>
+            <name>data</name>
+            <connectWith/>
+            <dockerImage>dio/mysql_jre:v2</dockerImage>
+            <run>
+                <main>/broker/testCases/2tierapp/data-entrypoint.sh mysqld</main>
+            </run>
+            <environment>
+                <host_url>jdbc:mysql://localhost:3306/test?profileSQL=true</host_url>
+                <db_port>3306</db_port>
+                <db_user>root</db_user>
+                <db_pass>root</db_pass>
+                <db_name>2TIERAPP</db_name>
+                <db_driver/>
+            </environment>
+        </dataContainer>
+    </containers>
+    <webAppName>WebApp</webAppName>
+</webApp>
