@@ -16,37 +16,53 @@
  */
 package net.freelabs.maestro.broker.process;
 
-import java.util.Map;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  *
- * Class that provides methods to store and access all data necessary for the 
- * initialization of the main container process.
+ * Class that represents a resource to be executed.
+ *
  */
-public final class MainProcessData extends ProcessData {
+public final class Resource {
     /**
-     * The port the process is running.
+     * A resource to execute.
      */
-    private final  int procPort;
+    private String res;
     /**
-     * The IP of the host where the process is running.
+     * Constructor.
+     * @param res the resource.
      */
-    private final String prochost;
-
-    public MainProcessData(Resource res, Map<String, String> env, String prochost, int procPort) {
-        super(res, env);
-        this.prochost = prochost;
-        this.procPort = procPort;
+    public Resource(String res) {
+        this.res = res;
     }
-    
+
+    /**
+     *
+     * @return the command and arguments that are specified in the resource.
+     */
+    public List<String> getResCmdArgs() {
+        String [] cmdArgs = res.split(" ");
+        return Arrays.asList(cmdArgs);
+    }
 
     // Getters - Setters
-    public int getProcPort() {
-        return procPort;
+    /**
+     * 
+     * @return the resource.
+     */
+    public String getRes() {
+        return res;
+    }
+    /**
+     * 
+     * @return the resource description.
+     */
+    public String getDescription() {
+        return res;
     }
 
-    public String getProchost() {
-        return prochost;
+    public void setRes(String res) {
+        this.res = res;
     }
-
 }

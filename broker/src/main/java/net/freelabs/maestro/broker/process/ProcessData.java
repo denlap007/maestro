@@ -16,12 +16,8 @@
  */
 package net.freelabs.maestro.broker.process;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import net.freelabs.maestro.core.generated.Resource;
-import net.freelabs.maestro.core.generated.Script;
 
 /**
  *
@@ -72,39 +68,8 @@ public class ProcessData {
      *
      * @return a list with the command and arguments of the resource.
      */
-    public List<String> getResCmdArgs() {
-        List<String> cmdArgs = new ArrayList<>();
-        if (res != null) {
-            if (res.getCmd() != null) {
-                if (!res.getCmd().isEmpty()) {
-                    // split to tokens using space delimeter
-                    String[] args = res.getCmd().split(" ");
-                    // convert array to list and add to returnes list 
-                    cmdArgs.addAll(Arrays.asList(args));
-                } else if (res.getScript() != null) {
-                    Script script = res.getScript();
-                    // get the script path and args and add to list
-                    String path = script.getPath();
-                    if (!path.isEmpty()) {
-                        List<String> args = script.getArgs();
-                        // THE ORDER IS IMPORTANT(!)
-                        cmdArgs.add(path);
-                        cmdArgs.addAll(args);
-                    }
-                }
-            } else if (res.getScript() != null) {
-                Script script = res.getScript();
-                // get the script path and args and add to list
-                String path = script.getPath();
-                if (!path.isEmpty()) {
-                    List<String> args = script.getArgs();
-                    // THE ORDER IS IMPORTANT(!)
-                    cmdArgs.add(path);
-                    cmdArgs.addAll(args);
-                }
-            }
-        }
-        return cmdArgs;
+    public List<String> getCmdArgs() {
+        return res.getResCmdArgs();
     }
 
     /**
@@ -118,18 +83,6 @@ public class ProcessData {
      * @return the description of the resource.
      */
     public String getResDescription() {
-        String desc = "";
-        if (res != null) {
-            if (res.getCmd() != null) {
-                if (!res.getCmd().isEmpty()) {
-                    desc = res.getCmd();
-                } else if (res.getScript() != null) {
-                    desc = res.getScript().getPath();
-                }
-            } else if (res.getScript() != null) {
-                desc = res.getScript().getPath();
-            }
-        }
-        return desc;
+        return res.getDescription();
     }
 }

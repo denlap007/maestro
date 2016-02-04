@@ -48,7 +48,7 @@ public abstract class ProcessHandler {
      */
     protected ProcessBuilder pb;
     /**
-     * Executes when process started and initialized successfully.
+     * Executes when process is started and initialized successfully.
      */
     protected Executable execOnSuccess;
     /**
@@ -99,8 +99,8 @@ public abstract class ProcessHandler {
         Map<String, String> env = pb.environment();
         // add the necessary external environment defined in ProcessData obj
         env.putAll(pData.getEnvironment());
-        // get a list with cmd and args of the resource
-        List<String> procCmdArgs = pData.getResCmdArgs();
+        // get a list with cmd and args
+        List<String> procCmdArgs = pData.getCmdArgs();
         if (procCmdArgs.isEmpty()) {
             LOG.error("NO resource for execution.");
         } else {

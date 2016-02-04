@@ -33,7 +33,6 @@ import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
-import net.freelabs.maestro.core.generated.Resource;
 import net.freelabs.maestro.core.generated.Resources;
 import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.serializer.JsonSerializer;

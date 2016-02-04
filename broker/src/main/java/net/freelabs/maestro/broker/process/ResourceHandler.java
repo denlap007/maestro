@@ -16,11 +16,8 @@
  */
 package net.freelabs.maestro.broker.process;
 
-import java.nio.file.Files;
-import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
-import net.freelabs.maestro.core.generated.Resource;
-import net.freelabs.maestro.core.generated.Script;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,16 +30,16 @@ public final class ResourceHandler {
     /**
      * A list with the resources to execute before the main resource.
      */
-    private final List<Resource> preMainRes;
+    private final List<Resource> preMainRes = new ArrayList<>();
 
     /**
      * A list with the resources to execute after the main resource.
      */
-    private final List<Resource> postMainRes;
+    private final List<Resource> postMainRes = new ArrayList<>();
     /**
      * The main resource to execute.
      */
-    private final Resource mainRes;
+    private Resource mainRes;
 
     /**
      * A Logger object.
@@ -52,143 +49,73 @@ public final class ResourceHandler {
     /**
      * Constructor.
      *
-     * @param preMainRes a list with the resources to execute before the main
-     * resource.
-     * @param postMainRes a list with the resources to execute after the main
-     * resource.
-     * @param mainRes the main resource to execute.
+     * @param preMain
+     * @param postMain
+     * @param main
      */
-    public ResourceHandler(List<Resource> preMainRes, List<Resource> postMainRes, Resource mainRes) {
-        this.preMainRes = preMainRes;
-        this.postMainRes = postMainRes;
-        this.mainRes = mainRes;
+    public ResourceHandler(List<String> preMain, List<String> postMain, String main) {
+        initResources(preMain, postMain, main);
     }
 
     /**
-     * Checks if script file path exists and it is a file.
-     *
-     * @param script the script to check.
-     * @return true if script path exists and it points to a file.
+     * Initializes the {@link #preMainRes preMainRes} list, {@link #postMainRes
+     * postMainRes} list and {@link #mainRes mainRes}.
      */
-    private boolean isScriptOk(Script script) {
-        boolean fileExists = Files.exists(Paths.get(script.getPath()));
-        boolean isDir = Files.isDirectory(Paths.get(script.getPath()));
-
-        if (fileExists && isDir) {
-            LOG.error("No script specified for process!");
-        } else if (!fileExists) {
-            LOG.error("No script specified for process!");
-        }
-
-        return (fileExists && !isDir);
+    private void initResources(List<String> preMain, List<String> postMain, String main) {
+        // create preMain resource list
+        preMain.stream().forEach((str) -> {
+            Resource res = new Resource(str);
+            preMainRes.add(res);
+        });
+        // create postMain resource list
+        postMain.stream().forEach((str) -> {
+            Resource res = new Resource(str);
+            postMainRes.add(res);
+        });
+        // create main resource
+        mainRes = new Resource(main);
     }
 
     /**
-     * <p>
-     * Checks if a resource is properly initialized.
-     * <p>
-     * A resource is initialized if a script or command is set.
-     * <p>
-     * If the resource is a script, it must also have a valid file path and be a
-     * file.
+     * Checks if a resource is defined and not empty.
      *
      * @param res the resource to check.
-     * @return true if the resource satisfies the restrictions.
+     * @return true if the resource is defined and not empty.
      */
     public boolean isResourceOk(Resource res) {
-        boolean set = false;
+        boolean ok = false;
+
         if (res != null) {
-            if (res.getCmd() != null) {
-                if (!res.getCmd().isEmpty()) {
-                    set = true;
-                } else if (res.getScript() != null) {
-                    if (!res.getScript().getPath().isEmpty()) {
-                        set = isScriptOk(res.getScript());
-                    }else{
-                        LOG.error("No script or cmd specified for process!");
-                    }
-                } else {
-                    LOG.error("No script or cmd specified for process!");
-                }
-            } else if (res.getScript() != null) {
-                if (!res.getScript().getPath().isEmpty()) {
-                    set = isScriptOk(res.getScript());
-                } else {
-                    LOG.error("No script or cmd specified for process!");
-                }
+            if (res.getRes().isEmpty()) {
+                LOG.error("Resource defined but not initialized. Empty.");
+            } else {
+                ok = true;
             }
         } else {
-            LOG.error("Resource not intialized for process!");
+            LOG.error("Resource NOT defined.");
         }
-        return set;
-    }
-    
-    // Getters
-    public List<Resource> getPostMainRes() {
-        return postMainRes;
+        return ok;
     }
 
+    /**
+     *
+     * @return resources to run before the {@link #mainRes main resource}.
+     */
     public List<Resource> getPreMainRes() {
         return preMainRes;
     }
 
     /**
-     * <p>
-     * Gets a {@link Resource resource} to run before the main resource.
-     * <p>
-     * Once the resource is returned it is removed from the list.
-     * <p>
-     * The method gets all the resources of the list exhaustively.
      *
-     * @return a resource from {@link #preMainRes preMainRes} list. Null if
-     * there are no more elements.
-     *
-    public Resource getPreMainRes() {
-        Resource res = null;
-        // get an iterator for the collection
-        Iterator<Resource> resIter = preMainRes.iterator();
-        // if there are elements in the collection
-        if (resIter.hasNext()) {
-            // get a resource
-            res = resIter.next();
-            // remove from the collection
-            resIter.remove();
-        }
-        return res;
+     * @return resources to run after {@link #mainRes main resource}..
+     */
+    public List<Resource> getPostMainRes() {
+        return postMainRes;
     }
 
     /**
-     * <p>
-     * Gets a {@link Resource resource} to run after the main resource.
-     * <p>
-     * Once the resource is returned it is removed from the list.
-     * <p>
-     * The method gets all the resources of the list exhaustively.
      *
-     * @return a resource from {@link #postMainRes postMainRes} list. Null if
-     * there are no more elements.
-     *
-    public Resource getPostMainRes() {
-        Resource res = null;
-        // get an iterator for the collection
-        Iterator<Resource> resIter = postMainRes.iterator();
-        // if there are elements in the collection
-        if (resIter.hasNext()) {
-            // get a resource
-            res = resIter.next();
-            // remove from the collection
-            resIter.remove();
-        }
-        return res;
-    }*/
-    
-    
-    
-    
-
-    /**
-     *
-     * @return the main resource to run.
+     * @return the {@link #mainRes main resource} to run.
      */
     public Resource getMainRes() {
         return mainRes;

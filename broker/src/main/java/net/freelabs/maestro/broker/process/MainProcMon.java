@@ -231,6 +231,7 @@ public final class MainProcMon {
             long start = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
             long end = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
             while (running) {
+                LOG.info("Waiting server: {} on port: {}", isa.getHostName(), String.valueOf(procPort));
                 if (end - start < INIT_TIMEOUT) {
                     try {
                         // try to connect 
@@ -248,7 +249,6 @@ public final class MainProcMon {
                     } catch (IOException ex) {
                         // catch the exception to allow loop to continue                        
                     }
-                    LOG.warn("Waiting server: {} on port: {}", isa.getHostName(), String.valueOf(procPort));
                     try {
                         TimeUnit.SECONDS.sleep(2);
                     } catch (InterruptedException ex1) {
