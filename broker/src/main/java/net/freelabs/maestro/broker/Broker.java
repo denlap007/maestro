@@ -24,12 +24,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import net.freelabs.maestro.broker.process.*;
 import net.freelabs.maestro.broker.services.ServiceManager;
 import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
+import net.freelabs.maestro.broker.shutdown.Shutdown;
+import net.freelabs.maestro.broker.shutdown.ShutdownNotifier;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
@@ -58,7 +59,7 @@ import org.slf4j.MDC;
 /**
  * Class that defines a Broker client to the zookeeper configuration store.
  */
-public abstract class Broker extends ZkConnectionWatcher implements Runnable {
+public abstract class Broker extends ZkConnectionWatcher implements Runnable, Shutdown{
 
     /**
      * The path of the Container to the zookeeper namespace.
@@ -72,10 +73,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(Broker.class);
-    /**
-     * Latch Object with a count of one.
-     */
-    private final CountDownLatch shutdownSignal = new CountDownLatch(1);
     /**
      * The path of the zNode that indicates the applications shutdown.
      */
@@ -122,6 +119,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
      * Manages process execution.
      */
     private ProcessManager procMngr;
+    /**
+     * 
+     */
+    public static final ShutdownNotifier SHUTDOWN = new ShutdownNotifier();
 
     /**
      * Constructor
@@ -171,7 +172,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
         // set watch for the container description
         waitForConDescription();
         // wait for shutdown
-        waitForShutdown();
+        waitForShutdown(SHUTDOWN);
         // close zk client session
         stop();
     }
@@ -217,7 +218,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
         LOG.info(event.getType() + ", " + event.getPath());
 
         if (event.getType() == NodeCreated) {
-            shutdown();
+            shutdown(SHUTDOWN);
         }
     };
 
@@ -775,9 +776,15 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
                 monService();
             });
             // set code to execute if process failed to execute
+            boolean running = pHandler.isMainProcRunning();
             pHandler.setExecOnFailure(()->{
-                // change service status to NOT_INITIALIZED
-                updateZkSrvStatus(conZkSrvNode::setStatusNotInitialized);
+                if (running){
+                    // change service status to NOT_INITIALIZED
+                    updateZkSrvStatus(conZkSrvNode::setStatusNotInitialized);
+                }else{
+                    // change service status to NOT_INITIALIZED
+                    updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
+                }
             });
         } 
         return pHandler;
@@ -867,8 +874,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
         // run in a new thread
         new Thread(() -> {
             procMngr.waitForMainProc();
-            // change service status to NOT RUNNING
-            updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
+            if (!Thread.interrupted()){
+                // change service status to NOT RUNNING
+                updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
+            }
         }
         ).start();
     }
@@ -1120,9 +1129,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
     /**
      * Sets a latch to wait for shutdown.
      */
-    private void waitForShutdown() {
+    @Override
+    public void waitForShutdown(ShutdownNotifier notifier) {
         try {
-            shutdownSignal.await();
+            notifier.waitForShutDown();
         } catch (InterruptedException ex) {
             // log the event
             LOG.warn("Interruption attemplted: {}", ex.getMessage());
@@ -1134,8 +1144,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable {
     /**
      * Releases the latch to initiate shutdown.
      */
-    private void shutdown() {
-        shutdownSignal.countDown();
+    @Override
+    public void shutdown(ShutdownNotifier notifier) {
+        notifier.shutDown();
         // shut down then executorService to free resources
         executorService.shutdownNow();
         LOG.info("Initiating Broker shutdown " + zkContainerPath);

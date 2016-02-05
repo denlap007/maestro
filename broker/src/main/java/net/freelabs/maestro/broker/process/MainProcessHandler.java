@@ -116,8 +116,9 @@ public final class MainProcessHandler extends ProcessHandler {
      *
      * @return true if the main container process is running.
      */
-    protected boolean isMainProcRunning() {
-        return mainProcMon.isRunning();
+    public boolean isMainProcRunning() {
+        boolean running = mainProcMon.isRunning();
+        return running;
     }
 
     /**
@@ -126,5 +127,4 @@ public final class MainProcessHandler extends ProcessHandler {
     public void waitForMainProc() {
         mainProcMon.waitProc();
     }
-
 }

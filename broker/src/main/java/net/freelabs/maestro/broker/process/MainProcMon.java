@@ -22,17 +22,22 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import static net.freelabs.maestro.broker.Broker.SHUTDOWN;
+import net.freelabs.maestro.broker.shutdown.Shutdown;
+import net.freelabs.maestro.broker.shutdown.ShutdownNotifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  *
- * Class that provides methods to monitor the main process. Also, handles transition
- * of states for the main process.
+ * Class that provides methods to monitor the main process. Also, handles
+ * transition of states for the main process.
  */
-public final class MainProcMon {
+public final class MainProcMon implements Shutdown {
 
     /**
      * The possible states of the main process.
@@ -82,6 +87,10 @@ public final class MainProcMon {
      * The port at which the main process is listening.
      */
     private final int procPort;
+    /**
+     * List of threads to interrupt during shutdown.
+     */
+    private final List<Thread> interruptThreads;
 
     /**
      * Constructor.
@@ -89,16 +98,19 @@ public final class MainProcMon {
      * @param procPort the port at which the process is listening.
      */
     public MainProcMon(int procPort) {
-        curState = STATE.NOT_RUNNING;
         this.procPort = procPort;
+        // cerate interrupted thread list and add current thread 
+        interruptThreads = new ArrayList<>();
+        interruptThreads.add(Thread.currentThread());
+        // set initial process state 
+        curState = STATE.NOT_RUNNING;
         // create the host port socketAddress object. Host is localhost
         isa = new InetSocketAddress(InetAddress.getLoopbackAddress(), procPort);
     }
 
     /**
      * <p>
-     * Starts monitoring the main process
-     * state.
+     * Starts monitoring the main process state.
      * <p>
      * Sets state to RUNNING.
      * <p>
@@ -111,6 +123,9 @@ public final class MainProcMon {
      */
     public void start(Process _proc) {
         this._proc = _proc;
+        // start thread that monitors for shutdown, SHUTDOWN is static from Broker
+        waitForShutdown(SHUTDOWN);
+        // set state to running 
         setRunning(true);
         // start monitoring running
         monProcRun();
@@ -179,6 +194,7 @@ public final class MainProcMon {
      */
     protected void monProcRun() {
         new Thread(() -> {
+            interruptThreads.add(Thread.currentThread());
             if (_proc != null) {
                 try {
                     _proc.waitFor();
@@ -189,8 +205,7 @@ public final class MainProcMon {
                     Thread.currentThread().interrupt();
                 }
             }
-        }
-        ).start();
+        }).start();
     }
 
     /**
@@ -206,7 +221,7 @@ public final class MainProcMon {
             // block and wait until initialization status changes
             initSignal.await();
         } catch (InterruptedException ex) {
-            LOG.warn("Interruption attempted: {}", ex.getMessage());
+            LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
             Thread.currentThread().interrupt();
         }
     }
@@ -226,6 +241,7 @@ public final class MainProcMon {
      */
     private void checkInit() {
         new Thread(() -> {
+            interruptThreads.add(Thread.currentThread());
             // create a socket 
             Socket client = new Socket();
             long start = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
@@ -252,8 +268,9 @@ public final class MainProcMon {
                     try {
                         TimeUnit.SECONDS.sleep(2);
                     } catch (InterruptedException ex1) {
-                        LOG.warn("Interruption attempted: {}", ex1.getMessage());
+                        LOG.warn("Thread interrupted. Stopping: {}", ex1.getMessage());
                         Thread.currentThread().interrupt();
+                        break;
                     }
                 } else {
                     LOG.error("Process initialization TIMEOUT!");
@@ -310,12 +327,12 @@ public final class MainProcMon {
 
     /**
      * <p>
-     * The method sets the caller into waiting for the main process to
-     * stop.
+     * The method sets the caller into waiting for the main process to stop.
      * <p>
      * The method blocks.
      */
     public void waitProc() {
+        interruptThreads.add(Thread.currentThread());
         try {
             if (running) {
                 runningSignal.await();
@@ -323,8 +340,34 @@ public final class MainProcMon {
                 LOG.error("Cannot wait for process. Process is NOT RUNNING.");
             }
         } catch (InterruptedException ex) {
-            LOG.warn("Interruption attempted: {}", ex.getMessage());
+            LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
             Thread.currentThread().interrupt();
         }
+    }
+
+    @Override
+    public void shutdown(ShutdownNotifier notifier) {
+        // interrupt threads to initiate shutdown
+        interruptThreads.stream()
+                .filter((t) -> (t != null))
+                .filter((t) -> (t.isAlive()))
+                .forEach((t) -> {
+                    t.interrupt();
+                });
+    }
+
+    @Override
+    public void waitForShutdown(ShutdownNotifier notifier) {
+        new Thread(() -> {
+            try {
+                notifier.waitForShutDown();
+            } catch (InterruptedException ex) {
+                // thread interrupted initiating shutdown
+                LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
+                Thread.currentThread().interrupt();
+            }
+            // initiate shutdown
+            shutdown(notifier);
+        }).start();
     }
 }

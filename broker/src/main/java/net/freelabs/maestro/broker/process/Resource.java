@@ -16,8 +16,11 @@
  */
 package net.freelabs.maestro.broker.process;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  *
@@ -25,12 +28,15 @@ import java.util.List;
  *
  */
 public final class Resource {
+
     /**
      * A resource to execute.
      */
     private String res;
+
     /**
      * Constructor.
+     *
      * @param res the resource.
      */
     public Resource(String res) {
@@ -38,24 +44,44 @@ public final class Resource {
     }
 
     /**
+     * <p>
+     * Returns the command and arguments specified in the resource.
+     * <p>
+     * The method uses a regular expression to match and split tokens using
+     * space delimeter and treats tokens surrounded by quotes ("") as one.
      *
      * @return the command and arguments that are specified in the resource.
      */
     public List<String> getResCmdArgs() {
-        String [] cmdArgs = res.split(" ");
-        return Arrays.asList(cmdArgs);
+        List<String> cmdArgs = new ArrayList<>();
+        Pattern regex = Pattern.compile("[^\\s\"']+|\"([^\"]*)\"|'([^']*)'");
+        Matcher regexMatcher = regex.matcher(res);
+        while (regexMatcher.find()) {
+            if (regexMatcher.group(1) != null) {
+                // Add double-quoted string without the quotes
+                cmdArgs.add(regexMatcher.group(1));
+            } else if (regexMatcher.group(2) != null) {
+                // Add single-quoted string without the quotes
+                cmdArgs.add(regexMatcher.group(2));
+            } else {
+                // Add unquoted word
+                cmdArgs.add(regexMatcher.group());
+            }
+        }
+        return cmdArgs;
     }
 
     // Getters - Setters
     /**
-     * 
+     *
      * @return the resource.
      */
     public String getRes() {
         return res;
     }
+
     /**
-     * 
+     *
      * @return the resource description.
      */
     public String getDescription() {
