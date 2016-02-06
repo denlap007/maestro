@@ -6,8 +6,9 @@
             <connectWith>business</connectWith>
             <dockerImage>dio/nginx_jre:v1</dockerImage>
             <run>
-                <preMain>envsubst &lt; /broker/testCases/2tierapp/nginx.conf &gt; /etc/nginx/nginx.conf</preMain>
-                <main>nginx -g "daemon off"</main>
+                <preMain>/broker/testCases/2tierapp/nginx_conf_update_env_vars.sh</preMain>
+                <preMain>cp /broker/testCases/2tierapp/nginx-new.conf /etc/nginx/nginx.conf</preMain>
+                <main>nginx -g "daemon off;"</main>
             </run>
             <environment>
                 <host_url>localhost:80</host_url>
@@ -27,6 +28,7 @@
             <environment>
                 <host_url>localhost:8080</host_url>
                 <host_port>8080</host_port>
+                <app_name>IFPWAFCAD</app_name>
             </environment>
         </businessContainer>
         <dataContainer>

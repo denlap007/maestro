@@ -4,60 +4,88 @@
 // Any modifications to this file will be lost upon recompilation of the source schema. 
 // Generated on: 2016.01.14 at 11:02:24 PM EET 
 //
-
-
 package net.freelabs.maestro.core.generated;
 
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
+import javax.xml.bind.annotation.XmlSchemaType;
 import javax.xml.bind.annotation.XmlType;
-
+import javax.xml.bind.annotation.adapters.CollapsedStringAdapter;
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 
 /**
- * <p>Java class for businessEnvironment complex type.
- * 
- * <p>The following schema fragment specifies the expected content contained within this class.
- * 
+ * <p>
+ * Java class for businessEnvironment complex type.
+ *
+ * <p>
+ * The following schema fragment specifies the expected content contained within
+ * this class.
+ *
  * <pre>
- * &lt;complexType name="businessEnvironment">
- *   &lt;complexContent>
- *     &lt;extension base="{}containerEnvironment">
- *       &lt;sequence>
- *         &lt;element name="host_port" type="{}port"/>
- *       &lt;/sequence>
- *     &lt;/extension>
- *   &lt;/complexContent>
- * &lt;/complexType>
+ * &lt;complexType name="businessEnvironment"&gt;
+ *   &lt;complexContent&gt;
+ *     &lt;extension base="{}containerEnvironment"&gt;
+ *       &lt;sequence&gt;
+ *         &lt;element name="host_port" type="{}port"/&gt;
+ *         &lt;element name="app_name" type="{http://www.w3.org/2001/XMLSchema}token" minOccurs="0"/&gt;
+ *       &lt;/sequence&gt;
+ *     &lt;/extension&gt;
+ *   &lt;/complexContent&gt;
+ * &lt;/complexType&gt;
  * </pre>
- * 
- * 
+ *
+ *
  */
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "businessEnvironment", propOrder = {
-    "host_Port"
+    "host_Port",
+    "app_Name"
 })
 public class BusinessEnvironment
-    extends ContainerEnvironment
-{
+        extends ContainerEnvironment {
 
     @XmlElement(name = "host_port")
     protected int host_Port;
+    @XmlElement(name = "app_name")
+    @XmlJavaTypeAdapter(CollapsedStringAdapter.class)
+    @XmlSchemaType(name = "token")
+    protected String app_Name;
 
     /**
-     * Gets the value of the host_Port property.
-     * 
+     * Gets the value of the host_port property.
+     *
      */
     public int getHost_Port() {
         return host_Port;
     }
 
     /**
-     * Sets the value of the host_Port property.
-     * 
+     * Sets the value of the host_port property.
+     *
      */
     public void setHost_Port(int value) {
         this.host_Port = value;
+    }
+
+    /**
+     * Gets the value of the app_name property.
+     *
+     * @return possible object is {@link String }
+     *
+     */
+    public String getApp_Name() {
+        return app_Name;
+    }
+
+    /**
+     * Sets the value of the app_name property.
+     *
+     * @param value allowed object is {@link String }
+     *
+     */
+    public void setApp_Name(String value) {
+        this.app_Name = value;
     }
 
 }

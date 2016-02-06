@@ -114,6 +114,7 @@
             <xs:extension base="containerEnvironment">
                 <xs:sequence>
                     <xs:element name="host_port" type="port"/>
+                    <xs:element name="app_name" type="xs:token" minOccurs="0"/>
                 </xs:sequence>
             </xs:extension>
         </xs:complexContent>
