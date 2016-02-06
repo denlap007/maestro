@@ -63,6 +63,10 @@ public abstract class ProcessHandler {
      * A Logger object.
      */
     protected final Logger LOG = LoggerFactory.getLogger(ProcessHandler.class);
+    /**
+     * If process was successfully initialized.
+     */
+    protected boolean procInitialized;
 
     ;
 
@@ -106,6 +110,8 @@ public abstract class ProcessHandler {
         } else {
             // set command and arguments
             pb.command(procCmdArgs);
+            // set initialization flag to true
+            procInitialized = true;
         }
     }
 
@@ -141,16 +147,19 @@ public abstract class ProcessHandler {
             create();
             // initialize process
             init();
-            // execute process
-            success = start();
-            // execute code depending on process execution sucess or not
-            if (success) {
-                if (execOnSuccess != null) {
-                    execOnSuccess.execute();
+            // execute process if it is correctly initialized
+            if (procInitialized) {
+                success = start();
+                // execute code depending on process execution sucess or not
+                if (success) {
+                    if (execOnSuccess != null) {
+                        execOnSuccess.execute();
+                    }
+                } else if (execOnFailure != null) {
+                    execOnFailure.execute();
                 }
-            } else if (execOnFailure != null) {
-                execOnFailure.execute();
             }
+
         } else {
             LOG.error("Process Handler NOT INITIALIZED properly.");
         }

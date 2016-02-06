@@ -60,23 +60,38 @@ public final class ProcessManager {
      */
     public void startProcesses() {
         if (isProcMngrInitialized()) {
+            boolean preMainSuccess = true;
+
             // execute pre-main processes, if any
             if (!preMainProcHandlers.isEmpty()) {
-                preMainProcHandlers.stream().forEach((procHandler) -> {
-                    procHandler.execute();
-                });
-            }
-            // execute the main Process
-            boolean success = mainProcHandler.execute();
-
-            if (success) {
-                // execute post-main processes, if any
-                if (!postMainProcHandlers.isEmpty()) {
-                    postMainProcHandlers.stream().forEach((procHandler) -> {
-                        procHandler.execute();
-                    });
+                for (ProcessHandler procHandler : preMainProcHandlers) {
+                    preMainSuccess = procHandler.execute();
+                    // if there was error exit
+                    if (!preMainSuccess) {
+                        break;
+                    }
                 }
             }
+
+            // if preMain procs executed successfully, execute main
+            if (preMainSuccess) {
+                // execute the main Process
+                boolean mainSuccess = mainProcHandler.execute();
+
+                // if main proc execute successfully, execute postMain procs
+                if (mainSuccess) {
+                    // execute post-main processes, if any
+                    if (!postMainProcHandlers.isEmpty()) {
+                        postMainProcHandlers.stream().forEach((procHandler) -> {
+                            procHandler.execute();
+                        });
+                    }
+                }
+            } else {
+                LOG.error("Pre-main process execution FAILED. "
+                        + "ABORTING main process execution.");
+            }
+
         } else {
             LOG.error("Process Manager CANNOT start: "
                     + "Main Process Handler NOT INITIALIZED properly.");

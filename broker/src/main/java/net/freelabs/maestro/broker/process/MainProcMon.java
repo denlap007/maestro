@@ -161,7 +161,11 @@ public final class MainProcMon implements Shutdown {
     private void action() {
         switch (curState) {
             case NOT_RUNNING:
-                LOG.warn("Main process STOPPED.");
+                if (_proc.exitValue() == 0){
+                    LOG.warn("Main process STOPPED. Exit code: {}", _proc.exitValue());
+                }else{
+                    LOG.error("Main process STOPPED. Exit code: {}", _proc.exitValue());
+                }
                 runningSignal.countDown();
                 initSignal.countDown();
                 break;
@@ -201,7 +205,7 @@ public final class MainProcMon implements Shutdown {
                     // set not running status
                     setRunning(false);
                 } catch (InterruptedException ex) {
-                    LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
+                    LOG.warn("Thread interrupted. Stopping.");
                     Thread.currentThread().interrupt();
                 }
             }
@@ -221,7 +225,7 @@ public final class MainProcMon implements Shutdown {
             // block and wait until initialization status changes
             initSignal.await();
         } catch (InterruptedException ex) {
-            LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
+            LOG.warn("Thread interrupted. Stopping.");
             Thread.currentThread().interrupt();
         }
     }
@@ -340,7 +344,7 @@ public final class MainProcMon implements Shutdown {
                 LOG.error("Cannot wait for process. Process is NOT RUNNING.");
             }
         } catch (InterruptedException ex) {
-            LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
+            LOG.warn("Thread interrupted. Stopping. ");
             Thread.currentThread().interrupt();
         }
     }
@@ -363,7 +367,7 @@ public final class MainProcMon implements Shutdown {
                 notifier.waitForShutDown();
             } catch (InterruptedException ex) {
                 // thread interrupted initiating shutdown
-                LOG.warn("Thread interrupted. Stopping: {}", ex.getMessage());
+                LOG.warn("Thread interrupted. Stopping");
                 Thread.currentThread().interrupt();
             }
             // initiate shutdown

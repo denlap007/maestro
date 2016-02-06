@@ -17,6 +17,7 @@
 package net.freelabs.maestro.broker.process;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -29,9 +30,22 @@ public class DefaultProcessHandler extends ProcessHandler {
         super(pData);
     }
     /**
-     * Indicates that the process started executing.
+     * Indicates if the process execution was successful.
      */
-    private boolean started;
+    private boolean succeeded;
+    /**
+     * Indicates if the process exited before the timeout.
+     */
+    private boolean exited;
+    /**
+     * Time to wait for execution to complete before aborting process measured
+     * in {@link #TIME_UNIT TIME_UNITs}.
+     */
+    private static final long EXEC_TIMEOUT = 1;
+    /**
+     * The unit of time that applies to {@link #EXEC_TIMEOUT EXEC_TIMEOUT}.
+     */
+    private static final TimeUnit MINUTES = TimeUnit.MINUTES;
 
     /**
      * <p>
@@ -57,12 +71,21 @@ public class DefaultProcessHandler extends ProcessHandler {
             _proc = pb.start();
             // log the event
             LOG.info("Started process: {}", pData.getResDescription());
-            // set flag to true
-            started = true;
+            // wait for execution to complete, and set 
+            exited = _proc.waitFor(EXEC_TIMEOUT, MINUTES);
+            // get the exit code
+            int errCode = _proc.exitValue();
+            // if exited before timeout and exit code is 0, proc exec successful
+            if (errCode == 0 && exited == true){
+                succeeded = true;
+            }
         } catch (IOException ex) {
             LOG.error("FAILED to start process: " + ex);
+        } catch (InterruptedException ex) {
+            LOG.warn("Thread interrupted. Stopping.");
+            Thread.currentThread().interrupt();
         }
-        return started;
+        return succeeded;
     }
 
     @Override

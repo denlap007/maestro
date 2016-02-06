@@ -17,7 +17,6 @@
 package net.freelabs.maestro.broker.process;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -48,7 +47,16 @@ public final class Resource {
      * Returns the command and arguments specified in the resource.
      * <p>
      * The method uses a regular expression to match and split tokens using
-     * space delimeter and treats tokens surrounded by quotes ("") as one.
+     * space delimeter and treats tokens surrounded by quotes (double or single)
+     * as one.
+     * <p>
+     * Essentially, we want to grab two kinds of things from the resource:
+     * "sequences of characters that aren't spaces or quotes, and sequences of
+     * characters that begin and end with a quote, with no quotes in between,
+     * for two kinds of quotes".
+     * <p>
+     * The capturing groups were added because we don't want the quotes in the
+     * list.
      *
      * @return the command and arguments that are specified in the resource.
      */
