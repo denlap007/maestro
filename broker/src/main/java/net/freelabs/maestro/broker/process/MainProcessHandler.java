@@ -56,13 +56,15 @@ public final class MainProcessHandler extends ProcessHandler {
      * <p>
      * Redirects the stderr and stdout stream to the parent process.
      *
+     * @return true if process initialized without errors.
      */
     @Override
-    protected void init() {
-        super.init();
+    protected boolean init() {
+        boolean initialized = super.init();
         // redirect error stream and output stream
         pb.redirectError(Redirect.INHERIT);
         pb.redirectOutput(Redirect.INHERIT);
+        return initialized;
     }
 
     /**
@@ -126,5 +128,9 @@ public final class MainProcessHandler extends ProcessHandler {
      */
     public void waitForMainProc() {
         mainProcMon.waitProc();
+    }
+
+    @Override
+    protected void cleanup() {
     }
 }

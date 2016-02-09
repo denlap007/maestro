@@ -63,12 +63,6 @@ public abstract class ProcessHandler {
      * A Logger object.
      */
     protected final Logger LOG = LoggerFactory.getLogger(ProcessHandler.class);
-    /**
-     * If process was successfully initialized.
-     */
-    protected boolean procInitialized;
-
-    ;
 
     /**
      * Constructor.
@@ -97,8 +91,11 @@ public abstract class ProcessHandler {
      * executed by the new process.
      * <p>
      * Subclasses should Override this method to implements extra functionality.
+     *
+     * @return true if process initialized without errors.
      */
-    protected void init() {
+    protected boolean init() {
+        boolean initialized = false;
         // get the environmente of the new process
         Map<String, String> env = pb.environment();
         // add the necessary external environment defined in ProcessData obj
@@ -111,8 +108,9 @@ public abstract class ProcessHandler {
             // set command and arguments
             pb.command(procCmdArgs);
             // set initialization flag to true
-            procInitialized = true;
+            initialized = true;
         }
+        return initialized;
     }
 
     /**
@@ -126,6 +124,11 @@ public abstract class ProcessHandler {
      * Stops the process handled.
      */
     public abstract void stop();
+
+    /**
+     * Perform cleanup operations.
+     */
+    protected abstract void cleanup();
 
     /**
      * <p>
@@ -146,9 +149,9 @@ public abstract class ProcessHandler {
             // create Process Builder to initialize process
             create();
             // initialize process
-            init();
+            boolean initialized = init();
             // execute process if it is correctly initialized
-            if (procInitialized) {
+            if (initialized) {
                 success = start();
                 // execute code depending on process execution sucess or not
                 if (success) {
@@ -158,6 +161,8 @@ public abstract class ProcessHandler {
                 } else if (execOnFailure != null) {
                     execOnFailure.execute();
                 }
+                // cleanup
+                cleanup();
             }
 
         } else {

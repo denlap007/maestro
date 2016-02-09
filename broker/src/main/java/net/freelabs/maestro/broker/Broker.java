@@ -59,7 +59,7 @@ import org.slf4j.MDC;
 /**
  * Class that defines a Broker client to the zookeeper configuration store.
  */
-public abstract class Broker extends ZkConnectionWatcher implements Runnable, Shutdown{
+public abstract class Broker extends ZkConnectionWatcher implements Runnable, Shutdown {
 
     /**
      * The path of the Container to the zookeeper namespace.
@@ -103,7 +103,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
      */
     private final ZkNamingServiceNode conZkSrvNode;
     /**
-     * Service Manager. Stores all the data for services-dependencies of the 
+     * Service Manager. Stores all the data for services-dependencies of the
      * container.
      */
     private ServiceManager srvMngr;
@@ -120,7 +120,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
      */
     private ProcessManager procMngr;
     /**
-     * 
+     *
      */
     public static final ShutdownNotifier SHUTDOWN = new ShutdownNotifier();
 
@@ -173,8 +173,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         waitForConDescription();
         // wait for shutdown
         waitForShutdown(SHUTDOWN);
-        // close zk client session
-        stop();
     }
 
     /*
@@ -381,7 +379,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         /* initialize the services manager to manage services-dependencies
         The dependencies are retrieved from the current cotnainer configuration,
         from "connectWith" field.        
-        */        
+         */
         List<String> srvNames = container.getConnectWith();
         Map<String, String> srvsNamePath = ns.getSrvsNamePath(srvNames);
         srvMngr = new ServiceManager(srvsNamePath);
@@ -397,7 +395,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
     }
 
     /**
-     * Callback to be used with {@link #setZkConNodeData(byte[]) setZkConNodeData} method.
+     * Callback to be used with
+     * {@link #setZkConNodeData(byte[]) setZkConNodeData} method.
      */
     private final StatCallback setConZkNodeDataCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
@@ -417,7 +416,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
                         KeeperException.create(KeeperException.Code.get(rc), path));
         }
     };
-    
+
     /**
      * <p>
      * Registers the container as a service to the naming service.
@@ -439,8 +438,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         // create the zNode of the service to the naming service
         createZkConSrvNode(path, data);
     }
-    
-     /**
+
+    /**
      * Creates the service node for this container to the naming service.
      *
      * @param path the path of the zNode to the zookeeper namespace.
@@ -469,11 +468,11 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
                 /* query for service - get the configurarion of needed containers
                 A service is offered by a container. 
                  */
-                if (srvMngr.hasServices()){
+                if (srvMngr.hasServices()) {
                     srvMngr.getServices().stream().forEach((service) -> {
                         queryForService(service);
                     });
-                }else{
+                } else {
                     executorService.execute(() -> {
                         checkInitialization();
                     });
@@ -484,7 +483,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
                         KeeperException.create(KeeperException.Code.get(rc), path));
         }
     };
-    
 
     /**
      * Queries the naming service for a service. A service is offered by a
@@ -548,7 +546,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
             LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
             // get data from service node
             getZkSrvData(event.getPath());
-        }else if (event.getType() == NodeDataChanged){
+        } else if (event.getType() == NodeDataChanged) {
             LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
             //            
             // CODE TO MONITOR FOR UPDATES ON THE SERVICE NODE
@@ -680,88 +678,106 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
      */
     /**
      * <p>
-     * Checks the necessary conditions for the container to be initialized
-     * and for the entrypoint processes to get started.
+     * Checks the necessary conditions for the container to be initialized and
+     * for the processes to get started.
      * <p>
-     * Checks if all container services-dependencies are processed and sets 
+     * Checks if all container services-dependencies are processed and sets
      * {@link #conInitialized conInitialized} flag to true.
      * <p>
      * If {@link #conInitialized conInitialized} flag is true, checks if all
-     * services-dependencies are initialized and bootstraps the entrypoint process.
+     * services-dependencies are initialized and bootstraps the process(es).
      */
     private synchronized void checkInitialization() {
-        if (srvMngr.hasServices()){
+        if (srvMngr.hasServices()) {
             // if container is not initialized
-            if (!conInitialized){
+            if (!conInitialized) {
                 // check if srvs are processed
                 if (srvMngr.areSrvProcessed()) {
                     conInitialized = true;
                     LOG.info("Container INITIALIZED!");
                     // check if srvs are initialized
-                    if (srvMngr.areSrvInitialized()){
+                    if (srvMngr.areSrvInitialized()) {
                         // start the entryoint process
                         bootstrapProcess();
                     }
                 }
-            }else{
-                // check if srvs are initialized
-                if (srvMngr.areSrvInitialized()){
-                    // start the entryoint process
-                    bootstrapProcess();
+            } else // check if srvs are initialized
+            {
+                if (srvMngr.areSrvInitialized()) {
+                    // start processes
+                    executorService.execute(() -> {
+                        bootstrapProcess();
+                    });
                 }
             }
-        }else{
+        } else {
             conInitialized = true;
             LOG.info("Container INITIALIZED!");
-            bootstrapProcess();
+            // execute in new thread
+            executorService.execute(() -> {
+                bootstrapProcess();
+            });
         }
     }
 
     /**
-     * Bootstraps container processes.
+     * Bootstraps container processes. The method:
+     * <ul>
+     * <li>Creates the {@link ProcessManager process manager} to manage process
+     * execution.</li>
+     * <li>Creates the {@link ResourceHandler resource handler}, that is
+     * initialized with all the resources, to handle resource manipulation.</li>
+     * <li>Creates the environment for the processes (env vars).</li>
+     * <li>Creates and initializes the {@link ProcessHandler process handlers}
+     * for the main and other processes, to handle process initialization and
+     * initiation.</li>
+     * <li>Starts the {@link ProcessManager process manager} that executes the
+     * processes.</li>
+     * </ul>
      */
-    private void bootstrapProcess(){
-        // execute in new thread
-        executorService.execute(() -> {
-            // create the process manager that will start processes
-            procMngr = new ProcessManager();
-            // create the resource handler to manipulate resources
-            Resources res = container.getRun();
-            ResourceHandler rh = new ResourceHandler(res.getPreMain(), res.getPostMain(), res.getMain());
-            // create the environment shared with main and other processes
-            Map<String, String> env = createEnvForMainProc();
-            // get handler for the interaction with the main process
-            MainProcessHandler mainProcHandler = initMainProc(rh, env);
-            // get handlers for the interaction with processes scheduled before main
-            List<ProcessHandler> preMainProcHandlers = initOtherProcs(rh, rh.getPreMainRes(), env);
-            // get handlers for the interaction with processes scheduled after main
-            List<ProcessHandler> postMainProcHandlers = initOtherProcs(rh, rh.getPostMainRes(), env);
-            // set configuration to process manager
-            procMngr.setMainProcHandler(mainProcHandler);
-            procMngr.setPreMainProcHandlers(preMainProcHandlers);
-            procMngr.setPostMainProcHandlers(postMainProcHandlers);
-            
-            // start processes
-            procMngr.startProcesses();
-        });
+    private void bootstrapProcess() {
+        // create the process manager that will start processes
+        procMngr = new ProcessManager();
+        // create the resource handler to manipulate resources
+        Resources res = container.getRun();
+        ResourceHandler rh = new ResourceHandler(res.getPreMain(), res.getPostMain(), res.getMain());
+        // create the environment shared with main and other processes
+        Map<String, String> env = createEnvForMainProc();
+        // get handler for the interaction with the main process
+        MainProcessHandler mainProcHandler = initMainProc(rh, env);
+        // get handlers for the interaction with processes scheduled before main
+        List<ProcessHandler> preMainProcHandlers = initOtherProcs(rh, rh.getPreMainRes(), env);
+        // get handlers for the interaction with processes scheduled after main
+        List<ProcessHandler> postMainProcHandlers = initOtherProcs(rh, rh.getPostMainRes(), env);
+        // set configuration to process manager
+        procMngr.setMainProcHandler(mainProcHandler);
+        procMngr.setPreMainProcHandlers(preMainProcHandlers);
+        procMngr.setPostMainProcHandlers(postMainProcHandlers);
+
+        // start processes
+        procMngr.startProcesses();
     }
-    
+
     /**
-     * <p>Sets all initialization configuration for the main process.
-     * <p>Creates and initializes the {@link MainProcessData MainProcessData} object 
-     * that stores all data related to the process.
-     * <p>Creates and initializes the  {@link MainProcessHandler MainProcessHandler} 
+     * <p>
+     * Sets all initialization configuration for the main process.
+     * <p>
+     * Creates and initializes the {@link MainProcessData MainProcessData}
+     * object that stores all data related to the main process.
+     * <p>
+     * Creates and initializes the {@link MainProcessHandler MainProcessHandler}
      * object that handles the interaction with the main process.
+     *
      * @param rh the resource handler to query for resources to run.
      * @param env the environment of the process.
-     * @return the {@link MainProcessHandler MainProcessHandler} object that 
-     * handles the interaction with the main process. NUll if there was a problem 
-     * with the main resource.
+     * @return the {@link MainProcessHandler MainProcessHandler} object that
+     * handles the interaction with the main process. NUll if there was a
+     * problem with the main resource.
      */
-    private MainProcessHandler initMainProc(ResourceHandler rh, Map<String, String> env){
+    private MainProcessHandler initMainProc(ResourceHandler rh, Map<String, String> env) {
         MainProcessHandler pHandler = null;
         // check if main resource is ok
-        if (rh.isResourceOk(rh.getMainRes())){
+        if (rh.isResourceOk(rh.getMainRes())) {
             // get the port the proc is listening
             int procPort = getHostPort();
             // create and init the object that stores all the process configuration
@@ -769,7 +785,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
             // create and handler for main process execution
             pHandler = new MainProcessHandler(pdata);
             // set code to execute if process executed successfully
-            pHandler.setExecOnSuccess(()->{
+            pHandler.setExecOnSuccess(() -> {
                 // change service status to INITIALIZED
                 updateZkSrvStatus(conZkSrvNode::setStatusInitialized);
                 // monitor service and update status accordingly for zk service node
@@ -777,46 +793,62 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
             });
             // set code to execute if process failed to execute
             boolean running = pHandler.isMainProcRunning();
-            pHandler.setExecOnFailure(()->{
-                if (running){
+            pHandler.setExecOnFailure(() -> {
+                if (running) {
                     // change service status to NOT_INITIALIZED
                     updateZkSrvStatus(conZkSrvNode::setStatusNotInitialized);
-                }else{
+                } else {
                     // change service status to NOT_INITIALIZED
                     updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
                 }
             });
-        } 
+        }
         return pHandler;
     }
-    
-    
-    private List<ProcessHandler> initOtherProcs(ResourceHandler rh, List<Resource> resources, Map<String, String> env){
+
+    /**
+     * <p>
+     * If there are other processes to execute except main process, this method
+     * initializes the {@link ProcessHandler process handlers} that will execute
+     * the processes.
+     * <p>
+     * At first, a resource is checked for errors. Then the process handler is
+     * initialized with the resource and the environment.
+     *
+     * @param rh the resource handler, used to manipulate resources.
+     * @param resources the list of the resources to execute.
+     * @param env the environment of the processes.
+     * @return the list of process handlers initialized to start processes.
+     */
+    private List<ProcessHandler> initOtherProcs(ResourceHandler rh, List<Resource> resources, Map<String, String> env) {
         List<ProcessHandler> pHandlers = new ArrayList<>();
         // iterate through resources
-        for(Resource res : resources){
+        for (Resource res : resources) {
             // check resource for errors
-            if (rh.isResourceOk(res)){
+            if (rh.isResourceOk(res)) {
                 // create and init the obj that stores all necessary process data
                 ProcessData pData = new ProcessData(res, env);
                 // create and init the obj that handles the process execution
                 DefaultProcessHandler ph = new DefaultProcessHandler(pData);
-                 // add handler to list
+                // add handler to list
                 pHandlers.add(ph);
             }
         }
-        return pHandlers;        
+        return pHandlers;
     }
-    
+
     /**
-     * <p>Creates the environment for the main process that will be shared with 
+     * <p>
+     * Creates the environment for the main process that will be shared with
      * other processes, if any.
-     * <p>The environment consists of all the environment variables that are 
+     * <p>
+     * The environment consists of all the environment variables that are
      * available to the container to run processes.
-     * @return a map with all the environment variables needed for the container 
+     *
+     * @return a map with all the environment variables needed for the container
      * processes.
      */
-    private Map<String, String> createEnvForMainProc(){
+    private Map<String, String> createEnvForMainProc() {
         // get environment from the container
         Map<String, String> env = getConEnv();
         // get environment from dependencies and add to environment
@@ -824,6 +856,13 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         return env;
     }
 
+    /**
+     * Extracts the environment from the services-dependencies of the main
+     * container service.
+     *
+     * @return a map with all the environment variables defines in services-
+     * dependencies.
+     */
     private Map<String, String> getDependenciesEnv() {
         LOG.info("Extracting environment from dependencies.");
         // holds the global key-value entries for all container
@@ -868,13 +907,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
      * Monitors the running service and updates the zk service node status
      * accordingly in case it stops.
      *
-     * @param procHandler the {@link MainProcessHandler MainProcessHandler} object.
+     * @param procHandler the {@link MainProcessHandler MainProcessHandler}
+     * object.
      */
     private void monService() {
         // run in a new thread
         new Thread(() -> {
             procMngr.waitForMainProc();
-            if (!Thread.interrupted()){
+            if (!Thread.interrupted()) {
                 // change service status to NOT RUNNING
                 updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
             }
@@ -888,17 +928,17 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
      * @return a map with the container environment.
      */
     protected abstract Map<String, String> getConEnv();
+
     /**
-     * 
+     *
      * @return the port at which the main process runs.
      */
     protected abstract int getHostPort();
 
-
     /**
-     * Updates the service state status of a {@link ZkNamingServiceNode 
+     * Updates the service state status of a {@link ZkNamingServiceNode
      * ZkNamingServiceNode}.
-     * 
+     *
      * @param updateInterface the update action.
      */
     private void updateZkSrvStatus(Updatable updateInterface) {
@@ -941,10 +981,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         }
     };
 
-        /**
+    /**
      * Watcher to be used in
-     * {@link  #setConWatch(java.lang.String) setConWatch(String)}
-     * method.
+     * {@link  #setConWatch(java.lang.String) setConWatch(String)} method.
      */
     private final Watcher setConWatcher = (WatchedEvent event) -> {
         LOG.info(event.getType() + ", " + event.getPath());
@@ -961,7 +1000,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
             // RE-SET WATCH TO KEEP MONITORING THE CONTAINER
         }
     };
-    
+
     /**
      * Gets data from the requested service zNode.
      *
@@ -973,7 +1012,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
 
     /**
      * The callback to be used with
-     * {@link #getZkSrvUpdatedData(java.lang.String) getZkSrvUpdatedData(String)} method.
+     * {@link #getZkSrvUpdatedData(java.lang.String) getZkSrvUpdatedData(String)}
+     * method.
      */
     private final DataCallback getZkSrvUpdatedDataDataCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
@@ -996,8 +1036,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
                         KeeperException.create(KeeperException.Code.get(rc), path));
         }
     };
-    
-    private void processZkSrvUpdatedData(String path, byte[] data){
+
+    private void processZkSrvUpdatedData(String path, byte[] data) {
         // de-serialize service node
         ZkNamingServiceNode srvNode = ns.deserializeZkSrvNode(path, data);
         // set the new service status
@@ -1007,7 +1047,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         // check if all services are initialized
         checkInitialization();
     }
-    
 
     /**
      * Resolves a container path to the container name.
@@ -1056,7 +1095,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
             LOG.error("FAILED to create configuration file: " + ex);
         }
     }
-
 
     /**
      * <p>
@@ -1124,8 +1162,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         return data;
     }
 
-
-
     /**
      * Sets a latch to wait for shutdown.
      */
@@ -1146,10 +1182,13 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
      */
     @Override
     public void shutdown(ShutdownNotifier notifier) {
-        notifier.shutDown();
         // shut down then executorService to free resources
         executorService.shutdownNow();
+        // close zk client session
+        stop();
+        // log event
         LOG.info("Initiating Broker shutdown " + zkContainerPath);
+        notifier.shutDown();
     }
 
 }

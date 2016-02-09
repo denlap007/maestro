@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Dionysis Lappas <dio@freelabs.net>
+ * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  *
- * Class that provides a default implementation for
+ * Class that provides a default implementation for a 
  * {@link ProcessHandler ProcessHandler}.
  */
 public class DefaultProcessHandler extends ProcessHandler {
@@ -55,13 +55,15 @@ public class DefaultProcessHandler extends ProcessHandler {
      * <p>
      * Redirects the stderr and stdout stream to the parent process.
      *
+     * @return true if process initialized without errors.
      */
     @Override
-    protected void init() {
-        super.init();
+    protected boolean init() {
+        boolean initialized = super.init();
         // redirect error stream and output stream
         pb.redirectError(ProcessBuilder.Redirect.INHERIT);
         pb.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+        return initialized;
     }
 
     @Override
@@ -91,6 +93,10 @@ public class DefaultProcessHandler extends ProcessHandler {
     @Override
     public void stop() {
         _proc.destroyForcibly();
+    }
+
+    @Override
+    protected void cleanup() {
     }
 
 }

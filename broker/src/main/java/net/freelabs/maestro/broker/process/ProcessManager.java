@@ -78,7 +78,7 @@ public final class ProcessManager {
                 // execute the main Process
                 boolean mainSuccess = mainProcHandler.execute();
 
-                // if main proc execute successfully, execute postMain procs
+                // if main proc executed successfully, execute postMain procs
                 if (mainSuccess) {
                     // execute post-main processes, if any
                     if (!postMainProcHandlers.isEmpty()) {

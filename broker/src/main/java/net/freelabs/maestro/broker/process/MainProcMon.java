@@ -286,7 +286,7 @@ public final class MainProcMon implements Shutdown {
             }// end while
         }).start();
     }
-
+    
     /**
      *
      * @return true if the process is in INITIALIZED state.
