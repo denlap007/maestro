@@ -117,8 +117,6 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
         createNode(zNode.getConfNodePath(), zNode.getData());
         // Sets the thread to wait until it's time to shutdown
         waitForShutdown();
-        // close session
-        stop();
     }
 
     /**
@@ -140,9 +138,10 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      * key2=value2 e.t.c. representing the container description.
      */
     protected abstract String getBootEnv();
-    
+
     /**
      * Sets the IP of the container.
+     *
      * @param IP the container IP.
      */
     protected abstract void setIP(String IP);
@@ -239,9 +238,10 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
             shutdownSignal.await();
         } catch (InterruptedException ex) {
             // log the event
-            LOG.warn("Interruption attempted: {}", ex.getMessage());
-            LOG.warn("Shutting down due to interruption(!)");
-            shutdown();
+            LOG.warn("Thread Interrupted. Stopping");
+            // set the interrupt status
+            Thread.currentThread().interrupt();
+            LOG.info("Initiating Core Broker shutdown.");
         }
     }
 
@@ -275,9 +275,11 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
     };
 
     public void shutdown() {
-        shutdownSignal.countDown();
         LOG.info("Initiating Core Broker shutdown.");
-
+        // close session
+        stop();
+        // release latch to finish execution
+        shutdownSignal.countDown();
     }
 
     /**

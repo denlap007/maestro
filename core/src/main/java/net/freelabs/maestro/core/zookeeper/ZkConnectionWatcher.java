@@ -95,9 +95,8 @@ public class ZkConnectionWatcher implements Watcher {
         if (event.getState() == KeeperState.SyncConnected) {
             connectedSignal.countDown();
         }
-        
-    }
 
+    }
 
     /**
      * Closes the client session of a {@link org.apache.zookeeper.ZooKeeper
@@ -107,7 +106,7 @@ public class ZkConnectionWatcher implements Watcher {
         try {
             zk.close();
         } catch (InterruptedException ex) {
-            LOG.warn("Interruption attempted: ", ex);
+            LOG.warn("Interruption attempted. Stopping.");
             Thread.currentThread().interrupt();
         }
     }

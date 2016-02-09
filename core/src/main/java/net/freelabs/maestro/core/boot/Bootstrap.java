@@ -24,7 +24,6 @@ import net.freelabs.maestro.core.broker.CoreDataBroker;
 import net.freelabs.maestro.core.broker.CoreWebBroker;
 import net.freelabs.maestro.core.cl.CommandLineOptions;
 import net.freelabs.maestro.core.xml.XmlProcessor;
-import net.freelabs.maestro.core.container.ContainerLauncher;
 import net.freelabs.maestro.core.docker.DockerInitializer;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
@@ -111,23 +110,24 @@ public final class Bootstrap {
         while (handler.hasContainers()) {
             Container con = handler.getContainer();
             CoreBroker cb = null;
-            
-            if (con instanceof WebContainer){
+
+            if (con instanceof WebContainer) {
                 WebContainer webCon = (WebContainer) con;
-                cb =  new CoreWebBroker(zkConf, webCon, docker);
-            }else if (con instanceof BusinessContainer){
+                cb = new CoreWebBroker(zkConf, webCon, docker);
+            } else if (con instanceof BusinessContainer) {
                 BusinessContainer businessCon = (BusinessContainer) con;
-                cb =  new CoreBusinessBroker(zkConf, businessCon, docker);
-            }else if (con instanceof DataContainer){
+                cb = new CoreBusinessBroker(zkConf, businessCon, docker);
+            } else if (con instanceof DataContainer) {
                 DataContainer dataCon = (DataContainer) con;
-                cb =  new CoreDataBroker(zkConf, dataCon, docker);
+                cb = new CoreDataBroker(zkConf, dataCon, docker);
             }
             // connect to zk
             cb.connect();
             // create new Thread and start it
-            Thread cbThread2 = new Thread(cb, con.getName() + "-CB-" + "Thread");
+            Thread cbThread = new Thread(cb, con.getName() + "-CB-" + "Thread");
+            // start thread
             LOG.info("Starting {} CoreBroker.", con.getName());
-            cbThread2.start();
+            cbThread.start();
         }
     }
 
@@ -272,13 +272,10 @@ public final class Bootstrap {
         // wait for initialization
         LOG.info("WAITING FOR MASTER INITIALIZATION");
         master.waitMasterInit();
-    }
-
-    public void launchContainers(ZkConfig zkConf, ContainerHandler handler, String dockerUri) {
-        // Create a new thread to run the container launcher 
-        Thread conLauncherThread = new Thread(new ContainerLauncher(zkConf, handler, dockerUri), "containerLauncher-thread");
-        // start the container launcher 
-        conLauncherThread.start();
+        // check initialization
+        if (!master.isMasterInitialized()) {
+            exitProgram();
+        }
     }
 
     /**
@@ -287,9 +284,16 @@ public final class Bootstrap {
     private void exitProgram(Exception ex) {
         LOG.error("Something went wrong! The program will exit!", ex);
         if (master != null) {
-            master.cleanZkNamespace();
-            master.stop();
+            master.shutdown();
         }
+        System.exit(1);
+    }
+
+    /**
+     * Terminates the program due to some error with a custom error msg.
+     */
+    private void exitProgram() {
+        LOG.error("The program will exit!");
 
         System.exit(1);
     }
