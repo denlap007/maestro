@@ -31,10 +31,14 @@ import net.freelabs.maestro.broker.services.ServiceManager;
 import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
 import net.freelabs.maestro.broker.shutdown.Shutdown;
 import net.freelabs.maestro.broker.shutdown.ShutdownNotifier;
+import net.freelabs.maestro.broker.tasks.SubstEnv;
+import net.freelabs.maestro.broker.tasks.Task;
+import net.freelabs.maestro.broker.tasks.TaskExecutor;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.Resources;
+import net.freelabs.maestro.core.generated.Tasks;
 import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConnectionWatcher;
@@ -702,14 +706,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
                     }
                 }
             } else // check if srvs are initialized
-            {
-                if (srvMngr.areSrvInitialized()) {
+             if (srvMngr.areSrvInitialized()) {
                     // start processes
                     executorService.execute(() -> {
                         bootstrapProcess();
                     });
                 }
-            }
         } else {
             conInitialized = true;
             LOG.info("Container INITIALIZED!");
@@ -743,6 +745,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         ResourceHandler rh = new ResourceHandler(res.getPreMain(), res.getPostMain(), res.getMain());
         // create the environment shared with main and other processes
         Map<String, String> env = createEnvForMainProc();
+        // create TaskExecutor to execute defined tasks
+        TaskExecutor taskExec = initTaskExecutor(container.getTasks(), env);
         // get handler for the interaction with the main process
         MainProcessHandler mainProcHandler = initMainProc(rh, env);
         // get handlers for the interaction with processes scheduled before main
@@ -754,8 +758,34 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         procMngr.setPreMainProcHandlers(preMainProcHandlers);
         procMngr.setPostMainProcHandlers(postMainProcHandlers);
 
+        // execute tasks
+        taskExec.execTasks();
+
         // start processes
         procMngr.startProcesses();
+    }
+
+    /**
+     * <p>
+     * Creates and initializes an executor for tasks.
+     * <p>
+     * A task is a function of some type for the application.
+     *
+     * @param tasks the Tasks object defined in schema.
+     * @param env the environment of the processes.
+     * @return an object that will handle task execution.
+     */
+    private TaskExecutor initTaskExecutor(Tasks tasks, Map<String, String> env) {
+        TaskExecutor taskExec;
+        // init substEnv task
+        if (tasks != null) {
+            List<String> substEnvPaths = tasks.getSubstEnv();
+            Task substEnv = new SubstEnv(substEnvPaths, env);
+            taskExec = new TaskExecutor(substEnv);
+        }else{
+            taskExec = new TaskExecutor();
+        }
+        return taskExec;
     }
 
     /**

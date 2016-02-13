@@ -84,10 +84,6 @@ public final class MainProcMon implements Shutdown {
      */
     private static final Logger LOG = LoggerFactory.getLogger(MainProcMon.class);
     /**
-     * The port at which the main process is listening.
-     */
-    private final int procPort;
-    /**
      * List of threads to interrupt during shutdown.
      */
     private final List<Thread> interruptThreads;
@@ -98,13 +94,12 @@ public final class MainProcMon implements Shutdown {
      * @param procPort the port at which the process is listening.
      */
     public MainProcMon(int procPort) {
-        this.procPort = procPort;
         // cerate interrupted thread list and add current thread 
         interruptThreads = new ArrayList<>();
         interruptThreads.add(Thread.currentThread());
         // set initial process state 
         curState = STATE.NOT_RUNNING;
-        // create the host port socketAddress object. Host is localhost
+        // inittialize the host port socketAddress object.
         isa = new InetSocketAddress(InetAddress.getLoopbackAddress(), procPort);
     }
 
@@ -161,9 +156,9 @@ public final class MainProcMon implements Shutdown {
     private void action() {
         switch (curState) {
             case NOT_RUNNING:
-                if (_proc.exitValue() == 0){
+                if (_proc.exitValue() == 0) {
                     LOG.warn("Main process STOPPED. Exit code: {}", _proc.exitValue());
-                }else{
+                } else {
                     LOG.error("Main process STOPPED. Exit code: {}", _proc.exitValue());
                 }
                 runningSignal.countDown();
@@ -251,7 +246,7 @@ public final class MainProcMon implements Shutdown {
             long start = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
             long end = TimeUnit.MILLISECONDS.convert(System.nanoTime(), TimeUnit.NANOSECONDS);
             while (running) {
-                LOG.info("Waiting server: {} on port: {}", isa.getHostName(), String.valueOf(procPort));
+                LOG.info("Waiting server: {} on port: {}", isa.getHostName(), isa.getPort());
                 if (end - start < INIT_TIMEOUT) {
                     try {
                         // try to connect 
@@ -286,7 +281,7 @@ public final class MainProcMon implements Shutdown {
             }// end while
         }).start();
     }
-    
+
     /**
      *
      * @return true if the process is in INITIALIZED state.

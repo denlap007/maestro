@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Dionysis Lappas <dio@freelabs.net>
+ * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,5 +65,4 @@ public class WebBroker extends Broker {
     protected int getHostPort() {
         return web.getEnvironment().getHost_Port();
     }
-
 }
