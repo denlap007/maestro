@@ -18,6 +18,8 @@ package net.freelabs.maestro.core.boot;
 
 import com.github.dockerjava.api.DockerClient;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import net.freelabs.maestro.core.broker.CoreBroker;
 import net.freelabs.maestro.core.broker.CoreBusinessBroker;
 import net.freelabs.maestro.core.broker.CoreDataBroker;
@@ -55,11 +57,15 @@ public final class Bootstrap {
      * The path of the program's working directory.
      */
     private String workDirPath;
-
     /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(Bootstrap.class);
+    /**
+     * A list with all thread created from bootstrap process, used for clean
+     * shutdown.
+     */
+    private final List<Thread> threadList = new ArrayList<>();
 
     public void boot() {
         try {
@@ -78,11 +84,30 @@ public final class Bootstrap {
             // create a docker client customized for the app
             DockerInitializer appDocker = new DockerInitializer(progConf.getDockerURI());
             DockerClient docker = appDocker.getDockerClient();
-            // launch the CoreBrokers
+            // launch the CoreBrokers to boot containers
             launchBrokers(handler, zkConf, docker);
+            // wait until shutdown 
+            waitForShutdown();
         } catch (Exception ex) {
             exitProgram(ex);
         }
+    }
+
+    /**
+     * <p>
+     * Waits for all threads started in {@link #boot boot} method to finish
+     * execution.
+     * <p>
+     * The method blocks.
+     */
+    private void waitForShutdown() {
+        threadList.stream().forEach((t) -> {
+            try {
+                t.join();
+            } catch (InterruptedException ex) {
+                LOG.warn("Thread interrupted. Stopping.");
+            }
+        });
     }
 
     /**
@@ -121,13 +146,18 @@ public final class Bootstrap {
                 DataContainer dataCon = (DataContainer) con;
                 cb = new CoreDataBroker(zkConf, dataCon, docker);
             }
-            // connect to zk
-            cb.connect();
-            // create new Thread and start it
-            Thread cbThread = new Thread(cb, con.getName() + "-CB-" + "Thread");
-            // start thread
-            LOG.info("Starting {} CoreBroker.", con.getName());
-            cbThread.start();
+
+            if (cb != null) {
+                // create new Thread and start it
+                Thread cbThread = new Thread(cb, con.getName() + "-CB-" + "Thread");
+                // add to thread list
+                threadList.add(cbThread);
+                // start thread
+                LOG.info("Starting {} CoreBroker.", con.getName());
+                cbThread.start();
+            } else {
+                LOG.error("FAILED to start Broker.");
+            }
         }
     }
 
@@ -247,8 +277,7 @@ public final class Bootstrap {
      * Starts a {@link net.freelabs.maestro.core.zookeeper.ZkMaster Master}
      * process that connects to the zookeeper servers, initializes the zookeeper
      * namespace, registers NodeCreated watch events for new zNodes created by a
-     * {@link net.freelabs.maestro.broker.Broker Broker} and when the new zNodes
-     * are created, initializes them with data.
+     * {@link net.freelabs.maestro.broker.Broker Broker}.
      * <p>
      * This method starts a Master process to initialize zk. The master
      * establishes a session with the zookeeper servers. After the session is
@@ -263,10 +292,10 @@ public final class Bootstrap {
     public void initZk(ZkConfig zkConf) throws InterruptedException, IOException {
         // create a master object and initialize it with zk configuration
         master = new ZkMaster(zkConf);
-        // connect to zookeeper and create a session
-        master.connect();
         // Create a new thread to run the master 
         Thread masterThread = new Thread(master, "Master-thread");
+        // add to thread list
+        threadList.add(masterThread);
         // start the master process
         masterThread.start();
         // wait for initialization
@@ -336,7 +365,5 @@ public final class Bootstrap {
             // Show help
             opt.help();
         }
-
     }
-
 }

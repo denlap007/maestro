@@ -16,6 +16,7 @@
  */
 package net.freelabs.maestro.core.zookeeper;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import org.slf4j.Logger;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.logging.Level;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
 import org.apache.zookeeper.AsyncCallback.StatCallback;
 import org.apache.zookeeper.CreateMode;
@@ -100,8 +102,13 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
 
     @Override
     public void run() {
-        // Run the master process
-        runMaster();
+        // connect to zookeeper and create a session
+        connectToZk();
+        // check for connection errors
+        if (!masterInitError) {
+            // Run the master process
+            runMaster();
+        }
     }
 
     /**
@@ -130,6 +137,23 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
             shutdown();
             // notify callers that master finished processing
             masterInitSignal.countDown();
+        }
+    }
+
+    /**
+     * Establishes a connection with a zookeeper server and creates a new
+     * session.
+     */
+    private void connectToZk() {
+        try {
+            connect();
+        } catch (IOException ex) {
+            masterInitError = true;
+            LOG.error("Something went wrong: " + ex);
+        } catch (InterruptedException ex) {
+            masterInitError = true;
+            LOG.warn("Thread Interrupted. Stopping.");
+            Thread.currentThread().interrupt();
         }
     }
 

@@ -95,7 +95,6 @@ public class ZkConnectionWatcher implements Watcher {
         if (event.getState() == KeeperState.SyncConnected) {
             connectedSignal.countDown();
         }
-
     }
 
     /**

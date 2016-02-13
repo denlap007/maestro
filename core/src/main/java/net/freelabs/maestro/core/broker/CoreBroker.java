@@ -19,6 +19,7 @@ package net.freelabs.maestro.core.broker;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.InspectContainerResponse;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.generated.Container;
@@ -95,6 +96,36 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
 
     @Override
     public void run() {
+        // connect to a zookeeper server and create a sesssion
+        boolean connected = connectToZk();
+        // check for connection errors
+        if (connected){
+            // run Broker 
+            runBroker();
+        }else{
+            LOG.error("Broker did NOT START!.");
+        }
+    }
+
+    /**
+     * Establishes a connection with a zookeeper server and creates a new
+     * session.
+     */
+    private boolean connectToZk() {
+        boolean connected = false;
+        try {
+            connect();
+            connected = true;
+        } catch (IOException ex) {
+            LOG.error("Something went wrong: " + ex);
+        } catch (InterruptedException ex) {
+            LOG.warn("Thread Interrupted. Stopping.");
+            Thread.currentThread().interrupt();
+        }
+        return connected;
+    }
+
+    private void runBroker() {
         // watch for a cleanup zNode to cleanUp and shutdown
         setShutDownWatch();
         // boot the container
