@@ -36,7 +36,6 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeDataChanged;
-import static org.apache.zookeeper.Watcher.Event.EventType.NodeDeleted;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 import org.apache.zookeeper.data.Stat;
 
@@ -235,11 +234,21 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     }
 
     /**
-     * Checks if master is initialized and unblocks
+     * <p>
+     * Checks if master is initialized.
+     * <p>
+     * The method waits until master initialization is finished, with or without
+     * errors and checks if the {@link #masterInitError masterInitError} flag is
+     * set.
+     * <p>
+     * The method blocks.
      *
      * @return true if Master process is initialized without errors.
      */
     public boolean isMasterInitialized() {
+        // wait until initialization is finished (with or without errors)
+        waitMasterInit();
+        // check for errors
         if (!masterInitError) {
             LOG.info("Master is INITIALIZED.");
         } else {
@@ -303,7 +312,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     };
 
     /**
-     * Ge data from the requested service zNode.
+     * Get data from the requested service zNode.
      *
      * @param zkPath the path of the service to the zookeeper namespace.
      */
@@ -355,11 +364,8 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * method.
      */
     private final Watcher getSrvDataWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
         if (event.getType() == NodeDataChanged) {
             getSrvData(event.getPath());
-        } else if (event.getType() == NodeDeleted) {
-            LOG.info("Service removed: {}", event.getPath());
         }
     };
 
@@ -580,11 +586,16 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * Waits until the Master process initializes.
      * <p>
      * Method blocks.
-     *
-     * @throws InterruptedException if thread is interrupted.
      */
-    public void waitMasterInit() throws InterruptedException {
-        masterInitSignal.await();
+    public void waitMasterInit() {
+        try {
+            masterInitSignal.await();
+        } catch (InterruptedException ex) {
+            // log event
+            LOG.warn("Interrupted. Stopping.");
+            // set interupt flag
+            Thread.currentThread().interrupt();
+        }
     }
 
     public void display() {

@@ -92,6 +92,6 @@ public class CoreDataBroker extends CoreBroker {
 
     @Override
     protected void setIP(String IP) {
-        dataCon.getEnvironment().setHost_Ip(IP);
+        dataCon.getEnvironment().setHost_IP(IP);
     }
 }

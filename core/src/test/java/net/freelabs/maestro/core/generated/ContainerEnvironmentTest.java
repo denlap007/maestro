@@ -73,12 +73,12 @@ public class ContainerEnvironmentTest extends TestCase {
     public void testGetEnvMap() {
         System.out.println("getEnvMap");
         DataEnvironment obj = new DataEnvironment();
-        obj.setHost_Url("testURL");
+        obj.setHost_IP("testURL");
         obj.setDb_Port(55);
         
         ContainerEnvironment instance = new ContainerEnvironmentImpl();
         Map<String, String> expResult = new HashMap<>();
-        expResult.put("HOST_URL", "testURL");
+        expResult.put("HOST_IP", "testURL");
         expResult.put("DB_PORT", "55");
         
         Map<String, String> result = instance.getEnvMap(obj, "");

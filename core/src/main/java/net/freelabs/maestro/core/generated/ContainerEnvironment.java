@@ -13,11 +13,12 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
-import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlSchemaType;
 import javax.xml.bind.annotation.XmlSeeAlso;
 import javax.xml.bind.annotation.XmlTransient;
 import javax.xml.bind.annotation.XmlType;
+import javax.xml.bind.annotation.adapters.CollapsedStringAdapter;
+import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 import net.freelabs.maestro.core.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +36,7 @@ import org.slf4j.LoggerFactory;
  *   &lt;complexContent>
  *     &lt;restriction base="{http://www.w3.org/2001/XMLSchema}anyType">
  *       &lt;sequence>
- *         &lt;element name="host_url" type="{http://www.w3.org/2001/XMLSchema}anyURI"/>
+ *         &lt;element name="hostName" type="{http://www.w3.org/2001/XMLSchema}token" minOccurs="0"/>
  *       &lt;/sequence>
  *     &lt;/restriction>
  *   &lt;/complexContent>
@@ -46,54 +47,41 @@ import org.slf4j.LoggerFactory;
  */
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "containerEnvironment", propOrder = {
-    "host_Url"
+    "hostName"
 })
 @XmlSeeAlso({
+    WebEnvironment.class,
     DataEnvironment.class,
-    BusinessEnvironment.class,
-    WebEnvironment.class
+    BusinessEnvironment.class
 })
 public abstract class ContainerEnvironment {
 
-    @XmlElement(name = "host_url", required = true)
-    @XmlSchemaType(name = "anyURI")
-    protected String host_Url;
-    @XmlTransient
-    protected String host_Ip;
-
-    public String getHost_Ip() {
-        return host_Ip;
-    }
-
-    public void setHost_Ip(String host_Ip) {
-        this.host_Ip = host_Ip;
-    }
-
-
+    @XmlJavaTypeAdapter(CollapsedStringAdapter.class)
+    @XmlSchemaType(name = "token")
+    protected String hostName;
     /**
      * A Logger object.
      */
     @XmlTransient
     protected static final Logger LOG = LoggerFactory.getLogger(ContainerEnvironment.class);
 
-    /**
-     * Gets the value of the host_Url property.
-     *
-     * @return possible object is {@link String }
-     *
-     */
-    public String getHost_Url() {
-        return host_Url;
+    @XmlTransient
+    protected String host_IP;
+
+    public String getHost_IP() {
+        return host_IP;
     }
 
-    /**
-     * Sets the value of the host_Url property.
-     *
-     * @param value allowed object is {@link String }
-     *
-     */
-    public void setHost_Url(String value) {
-        this.host_Url = value;
+    public void setHost_IP(String host_IP) {
+        this.host_IP = host_IP;
+    }
+
+    public String getHostName() {
+        return hostName;
+    }
+
+    public void setHostName(String hostName) {
+        this.hostName = hostName;
     }
 
     /**

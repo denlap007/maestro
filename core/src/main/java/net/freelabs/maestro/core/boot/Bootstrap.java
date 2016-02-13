@@ -271,7 +271,6 @@ public final class Bootstrap {
         masterThread.start();
         // wait for initialization
         LOG.info("WAITING FOR MASTER INITIALIZATION");
-        master.waitMasterInit();
         // check initialization
         if (!master.isMasterInitialized()) {
             exitProgram();

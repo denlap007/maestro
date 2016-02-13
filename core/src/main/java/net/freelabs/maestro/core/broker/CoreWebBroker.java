@@ -92,7 +92,7 @@ public class CoreWebBroker extends CoreBroker {
 
     @Override
     protected void setIP(String IP) {
-        webCon.getEnvironment().setHost_Ip(IP);
+        webCon.getEnvironment().setHost_IP(IP);
     }
 
 }

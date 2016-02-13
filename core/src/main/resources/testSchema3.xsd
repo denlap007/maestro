@@ -44,11 +44,17 @@
         </xs:sequence>
     </xs:complexType>
 
+    <xs:complexType name="tasks">
+        <xs:sequence>
+            <xs:element name="substEnv" type="xs:anyURI" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
 
     <!-- CONTAINER -->
     <xs:complexType name="containerEnvironment" abstract="true">
         <xs:sequence>
-            <xs:element name="host_url" type="xs:anyURI"/>
+            <xs:element name="hostName" type="xs:token" minOccurs="0"/>
         </xs:sequence>
     </xs:complexType>
     
@@ -59,6 +65,7 @@
             <xs:element name="connectWith" type="stringList"/>
             <xs:element name="dockerImage" type="xs:string"/>
             <xs:element name="run" type="resources"/>
+            <xs:element name="tasks" type="tasks" minOccurs="0"/>
         </xs:sequence>
     </xs:complexType>
 

@@ -92,7 +92,7 @@ public class CoreBusinessBroker extends CoreBroker {
 
     @Override
     protected void setIP(String IP) {
-        businessCon.getEnvironment().setHost_Ip(IP);
+        businessCon.getEnvironment().setHost_IP(IP);
     }
 
 }
