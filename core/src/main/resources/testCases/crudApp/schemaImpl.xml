@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<webApp>
+    <containers>
+        <webContainer>
+            <name>web</name>
+            <connectWith>business</connectWith>
+            <dockerImage>dio/nginx_jre:v1</dockerImage>
+            <run>
+                <preMain>cp /broker/testCases/crudApp/webTier/nginx.conf /etc/nginx/nginx.conf</preMain>
+                <main>nginx -g "daemon off;"</main>
+            </run>
+            <tasks>
+                <substEnv>/broker/testCases/crudApp/webTier/nginx.conf</substEnv>
+            </tasks>
+            <environment>
+                <host_port>80</host_port>
+            </environment>
+        </webContainer>
+        <businessContainer>
+            <name>business</name>
+            <connectWith>data</connectWith> 
+            <dockerImage>glassfish</dockerImage>
+            <run>
+                <main>/broker/testCases/crudApp/BusinessTier/business-entrypoint.sh</main>
+                <postMain>asadmin add-resources /broker/testCases/crudApp/BusinessTier/glassfish-resources.xml</postMain>
+                <postMain>asadmin deploy /broker/testCases/crudApp/BusinessTier/ConsultingAgency.war</postMain>
+            </run>
+            <tasks>
+                <substEnv>/broker/testCases/crudApp/BusinessTier/glassfish-resources.xml</substEnv>
+            </tasks>
+            <environment>
+                <host_port>8080</host_port>
+                <app_name>ConsultingAgency</app_name>
+            </environment>
+        </businessContainer>
+        <dataContainer>
+            <name>data</name>
+            <connectWith/>
+            <dockerImage>dio/mysql_jre:v2</dockerImage>
+            <run>
+                <main>/broker/testCases/crudApp/dataTier/data-entrypoint.sh mysqld</main>
+            </run>
+            <environment>
+                <db_port>3306</db_port>
+                <db_user>root</db_user>
+                <db_pass>root</db_pass>
+                <db_name>consult</db_name>
+                <db_driver/>
+            </environment>
+        </dataContainer>
+    </containers>
+    <webAppName>WebApp</webAppName>
+</webApp>

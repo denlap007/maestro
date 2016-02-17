@@ -63,22 +63,41 @@
             <dependency>
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
-                <version>3.8.1</version>
+                <version>4.12</version>
                 <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
     
+    
     <build>
         <plugins>
+            <!-- SKIP TESTS  -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.19</version>
                 <configuration>
                     <skipTests>${skipTests}</skipTests>
+                    <parallel>methods</parallel>
+                    <threadCount>10</threadCount>
                 </configuration>
             </plugin>
+            
+            <!-- custom settings for compilation 
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.3</version>
+                <configuration>
+                    <compilerArgs>
+                        <arg>-verbose</arg>
+                        <arg>-Xlint:all,-options,-path</arg>
+                    </compilerArgs>
+                    <showDeprecation>true</showDeprecation>
+                </configuration>
+            </plugin>
+            --> 
         </plugins>
     </build>
     
@@ -86,7 +105,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <skipTests>true</skipTests>
+        <skipTests>false</skipTests>
     </properties>
     
     <modules>

@@ -25,7 +25,11 @@ import java.util.concurrent.TimeUnit;
  * {@link ProcessHandler ProcessHandler}.
  */
 public class DefaultProcessHandler extends ProcessHandler {
-
+    /**
+     * Constructor.
+     * @param pData the object holding all the required data for the new
+     * process.
+     */
     public DefaultProcessHandler(ProcessData pData) {
         super(pData);
     }

@@ -62,7 +62,7 @@ public final class Bootstrap {
      */
     private static final Logger LOG = LoggerFactory.getLogger(Bootstrap.class);
     /**
-     * A list with all thread created from bootstrap process, used for clean
+     * A list with all threads created from bootstrap process, used for clean
      * shutdown.
      */
     private final List<Thread> threadList = new ArrayList<>();
@@ -318,7 +318,7 @@ public final class Bootstrap {
     }
 
     /**
-     * Terminates the program due to some error with a custom error msg.
+     * Terminates the program due to some.
      */
     private void exitProgram() {
         LOG.error("The program will exit!");

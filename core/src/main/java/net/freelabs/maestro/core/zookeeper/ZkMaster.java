@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
-import java.util.logging.Level;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
 import org.apache.zookeeper.AsyncCallback.StatCallback;
 import org.apache.zookeeper.CreateMode;
