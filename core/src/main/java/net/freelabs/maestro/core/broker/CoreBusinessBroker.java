@@ -17,10 +17,12 @@
 package net.freelabs.maestro.core.broker;
 
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.NotFoundException;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.model.AccessMode;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Volume;
+import com.github.dockerjava.core.command.PullImageResultCallback;
 import static net.freelabs.maestro.core.broker.CoreBroker.LOG;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
@@ -30,47 +32,97 @@ import net.freelabs.maestro.core.zookeeper.ZkConfig;
  * Business container type.
  */
 public class CoreBusinessBroker extends CoreBroker {
-
+    /**
+     * The container description.
+     */
     private final BusinessContainer businessCon;
-
+    /**
+     * Max attempts to pull an image from docker hub.
+     */
+    private static final int PULL_ATTEMPTS = 2;
+    /**
+     * The arguments used with the boot command to boot the container.
+     */
+    private String bootArgs;
+    /**
+     * The command that boots the container.
+     */
+    private String bootCmd;
+    
+    /**
+     * Constructor.
+     *
+     * @param zkConf the zookeeper configuration.
+     * @param con the container object.
+     * @param dockerClient an instance of a docker client.
+     */
     public CoreBusinessBroker(ZkConfig zkConf, BusinessContainer con, DockerClient dockerClient) {
         super(zkConf, con, dockerClient);
         businessCon = con;
     }
-    
-    private String bootCmdArgs;
 
+    
     @Override
     public String bootContainer() {
-        // boot configuration
-        String containerName = businessCon.getName();
         Volume volume1 = new Volume("/broker");
-        // get the container description
-        String conEnv = getBootEnv();
+        // get boot environment configuration
+        String conEnv = createBootEnv();
 
         // set environment configuration
-        String runBrokerCmd = "java -jar /broker/broker.jar " + bootCmdArgs;
+        bootCmd = "java -jar /broker/broker.jar " + bootArgs;
 
         // set container configuration
-        CreateContainerResponse container = dockerClient.createContainerCmd(businessCon.getDockerImage())
-                .withVolumes(volume1)
-                .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
-                .withCmd(runBrokerCmd.split(" "))
-                .withName(containerName)
-                .withNetworkMode("bridge")
-                .withEnv(conEnv.split(","))
-                .withPrivileged(true)
-                .exec();
+        boolean success = false;
+        CreateContainerResponse container = null;
+        while (!success) {
+            try {
+                container = dockerClient.createContainerCmd(businessCon.getDockerImage())
+                        .withVolumes(volume1)
+                        .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
+                        .withCmd(bootCmd.split(" "))
+                        .withName(businessCon.getName())
+                        .withNetworkMode("bridge")
+                        .withEnv(conEnv.split(","))
+                        .withPrivileged(true)
+                        .exec();
+                success = true;
+            } catch (NotFoundException e) {
+                LOG.warn("Image \'{}\' does not exist locally. Pulling from docker hub.", businessCon.getDockerImage());
+                // pull image from docker hub
+                boolean runSuccess = runAndRetry(() -> {
+                    dockerClient.pullImageCmd(businessCon.getDockerImage())
+                            .exec(new PullImageResultCallback())
+                            .awaitSuccess();
+                }, PULL_ATTEMPTS);
+                // check if code executed successfully
+                if (runSuccess) {
+                    LOG.info("Image pulled successfully.");
+                } else {
+                    LOG.error("FAILED to pull image");
+                    break;
+                }
+            }
+        }
 
-        // START CONTAINER
-        LOG.info("STARTING CONTAINER: " + containerName);
-        dockerClient.startContainerCmd(container.getId()).exec();
-
-        return container.getId();
+        if (success) {
+            // START CONTAINER
+            LOG.info("STARTING CONTAINER: " + businessCon.getName());
+            if (container != null) {
+                String id = container.getId();
+                boolean runSuccess = runAndRetry(() -> {
+                    dockerClient.startContainerCmd(id).exec();
+                }, 3);
+                // check if code executed successfully
+                if (runSuccess) {
+                    return container.getId();
+                }
+            }
+        }
+        return null;
     }
 
     @Override
-    protected String getBootEnv() {
+    protected String createBootEnv() {
         // set boot environment configuration
         String ZK_HOSTS = zkConf.getHosts();
         String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSESSION_TIMEOUT());
@@ -84,7 +136,7 @@ public class CoreBusinessBroker extends CoreBroker {
                 + "CONF_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
                 ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
         // set the arguments for the container boot command
-        bootCmdArgs = String.format("%s %s %s %s %s %s", ZK_HOSTS, ZK_SESSION_TIMEOUT,
+        bootArgs = String.format("%s %s %s %s %s %s", ZK_HOSTS, ZK_SESSION_TIMEOUT,
                 ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
 
         return env;

@@ -77,6 +77,11 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      * that need to occur before it releases all	waiting threads.
      */
     private final CountDownLatch shutdownSignal = new CountDownLatch(1);
+    /**
+     * Number of times to try and execute code passed to  {@link 
+     * #runAndRetry(net.freelabs.maestro.core.broker.CoreBroker.RunCmd, int) runAndRetry}.
+     */
+    private static final int RETRY_ATTEMPTS = 3;
 
     /**
      * Constructor
@@ -99,10 +104,10 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
         // connect to a zookeeper server and create a sesssion
         boolean connected = connectToZk();
         // check for connection errors
-        if (connected){
+        if (connected) {
             // run Broker 
             runBroker();
-        }else{
+        } else {
             LOG.error("Broker did NOT START!.");
         }
     }
@@ -130,24 +135,30 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
         setShutDownWatch();
         // boot the container
         CID = bootContainer();
-        // get container IP
-        String IP = getContainerIP(CID);
-        // update container ip
-        setIP(IP);
+        // check for errors
+        if (CID != null) {
+            // get container IP
+            String IP = getContainerIP(CID);
+            // update container ip
+            setIP(IP);
 
-        try {
-            // update zNode configuration
-            zNode.setData(JsonSerializer.serialize(con));
-            // log the event
-            LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), "IP", IP);
-        } catch (JsonProcessingException ex) {
-            LOG.error("FAILED to update container IP. ", ex);
+            try {
+                // update zNode configuration
+                zNode.setData(JsonSerializer.serialize(con));
+                // log the event
+                LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), "IP", IP);
+            } catch (JsonProcessingException ex) {
+                LOG.error("FAILED to update container IP. ", ex);
+            }
+
+            // create zk configuration node
+            createNode(zNode.getConfNodePath(), zNode.getData());
+            // Sets the thread to wait until it's time to shutdown
+            waitForShutdown();
+        } else {
+            LOG.error("Could NOT start container. Shutting down Broker.");
+            shutdown();
         }
-
-        // create zk configuration node
-        createNode(zNode.getConfNodePath(), zNode.getData());
-        // Sets the thread to wait until it's time to shutdown
-        waitForShutdown();
     }
 
     /**
@@ -163,12 +174,12 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      * Generates the container boot environment.
      * <p>
      * The container boot environment is all the necessary configuration for the
-     * environment of the container in order to boot and initialize.
+     * environment of the container in order to boot.
      *
      * @return a String with key/value pairs in the form key1=value1,
      * key2=value2 e.t.c. representing the container description.
      */
-    protected abstract String getBootEnv();
+    protected abstract String createBootEnv();
 
     /**
      * Sets the IP of the container.
@@ -321,6 +332,44 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
     private void shutdownContainer(String CID) {
         LOG.info("Initiating Container shutdown.");
         dockerClient.removeContainerCmd(CID).exec();
+    }
+
+    
+    /**
+     * Interface to be used as a container for code which will be passed for 
+     * execution.
+     */
+    @FunctionalInterface
+    protected interface RunCmd {
+        /**
+         * Runs any action.
+         * @throws Exception 
+         */
+        public void run() throws Exception;
+    }
+
+    /**
+     * Runs the specified code and retries in case of exception.
+     *
+     * @param cmd the code to run passed as a lambda.
+     * @param maxAttempts maximum number of attempts to run the code in case an
+     * exception is thrown.
+     * @return true if execution succeeded.
+     */
+    protected boolean runAndRetry(RunCmd cmd, int maxAttempts) {
+        boolean success = false;
+
+        while (maxAttempts > 0) {
+            try {
+                cmd.run();
+                success = true;
+                break;
+            } catch (Exception ex) {
+                LOG.warn("{}. Retrying.", ex.getMessage());
+            }
+            maxAttempts--;
+        }
+        return success;
     }
 
 }
