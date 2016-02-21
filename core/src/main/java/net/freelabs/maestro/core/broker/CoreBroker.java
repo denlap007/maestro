@@ -343,7 +343,7 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
     protected interface RunCmd {
         /**
          * Runs any action.
-         * @throws Exception 
+         * @throws Exception in any case of Exception.
          */
         public void run() throws Exception;
     }
