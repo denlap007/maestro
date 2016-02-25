@@ -18,6 +18,7 @@ package net.freelabs.maestro.broker.process;
 
 import java.util.ArrayList;
 import java.util.List;
+import net.freelabs.maestro.core.generated.RunElem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +54,7 @@ public final class ResourceHandler {
      * @param postMain
      * @param main
      */
-    public ResourceHandler(List<String> preMain, List<String> postMain, String main) {
+    public ResourceHandler(List<RunElem> preMain, List<RunElem> postMain, String main) {
         initResources(preMain, postMain, main);
     }
 
@@ -61,19 +62,20 @@ public final class ResourceHandler {
      * Initializes the {@link #preMainRes preMainRes} list, {@link #postMainRes
      * postMainRes} list and {@link #mainRes mainRes}.
      */
-    private void initResources(List<String> preMain, List<String> postMain, String main) {
+    private void initResources(List<RunElem> preMain, List<RunElem> postMain, String main) {
         // create preMain resource list
-        preMain.stream().forEach((str) -> {
-            Resource res = new Resource(str);
+        preMain.stream().forEach((elem) -> {
+
+            Resource res = new Resource(elem.getValue(), elem.isWait(), elem.isAbortOnFail());
             preMainRes.add(res);
         });
         // create postMain resource list
-        postMain.stream().forEach((str) -> {
-            Resource res = new Resource(str);
+        postMain.stream().forEach((elem) -> {
+            Resource res = new Resource(elem.getValue(), elem.isWait(), elem.isAbortOnFail());
             postMainRes.add(res);
         });
         // create main resource
-        mainRes = new Resource(main);
+        mainRes = new Resource(main, true, true);
     }
 
     /**

@@ -96,6 +96,7 @@ public class DefaultProcessHandler extends ProcessHandler {
 
     @Override
     public void stop() {
+        LOG.warn("STOPPING main process.");
         _proc.destroyForcibly();
     }
 

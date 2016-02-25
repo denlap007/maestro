@@ -61,14 +61,21 @@ public final class ProcessManager {
     public void startProcesses() {
         if (isProcMngrInitialized()) {
             boolean preMainSuccess = true;
+            boolean postMainSuccess = true;
 
             // execute pre-main processes, if any
             if (!preMainProcHandlers.isEmpty()) {
                 for (ProcessHandler procHandler : preMainProcHandlers) {
+                    // execute process and get success value
                     preMainSuccess = procHandler.execute();
-                    // if there was error exit
-                    if (!preMainSuccess) {
+                    // get user requirement in case of failure
+                    boolean abortOnFail = procHandler.pData.getRes().isAbortOnFail();
+                    // if there was an error and user concurs exit
+                    if (!preMainSuccess && abortOnFail) {
                         break;
+                    } else {
+                        // correct flag if error is ignored to execute main proc
+                        preMainSuccess = true;
                     }
                 }
             }
@@ -82,9 +89,25 @@ public final class ProcessManager {
                 if (mainSuccess) {
                     // execute post-main processes, if any
                     if (!postMainProcHandlers.isEmpty()) {
-                        postMainProcHandlers.stream().forEach((procHandler) -> {
-                            procHandler.execute();
-                        });
+                        for (ProcessHandler procHandler : postMainProcHandlers) {
+                            // execute process and get success value
+                            postMainSuccess = procHandler.execute();
+                            // get user requirement in case of failure
+                            boolean abortOnFail = procHandler.pData.getRes().isAbortOnFail();
+                            // if there was an error and user concurs exit
+                            if (!postMainSuccess && abortOnFail) {
+                                break;
+                            } else {
+                                // correct flag if error is ignored
+                                postMainSuccess = true;
+                            }
+                        }
+                        // check for errors on postMain proc execution to abort
+                        if (!postMainSuccess) {
+                            LOG.error("Post-main process execution FAILED.");
+                            mainProcHandler.stop();
+                        }
+
                     }
                 }
             } else {

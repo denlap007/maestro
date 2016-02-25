@@ -741,7 +741,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         // create the process manager that will start processes
         procMngr = new ProcessManager();
         // create the resource handler to manipulate resources
-        Resources res = container.getRun();
+        Resources res = container.getStart();
         ResourceHandler rh = new ResourceHandler(res.getPreMain(), res.getPostMain(), res.getMain());
         // create the environment shared with main and other processes
         Map<String, String> env = createEnvForMainProc();
@@ -971,11 +971,11 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
      *
      * @param updateInterface the update action.
      */
-    private void updateZkSrvStatus(Updatable updateInterface) {
+    private void updateZkSrvStatus(Updatable updatableObj) {
         // get the service path
         String servicePath = ns.resolveSrvName(containerName);
         // update status
-        updateInterface.updateStatus();
+        updatableObj.updateStatus();
         LOG.info("Updating service status to {}: {}", conZkSrvNode.getStatus(), servicePath);
         // serialize data
         byte[] updatedData = ns.serializeZkSrvNode(servicePath, conZkSrvNode);
