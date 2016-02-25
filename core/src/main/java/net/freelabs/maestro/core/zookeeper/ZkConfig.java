@@ -41,7 +41,7 @@ public final class ZkConfig {
     /**
      * The zookeeper root for the namespace.
      */
-    private final String ZK_ROOT;
+    private String ZK_ROOT;
 
     /**
      * A list with the zookeeper container type nodes.
@@ -172,6 +172,14 @@ public final class ZkConfig {
      */
     public String getZK_ROOT() {
         return ZK_ROOT;
+    }
+
+    /**
+     *
+     * @param ZK_ROOT
+     */
+    public void setZK_ROOT(String ZK_ROOT) {
+        this.ZK_ROOT = ZK_ROOT;
     }
 
     /**

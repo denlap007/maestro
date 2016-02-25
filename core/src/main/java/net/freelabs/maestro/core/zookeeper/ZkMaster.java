@@ -28,6 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
 import org.apache.zookeeper.AsyncCallback.StatCallback;
 import org.apache.zookeeper.CreateMode;
+import static org.apache.zookeeper.CreateMode.PERSISTENT;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.Code;
 import org.apache.zookeeper.KeeperException.ConnectionLossException;
@@ -94,6 +95,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     public ZkMaster(ZkConfig zkConf) {
         // initialize super class
         super(zkConf.getHosts(), zkConf.getSESSION_TIMEOUT());
+        // initialize sub-class
         this.zkConf = zkConf;
         this.ns = new ZkNamingService(zkConf.getNamingServicePath());
         shutDownNode = zkConf.getShutDownPath();
@@ -162,18 +164,20 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     public void createZkNamespace() {
         // create zk root node
         LOG.info("Creating App root zNode.");
-        createNode(zkConf.getZK_ROOT(), MASTER_ID.getBytes());
+        String zkRootPath = createNode(zkConf.getZK_ROOT(), MASTER_ID.getBytes(), PERSISTENT);
+        // update the App zk root path because it is a sequential node
+        //zkConf.setZK_ROOT(zkRootPath);
         if (!masterInitError) {
             // create zk configuration node
             LOG.info("Creating container conf zNode.");
-            createNode(zkConf.getUserConfPath(), MASTER_ID.getBytes());
+            createNode(zkConf.getUserConfPath(), MASTER_ID.getBytes(), PERSISTENT);
             // craete zk naming service node
             LOG.info("Creating services zNode.");
-            createNode(zkConf.getNamingServicePath(), MASTER_ID.getBytes());
+            createNode(zkConf.getNamingServicePath(), MASTER_ID.getBytes(), PERSISTENT);
             // create zk container type nodes
             LOG.info("Creating container type zNodes.");
             zkConf.getZkContainerTypes().stream().forEach((node) -> {
-                createNode(node.getPath(), node.getData());
+                createNode(node.getPath(), node.getData(), PERSISTENT);
             });
         }
     }
@@ -184,10 +188,11 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * @param zkPath the path of the zNode.
      * @param data the data of the zNode.
      */
-    private void createNode(String zkPath, byte[] data) {
+    private String createNode(String zkPath, byte[] data, CreateMode mode) {
+        String nodePath = null;
         while (!masterInitError) {
             try {
-                zk.create(zkPath, data, OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+                nodePath = zk.create(zkPath, data, OPEN_ACL_UNSAFE, mode);
                 LOG.info("Created zNode: " + zkPath);
                 break;
             } catch (NodeExistsException e) {
@@ -213,6 +218,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 break;
             }
         }
+        return nodePath;
     }
 
     /**
@@ -610,7 +616,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * <p>
      * Method blocks.
      */
-    public void waitMasterInit() {
+    private void waitMasterInit() {
         try {
             masterInitSignal.await();
         } catch (InterruptedException ex) {
@@ -619,6 +625,10 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
             // set interupt flag
             Thread.currentThread().interrupt();
         }
+    }
+    
+    public void createShutdownNode(){
+        
     }
 
     public void display() {

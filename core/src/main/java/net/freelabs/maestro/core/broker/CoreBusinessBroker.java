@@ -16,6 +16,7 @@
  */
 package net.freelabs.maestro.core.broker;
 
+import com.github.dockerjava.api.ConflictException;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.NotFoundException;
 import com.github.dockerjava.api.command.CreateContainerResponse;
@@ -32,6 +33,7 @@ import net.freelabs.maestro.core.zookeeper.ZkConfig;
  * Business container type.
  */
 public class CoreBusinessBroker extends CoreBroker {
+
     /**
      * The container description.
      */
@@ -48,7 +50,7 @@ public class CoreBusinessBroker extends CoreBroker {
      * The command that boots the container.
      */
     private String bootCmd;
-    
+
     /**
      * Constructor.
      *
@@ -61,20 +63,17 @@ public class CoreBusinessBroker extends CoreBroker {
         businessCon = con;
     }
 
-    
     @Override
-    public String bootContainer() {
+    protected CreateContainerResponse createContainer() {
         Volume volume1 = new Volume("/broker");
-        // get boot environment configuration
+        // get boot arguments
         String conEnv = createBootEnv();
-
-        // set environment configuration
+        // create the boot command
         bootCmd = "java -jar /broker/broker.jar " + bootArgs;
 
         // set container configuration
-        boolean success = false;
         CreateContainerResponse container = null;
-        while (!success) {
+        while (container == null) {
             try {
                 container = dockerClient.createContainerCmd(businessCon.getDockerImage())
                         .withVolumes(volume1)
@@ -85,8 +84,8 @@ public class CoreBusinessBroker extends CoreBroker {
                         .withEnv(conEnv.split(","))
                         .withPrivileged(true)
                         .exec();
-                success = true;
-            } catch (NotFoundException e) {
+            } catch (NotFoundException ex) {
+                // image not found locally
                 LOG.warn("Image \'{}\' does not exist locally. Pulling from docker hub.", businessCon.getDockerImage());
                 // pull image from docker hub
                 boolean runSuccess = runAndRetry(() -> {
@@ -96,26 +95,34 @@ public class CoreBusinessBroker extends CoreBroker {
                 }, PULL_ATTEMPTS);
                 // check if code executed successfully
                 if (runSuccess) {
-                    LOG.info("Image pulled successfully.");
+                    LOG.info("Image \'{}\' pulled successfully.", businessCon.getDockerImage());
                 } else {
                     LOG.error("FAILED to pull image");
                     break;
                 }
+            } catch (ConflictException ex) {
+                // container with this name already exists
+                LOG.error("Something went wrong {}", ex.getMessage());
+                break;
             }
         }
+        return container;
+    }
 
-        if (success) {
+    @Override
+    public String bootContainer() {
+        CreateContainerResponse container = createContainer();
+
+        if (container != null) {
             // START CONTAINER
             LOG.info("STARTING CONTAINER: " + businessCon.getName());
-            if (container != null) {
-                String id = container.getId();
-                boolean runSuccess = runAndRetry(() -> {
-                    dockerClient.startContainerCmd(id).exec();
-                }, 3);
-                // check if code executed successfully
-                if (runSuccess) {
-                    return container.getId();
-                }
+            String id = container.getId();
+            boolean runSuccess = runAndRetry(() -> {
+                dockerClient.startContainerCmd(id).exec();
+            }, 3);
+            // check if code executed successfully
+            if (runSuccess) {
+                return container.getId();
             }
         }
         return null;

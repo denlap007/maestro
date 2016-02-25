@@ -18,6 +18,7 @@ package net.freelabs.maestro.core.broker;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import java.io.IOException;
 import java.util.Arrays;
@@ -180,6 +181,12 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      * key2=value2 e.t.c. representing the container description.
      */
     protected abstract String createBootEnv();
+    
+    /**
+     * Creates a container based on the docker settings specified.
+     * @return an instance of response to the create command.
+     */
+    protected abstract CreateContainerResponse createContainer();
 
     /**
      * Sets the IP of the container.
