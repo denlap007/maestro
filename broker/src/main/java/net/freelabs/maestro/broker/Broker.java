@@ -16,6 +16,7 @@
  */
 package net.freelabs.maestro.broker;
 
+import net.freelabs.maestro.broker.process.EnvironmentHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.File;
 import java.io.IOException;
@@ -129,7 +130,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
      */
     private EnvironmentHandler envHandler;
     /**
-     *
+     * Blocks/Un-blocks execution for shutdown.
      */
     public static final ShutdownNotifier SHUTDOWN = new ShutdownNotifier();
 

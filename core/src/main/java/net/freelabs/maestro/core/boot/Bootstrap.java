@@ -24,6 +24,7 @@ import net.freelabs.maestro.core.broker.CoreBroker;
 import net.freelabs.maestro.core.broker.CoreBusinessBroker;
 import net.freelabs.maestro.core.broker.CoreDataBroker;
 import net.freelabs.maestro.core.broker.CoreWebBroker;
+import net.freelabs.maestro.core.broker.DependencyAnalyzer;
 import net.freelabs.maestro.core.cl.CommandLineOptions;
 import net.freelabs.maestro.core.xml.XmlProcessor;
 import net.freelabs.maestro.core.docker.DockerInitializer;
@@ -77,6 +78,8 @@ public final class Bootstrap {
             String webAppName = webApp.getWebAppName();
             // create a handler to query for container information
             ContainerHandler handler = createConHandler(webApp);
+            // analyze schema to detect possible circular dependencies
+            analyzeDependencies(handler);
             // create zk configuration
             ZkConfig zkConf = createZkConf(progConf.getZkHosts(), progConf.getZkSessionTimeout(), handler, webAppName);
             // initialize zk and start master process
@@ -108,6 +111,25 @@ public final class Bootstrap {
                 LOG.warn("Thread interrupted. Stopping.");
             }
         });
+    }
+    /**
+     * Analyzes the declared container dependencies and searches for circular
+     * dependencies.
+     * @param handler object to query for containers.
+     */
+    private void analyzeDependencies(ContainerHandler handler){
+        LOG.info("Analyzing dependencies.");
+        // get the list of containers
+        List<Container> containers = handler.listContainers();
+        // create and initialize an analyzer
+        DependencyAnalyzer analyzer = new DependencyAnalyzer(containers);
+        // search for circular dependencies
+        boolean found =  analyzer.detectCircular();
+        
+        if (found){
+            LOG.error("CIRCULAR DEPENDENCY found on application description.");
+            exitProgram();
+        }
     }
 
     /**
