@@ -21,12 +21,14 @@ import java.util.concurrent.TimeUnit;
 
 /**
  *
- * Class that provides a default implementation for a 
+ * Class that provides a default implementation for a
  * {@link ProcessHandler ProcessHandler}.
  */
 public class DefaultProcessHandler extends ProcessHandler {
+
     /**
      * Constructor.
+     *
      * @param pData the object holding all the required data for the new
      * process.
      */
@@ -45,7 +47,7 @@ public class DefaultProcessHandler extends ProcessHandler {
      * Time to wait for execution to complete before aborting process measured
      * in {@link #TIME_UNIT TIME_UNITs}.
      */
-    private static final long EXEC_TIMEOUT = 1;
+    private static final long EXEC_TIMEOUT = 2;
     /**
      * The unit of time that applies to {@link #EXEC_TIMEOUT EXEC_TIMEOUT}.
      */
@@ -77,12 +79,12 @@ public class DefaultProcessHandler extends ProcessHandler {
             _proc = pb.start();
             // log the event
             LOG.info("Started process: {}", pData.getResDescription());
-            // wait for execution to complete, and set 
+            // wait for execution to complete 
             exited = _proc.waitFor(EXEC_TIMEOUT, MINUTES);
             // get the exit code
             int errCode = _proc.exitValue();
             // if exited before timeout and exit code is 0, proc exec successful
-            if (errCode == 0 && exited == true){
+            if (errCode == 0 && exited == true) {
                 succeeded = true;
             }
         } catch (IOException ex) {
@@ -96,7 +98,7 @@ public class DefaultProcessHandler extends ProcessHandler {
 
     @Override
     public void stop() {
-        LOG.warn("STOPPING main process.");
+        LOG.warn("STOPPING process.");
         _proc.destroyForcibly();
     }
 

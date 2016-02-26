@@ -66,16 +66,16 @@ public final class ResourceHandler {
         // create preMain resource list
         preMain.stream().forEach((elem) -> {
 
-            Resource res = new Resource(elem.getValue(), elem.isWait(), elem.isAbortOnFail());
+            Resource res = new Resource(elem.getValue(), elem.isAbortOnFail());
             preMainRes.add(res);
         });
         // create postMain resource list
         postMain.stream().forEach((elem) -> {
-            Resource res = new Resource(elem.getValue(), elem.isWait(), elem.isAbortOnFail());
+            Resource res = new Resource(elem.getValue(), elem.isAbortOnFail());
             postMainRes.add(res);
         });
         // create main resource
-        mainRes = new Resource(main, true, true);
+        mainRes = new Resource(main, true);
     }
 
     /**

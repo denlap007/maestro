@@ -33,10 +33,6 @@ public final class Resource {
      */
     private String res;
     /**
-     * Wait for the resource to finish execution.
-     */
-    private final boolean wait;
-    /**
      * Abort all descending processes execution if resource execution fails.
      */
     private final boolean abortOnFail;
@@ -45,13 +41,11 @@ public final class Resource {
      * Constructor.
      *
      * @param res the resource.
-     * @param wait wait for the resource to finish execution.
      * @param abortOnFail Abort all descending processes execution if resource
      * execution fails.
      */
-    public Resource(String res, boolean wait, boolean abortOnFail) {
+    public Resource(String res, boolean abortOnFail) {
         this.res = res;
-        this.wait = wait;
         this.abortOnFail = abortOnFail;
     }
 
@@ -111,10 +105,6 @@ public final class Resource {
 
     public void setRes(String res) {
         this.res = res;
-    }
-
-    public boolean isWait() {
-        return wait;
     }
 
     public boolean isAbortOnFail() {

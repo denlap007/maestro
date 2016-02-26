@@ -107,14 +107,12 @@ public final class ProcessManager {
                             LOG.error("Post-main process execution FAILED.");
                             mainProcHandler.stop();
                         }
-
                     }
                 }
             } else {
                 LOG.error("Pre-main process execution FAILED. "
                         + "ABORTING main process execution.");
             }
-
         } else {
             LOG.error("Process Manager CANNOT start: "
                     + "Main Process Handler NOT INITIALIZED properly.");
