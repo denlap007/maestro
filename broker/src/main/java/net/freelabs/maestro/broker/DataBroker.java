@@ -17,8 +17,8 @@
 package net.freelabs.maestro.broker;
 
 import java.io.IOException;
-import java.util.Map;
 import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.generated.ContainerEnvironment;
 import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import org.slf4j.Logger;
@@ -30,7 +30,7 @@ import org.slf4j.LoggerFactory;
  */
 public class DataBroker extends Broker {
 
-    private DataContainer dataCon;
+    private DataContainer conObj;
 
     /**
      * A Logger object.
@@ -64,21 +64,19 @@ public class DataBroker extends Broker {
             LOG.error("De-serialization FAILED: " + ex);
         }
         // initialize instance var
-        dataCon = con;
+        conObj = con;
 
         return con;
     }
 
-    
-    
     @Override
-    protected Map<String, String> getConEnv(){
-        return dataCon.getEnvironment().getEnvMap(dataCon.getEnvironment(), "");
+    protected ContainerEnvironment getEnvObj() {
+        return conObj.getEnvironment();
     }
 
     @Override
     protected int getHostPort() {
-        return dataCon.getEnvironment().getDb_Port();
+        return conObj.getEnvironment().getDb_Port();
     }
 
 }

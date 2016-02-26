@@ -6,11 +6,6 @@
 //
 package net.freelabs.maestro.core.generated;
 
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlSchemaType;
@@ -19,9 +14,6 @@ import javax.xml.bind.annotation.XmlTransient;
 import javax.xml.bind.annotation.XmlType;
 import javax.xml.bind.annotation.adapters.CollapsedStringAdapter;
 import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
-import net.freelabs.maestro.core.utils.Utils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * <p>
@@ -59,11 +51,6 @@ public abstract class ContainerEnvironment {
     @XmlJavaTypeAdapter(CollapsedStringAdapter.class)
     @XmlSchemaType(name = "token")
     protected String hostName;
-    /**
-     * A Logger object.
-     */
-    @XmlTransient
-    protected static final Logger LOG = LoggerFactory.getLogger(ContainerEnvironment.class);
 
     @XmlTransient
     protected String host_IP;
@@ -84,54 +71,4 @@ public abstract class ContainerEnvironment {
         this.hostName = hostName;
     }
 
-    /**
-     * Returns the environment of a ContainerEnvironment subtype via reflection.
-     *
-     * @param obj an object of a ContainerEnvironment subclass.
-     * @param prefix the prefix to be applied to all keys of the returned map.
-     * Usually, the container name, whose environment is returned, is provided.
-     * @return a map with all the declared fields and values.
-     */
-    public Map<String, String> getEnvMap(ContainerEnvironment obj, String prefix) {
-        // create a map that will hold the extracted environment
-        Map<String, String> env = new HashMap<>();
-        // get the Class object of the running object.
-        Class<? extends ContainerEnvironment> cls = obj.getClass();
-        // get all the declared fields of the Class object and its superclass
-        Collection<Field> fields = new ArrayList<>();
-        fields = Utils.getAllFields(fields, cls);
-
-        for (Field field : fields) {
-            // set field accessible to true in case it cannotbe accesed from this class
-            field.setAccessible(true);
-            // get the name of the field
-            String fieldName = field.getName();
-            // if it's the LOGGER object skip it
-            if (fieldName.equals("LOG")) {
-                continue;
-            }
-            // create the final name for the key, if prefix is empty do not use it
-            String key;
-            if (prefix.isEmpty()) {
-                key = (fieldName).toUpperCase();
-            } else {
-                key = (prefix + "_" + fieldName).toUpperCase();
-            }
-
-            Object fieldValue = null;
-            try {
-                // get the value of the field and convert it to String
-                fieldValue = field.get(obj);
-                if (fieldValue != null) {
-                    String fieldValueStr = String.valueOf(fieldValue);
-                    // put to map
-                    env.put(key, fieldValueStr);
-                    //System.out.println("Field: " + fieldName + ", Value: " + fieldValueStr); // for testing
-                }
-            } catch (IllegalArgumentException | IllegalAccessException ex) {
-                LOG.error("Somethng went wrong: " + ex);
-            }
-        }
-        return env;
-    }
 }

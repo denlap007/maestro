@@ -36,6 +36,7 @@ import net.freelabs.maestro.broker.tasks.Task;
 import net.freelabs.maestro.broker.tasks.TaskExecutor;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.generated.ContainerEnvironment;
 import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.Resources;
 import net.freelabs.maestro.core.generated.Tasks;
@@ -123,6 +124,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
      * Manages process execution.
      */
     private ProcessManager procMngr;
+    /**
+     * Handles the environment creation of container processes.
+     */
+    private EnvironmentHandler envHandler;
     /**
      *
      */
@@ -743,8 +748,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         // create the resource handler to manipulate resources
         Resources res = container.getStart();
         ResourceHandler rh = new ResourceHandler(res.getPreMain(), res.getPostMain(), res.getMain());
-        // create the environment shared with main and other processes
-        Map<String, String> env = createEnvForMainProc();
+        // create the environment for the container processes
+        Map<String, String> env = initProcsEnv();
         // create TaskExecutor to execute defined tasks
         TaskExecutor taskExec = initTaskExecutor(container.getTasks(), env);
         // get handler for the interaction with the main process
@@ -765,6 +770,26 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         procMngr.startProcesses();
     }
 
+    private Map<String, String> initProcsEnv() {
+        // get the environment obj of the container obj associated with Broker
+        ContainerEnvironment conEnv = getEnvObj();
+        // create map of container names and environment objs for dependencies
+        Map<String, ContainerEnvironment> depConEnvMap = new HashMap<>();
+        // get container objs from dependencies
+        srvMngr.getConsOfSrvs().stream().forEach((con) -> {
+            // get container name
+            String name = con.getName();
+            // get the environment obj according to the container type
+            ContainerEnvironment env = getDepEnvObj(con);
+            // add to map
+            depConEnvMap.put(name, env);
+        });
+        // create handler to act on resources
+        envHandler = new EnvironmentHandler(conEnv, depConEnvMap);
+        // create environment for processes
+        return envHandler.createProcsEnv();
+    }
+
     /**
      * <p>
      * Creates and initializes an executor for tasks.
@@ -782,7 +807,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
             List<String> substEnvPaths = tasks.getSubstEnv();
             Task substEnv = new SubstEnv(substEnvPaths, env);
             taskExec = new TaskExecutor(substEnv);
-        }else{
+        } else {
             taskExec = new TaskExecutor();
         }
         return taskExec;
@@ -868,69 +893,23 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
     }
 
     /**
-     * <p>
-     * Creates the environment for the main process that will be shared with
-     * other processes, if any.
-     * <p>
-     * The environment consists of all the environment variables that are
-     * available to the container to run processes.
+     * Returns the object holding the environment of a dependency.
      *
-     * @return a map with all the environment variables needed for the container
-     * processes.
+     * @param con the container object of a dependency.
+     * @return the environment object of the dependency.
      */
-    private Map<String, String> createEnvForMainProc() {
-        // get environment from the container
-        Map<String, String> env = getConEnv();
-        // get environment from dependencies and add to environment
-        env.putAll(getDependenciesEnv());
-        return env;
-    }
+    public ContainerEnvironment getDepEnvObj(Container con) {
+        ContainerEnvironment conEnv = null;
 
-    /**
-     * Extracts the environment from the services-dependencies of the main
-     * container service.
-     *
-     * @return a map with all the environment variables defines in services-
-     * dependencies.
-     */
-    private Map<String, String> getDependenciesEnv() {
-        LOG.info("Extracting environment from dependencies.");
-        // holds the global key-value entries for all container
-        Map<String, String> dependenciesEnv = new HashMap<>();
-        // holds data per repetition
-        Map<String, String> env = new HashMap<>();
-
-        // iterate through the container dependencies
-        for (Container con : srvMngr.getConsOfSrvs()) {
-            if (con instanceof WebContainer) {
-                // cast to instance class
-                WebContainer web = (WebContainer) con;
-                // get the environment
-                env = web.getEnvironment().getEnvMap(web.getEnvironment(), con.getName());
-            } else if (con instanceof BusinessContainer) {
-                // cast to instance class
-                BusinessContainer business = (BusinessContainer) con;
-                // get the environment
-                env = business.getEnvironment().getEnvMap(business.getEnvironment(), con.getName());
-            } else if (con instanceof DataContainer) {
-                // cast to instance class
-                DataContainer data = (DataContainer) con;
-                // get the environment
-                env = data.getEnvironment().getEnvMap(data.getEnvironment(), con.getName());
-            }
-            // print extracted environment
-            LOG.info("Environment of dependency: {}", con.getName());
-            for (Map.Entry<String, String> entry : env.entrySet()) {
-                String key = entry.getKey();
-                String value = entry.getValue();
-                LOG.info("{}={}", key, value);
-            }
-            // add map to dependencies map
-            dependenciesEnv.putAll(env);
-            // remove everything
-            env.clear();
+        if (con instanceof WebContainer) {
+            conEnv = ((WebContainer) con).getEnvironment();
+        } else if (con instanceof BusinessContainer) {
+            conEnv = ((BusinessContainer) con).getEnvironment();
+        } else if (con instanceof DataContainer) {
+            conEnv = ((DataContainer) con).getEnvironment();
         }
-        return dependenciesEnv;
+
+        return conEnv;
     }
 
     /**
@@ -957,7 +936,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
      *
      * @return a map with the container environment.
      */
-    protected abstract Map<String, String> getConEnv();
+    protected abstract ContainerEnvironment getEnvObj();
 
     /**
      *

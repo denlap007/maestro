@@ -6,7 +6,7 @@
             <connectWith>business</connectWith>
             <dockerImage>dio/nginx_jre:v1</dockerImage>
             <start>
-                <preMain wait="true" abortOnFail="true">cp /broker/testCases/crudApp/webTier/nginx.conf /etc/nginx/nginx.conf</preMain>
+                <preMain abortOnFail="true">cp /broker/testCases/crudApp/webTier/nginx.conf /etc/nginx/nginx.conf</preMain>
                 <main>nginx -g "daemon off;"</main>
             </start>
             <tasks>
@@ -18,12 +18,12 @@
         </webContainer>
         <businessContainer>
             <name>business</name>
-            <connectWith>data</connectWith> 
+            <connectWith>data</connectWith>
             <dockerImage>glassfish</dockerImage>
             <start>
                 <main>/broker/testCases/crudApp/BusinessTier/business-entrypoint.sh</main>
-                <postMain wait="true" abortOnFail="true">asadmin add-resources /broker/testCases/crudApp/BusinessTier/glassfish-resources.xml</postMain>
-                <postMain wait="true" abortOnFail="true">asadmin deploy /broker/testCases/crudApp/BusinessTier/ConsultingAgency.war</postMain>
+                <postMain abortOnFail="true">asadmin add-resources /broker/testCases/crudApp/BusinessTier/glassfish-resources.xml</postMain>
+                <postMain abortOnFail="true">asadmin deploy /broker/testCases/crudApp/BusinessTier/ConsultingAgency.war</postMain>
             </start>
             <tasks>
                 <substEnv>/broker/testCases/crudApp/BusinessTier/glassfish-resources.xml</substEnv>
