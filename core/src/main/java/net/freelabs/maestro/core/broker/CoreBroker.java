@@ -79,7 +79,7 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      */
     private final CountDownLatch shutdownSignal = new CountDownLatch(1);
     /**
-     * Number of times to try and execute code passed to  {@link 
+     * Number of times to try and execute code passed to null     {@link 
      * #runAndRetry(net.freelabs.maestro.core.broker.CoreBroker.RunCmd, int) runAndRetry}.
      */
     private static final int RETRY_ATTEMPTS = 3;
@@ -181,9 +181,10 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      * key2=value2 e.t.c. representing the container description.
      */
     protected abstract String createBootEnv();
-    
+
     /**
      * Creates a container based on the docker settings specified.
+     *
      * @return an instance of response to the create command.
      */
     protected abstract CreateContainerResponse createContainer();
@@ -325,8 +326,15 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
 
     public void shutdown() {
         LOG.info("Initiating Core Broker shutdown.");
-        // close session
-        stop();
+        try {
+            // close session
+            stop();
+        } catch (InterruptedException ex) {
+            // log the event
+            LOG.warn("Thread Interruped. Stopping.");
+            // set the interrupt status
+            Thread.currentThread().interrupt();
+        }
         // release latch to finish execution
         shutdownSignal.countDown();
     }
@@ -341,15 +349,16 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
         dockerClient.removeContainerCmd(CID).exec();
     }
 
-    
     /**
-     * Interface to be used as a container for code which will be passed for 
+     * Interface to be used as a container for code which will be passed for
      * execution.
      */
     @FunctionalInterface
     protected interface RunCmd {
+
         /**
          * Runs any action.
+         *
          * @throws Exception in any case of Exception.
          */
         public void run() throws Exception;

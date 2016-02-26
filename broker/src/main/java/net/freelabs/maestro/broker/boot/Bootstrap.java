@@ -16,7 +16,6 @@
  */
 package net.freelabs.maestro.broker.boot;
 
-import java.io.IOException;
 import net.freelabs.maestro.broker.Broker;
 import net.freelabs.maestro.broker.BusinessBroker;
 import net.freelabs.maestro.broker.DataBroker;
@@ -86,21 +85,10 @@ public class Bootstrap {
         }
 
         if (broker != null) {
-            try {
-                // connect to zookeeper
-                broker.connect();
-                // create a new thread and start broker
-                Thread thread = new Thread(broker, brokerThreadName);
-                // start the thread
-                thread.start();
-            } catch (InterruptedException ex) {
-                // log the event
-                LOG.warn("Interruption attemplted: {}", ex.getCause().getMessage());
-                // set interrupted flag
-                Thread.currentThread().interrupt();
-            } catch (IOException ex) {
-                LOG.error("FAILED to start broker: " + ex);
-            }
+            // set name to thread
+            Thread.currentThread().setName(brokerThreadName);
+            // start broker
+            broker.bootstrap();
         } else {
             LOG.error("FAILED to initialize broker!");
         }

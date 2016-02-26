@@ -64,7 +64,7 @@ import org.slf4j.MDC;
 /**
  * Class that defines a Broker client to the zookeeper configuration store.
  */
-public abstract class Broker extends ZkConnectionWatcher implements Runnable, Shutdown {
+public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
 
     /**
      * The path of the Container to the zookeeper namespace.
@@ -160,11 +160,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
         MDC.put("id", containerName);
     }
 
-    @Override
-    public void run() {
-        bootstrap();
-    }
-
     /*
      * *************************************************************************
      * BOOTSTRAPPING
@@ -174,14 +169,41 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
      * Bootstraps the broker.
      */
     public void bootstrap() {
-        // set watch for shutdown zNode
-        setShutDownWatch();
-        // create container zNode
-        createZkNodeEphemeral(zkContainerPath, BROKER_ID.getBytes());
-        // set watch for the container description
-        waitForConDescription();
-        // wait for shutdown
-        waitForShutdown(SHUTDOWN);
+        // connect to zookeeper
+        boolean connected = connectToZk();
+        // if succeeded
+        if (connected) {
+            // set watch for shutdown zNode
+            setShutDownWatch();
+            // create container zNode
+            createZkNodeEphemeral(zkContainerPath, BROKER_ID.getBytes());
+            // set watch for the container description
+            waitForConDescription();
+            // wait for shutdown
+            waitForShutdown(SHUTDOWN);
+        }else{
+             LOG.error("FAILED to start broker. Terminating.");
+        }
+    }
+
+    /**
+     * Establishes a connection with a zookeeper server and creates a new
+     * session.
+     *
+     * @return true if connected successfully.
+     */
+    private boolean connectToZk() {
+        boolean connected = false;
+        try {
+            connect();
+            connected = true;
+        } catch (IOException ex) {
+            LOG.error("Something went wrong: " + ex);
+        } catch (InterruptedException ex) {
+            LOG.warn("Thread Interrupted. Stopping.");
+            Thread.currentThread().interrupt();
+        }
+        return connected;
     }
 
     /*
@@ -711,12 +733,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
                     }
                 }
             } else // check if srvs are initialized
-             if (srvMngr.areSrvInitialized()) {
+            {
+                if (srvMngr.areSrvInitialized()) {
                     // start processes
                     executorService.execute(() -> {
                         bootstrapProcess();
                     });
                 }
+            }
         } else {
             conInitialized = true;
             LOG.info("Container INITIALIZED!");
@@ -1193,8 +1217,15 @@ public abstract class Broker extends ZkConnectionWatcher implements Runnable, Sh
     public void shutdown(ShutdownNotifier notifier) {
         // shut down then executorService to free resources
         executorService.shutdownNow();
-        // close zk client session
-        stop();
+        try {
+            // close zk client session
+            stop();
+        } catch (InterruptedException ex) {
+            // log the event
+            LOG.warn("Thread Interruped. Stopping.");
+            // set the interrupt status
+            Thread.currentThread().interrupt();
+        }
         // log event
         LOG.info("Initiating Broker shutdown " + zkContainerPath);
         notifier.shutDown();

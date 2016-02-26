@@ -568,8 +568,15 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
         LOG.warn("Initiating master shutdown.");
         // delete nanespace
         cleanZkNamespace();
-        // close session
-        stop();
+        try {
+            // close session
+            stop();
+        } catch (InterruptedException ex) {
+            // log the event
+            LOG.warn("Thread Interruped. Stopping.");
+            // set the interrupt status
+            Thread.currentThread().interrupt();
+        }
         // release latch to finish execution
         shutdownSignal.countDown();
     }
@@ -626,9 +633,9 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
             Thread.currentThread().interrupt();
         }
     }
-    
-    public void createShutdownNode(){
-        
+
+    public void createShutdownNode() {
+
     }
 
     public void display() {
