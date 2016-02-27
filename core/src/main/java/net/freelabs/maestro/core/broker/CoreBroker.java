@@ -16,16 +16,15 @@
  */
 package net.freelabs.maestro.core.broker;
 
+import net.freelabs.maestro.core.zookeeper.ZkExecutor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
-import net.freelabs.maestro.core.zookeeper.ZkConnectionWatcher;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
 import net.freelabs.maestro.core.zookeeper.ZkNode;
 import org.apache.zookeeper.AsyncCallback;
@@ -35,6 +34,7 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
+import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * For every container type, there is a subclass of this class that handles
  * initialization and bootstrapping of the container.
  */
-public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable, Watcher {
+public abstract class CoreBroker implements Runnable {
 
     /**
      * The container associated with the broker.
@@ -79,10 +79,16 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      */
     private final CountDownLatch shutdownSignal = new CountDownLatch(1);
     /**
-     * Number of times to try and execute code passed to null     {@link 
+     * Number of times to try and execute code passed to null null null null
+     * null null     {@link 
      * #runAndRetry(net.freelabs.maestro.core.broker.CoreBroker.RunCmd, int) runAndRetry}.
      */
     private static final int RETRY_ATTEMPTS = 3;
+    /**
+     * An object implementing the {@link ZkExecutor ZkExecutor}
+     * interface. This object delegates zookeeper requests to a zk handle.
+     */
+    private final ZkExecutor zkClient;
 
     /**
      * Constructor
@@ -91,49 +97,27 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      * @param con the container which will be bound to the broker.
      * @param dockerClient a docker client to communicate with the docker
      * daemon.
+     * @param zkClient a zkClient that will make requests to zookeeper.
      */
-    public CoreBroker(ZkConfig zkConf, Container con, DockerClient dockerClient) {
-        super(zkConf.getHosts(), zkConf.getSESSION_TIMEOUT());
+    public CoreBroker(ZkConfig zkConf, Container con, DockerClient dockerClient, ZkExecutor zkClient) {
         this.zkConf = zkConf;
         this.con = con;
         this.dockerClient = dockerClient;
+        this.zkClient = zkClient;
         zNode = zkConf.getZkContainers().get(con.getName());
     }
 
     @Override
     public void run() {
-        // connect to a zookeeper server and create a sesssion
-        boolean connected = connectToZk();
-        // check for connection errors
-        if (connected) {
-            // run Broker 
-            runBroker();
-        } else {
-            LOG.error("Broker did NOT START!.");
-        }
-    }
-
-    /**
-     * Establishes a connection with a zookeeper server and creates a new
-     * session.
-     */
-    private boolean connectToZk() {
-        boolean connected = false;
-        try {
-            connect();
-            connected = true;
-        } catch (IOException ex) {
-            LOG.error("Something went wrong: " + ex);
-        } catch (InterruptedException ex) {
-            LOG.warn("Thread Interrupted. Stopping.");
-            Thread.currentThread().interrupt();
-        }
-        return connected;
+        // run Broker 
+        runBroker();
     }
 
     private void runBroker() {
         // watch for a cleanup zNode to cleanUp and shutdown
-        setShutDownWatch();
+        zkClient.zkExec((zk) -> {
+            setShutDownWatch(zk);
+        });
         // boot the container
         CID = bootContainer();
         // check for errors
@@ -153,7 +137,10 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
             }
 
             // create zk configuration node
-            createNode(zNode.getConfNodePath(), zNode.getData());
+            zkClient.zkExec((zk) -> {
+                createNode(zk, zNode.getConfNodePath(), zNode.getData());
+            });
+            //createNode(zNode.getConfNodePath(), zNode.getData());
             // Sets the thread to wait until it's time to shutdown
             waitForShutdown();
         } else {
@@ -214,10 +201,11 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
     /**
      * Creates a zNode.
      *
+     * @param zk a zookeeper handle.
      * @param path the path of the zNode.
      * @param data the data of the zNode.
      */
-    public void createNode(String path, byte[] data) {
+    public void createNode(ZooKeeper zk, String path, byte[] data) {
         zk.create(path, data, OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, createNodeCallback, data);
     }
 
@@ -225,31 +213,37 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      * Callback object to be used with
      * {@link #createNode(String, byte[]) createNode} method.
      */
-    private final AsyncCallback.StringCallback createNodeCallback = (int rc, String path, Object ctx, String name) -> {
-        switch (KeeperException.Code.get(rc)) {
-            case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
-                checkNode(path, (byte[]) ctx);
-                break;
-            case NODEEXISTS:
-                LOG.error("Node already exists: " + path);
-                break;
-            case OK:
-                LOG.info("Created zNode: " + path);
-                break;
-            default:
-                LOG.error("Something went wrong: ",
-                        KeeperException.create(KeeperException.Code.get(rc), path));
+    private final AsyncCallback.StringCallback createNodeCallback = new AsyncCallback.StringCallback() {
+        @Override
+        public void processResult(int rc, String path, Object ctx, String name) {
+            switch (KeeperException.Code.get(rc)) {
+                case CONNECTIONLOSS:
+                    LOG.warn("Connection loss was detected");
+                    zkClient.zkExec((zk) -> {
+                        checkNode(zk, path, (byte[]) ctx);
+                    });
+                    break;
+                case NODEEXISTS:
+                    LOG.error("Node already exists: " + path);
+                    break;
+                case OK:
+                    LOG.info("Created zNode: " + path);
+                    break;
+                default:
+                    LOG.error("Something went wrong: ",
+                            KeeperException.create(KeeperException.Code.get(rc), path));
+            }
         }
     };
 
     /**
      * Checks if a zNode is created.
      *
-     * @param path
-     * @param data
+     * @param zk a zookeeper handle.
+     * @param path the path of the zNode.
+     * @param data the data of the zNode.
      */
-    public void checkNode(String path, byte[] data) {
+    public void checkNode(ZooKeeper zk, String path, byte[] data) {
         zk.getData(path, false, checkNodeCallback, data);
     }
 
@@ -257,32 +251,39 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
      * Callback object to be used with
      * {@link #checkNode(String, byte[]) checkNode} method.
      */
-    private final AsyncCallback.DataCallback checkNodeCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
-        switch (KeeperException.Code.get(rc)) {
-            case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
-                checkNode(path, (byte[]) ctx);
-                break;
-            case NONODE:
-                createNode(path, (byte[]) ctx);
-                break;
-            case OK:
-                /* check if this node was created by this process. In order to 
-                 do so, compare the zNode's stored data with the initialization data
-                 for that node.                    
-                 */
-                if (Arrays.equals(data, (byte[]) ctx) == true) {
-                    LOG.info("ZkNode created successfully: " + path);
-                } else {
-                    LOG.error("ΖkNode already exists: " + path);
-                }
-                break;
-            default:
-                LOG.error("Something went wrong: ",
-                        KeeperException.create(KeeperException.Code.get(rc), path));
+    private final AsyncCallback.DataCallback checkNodeCallback = new AsyncCallback.DataCallback() {
+        @Override
+        public void processResult(int rc, String path, Object ctx, byte[] data, Stat stat) {
+            switch (KeeperException.Code.get(rc)) {
+                case CONNECTIONLOSS:
+                    LOG.warn("Connection loss was detected");
+                    zkClient.zkExec((zk) -> {
+                        checkNode(zk, path, (byte[]) ctx);
+                    });
+                    break;
+                case NONODE:
+                    zkClient.zkExec((zk) -> {
+                        checkNode(zk, path, (byte[]) ctx);
+                    });
+                    break;
+                case OK:
+                    /* check if this node was created by this process. In order to
+                    do so, compare the zNode's stored data with the initialization data
+                    for that node.
+                     */
+                    if (Arrays.equals(data, (byte[]) ctx) == true) {
+                        LOG.info("ZkNode created successfully: " + path);
+                    } else {
+                        LOG.error("ΖkNode already exists: " + path);
+                    }
+                    break;
+                default:
+                    LOG.error("Something went wrong: ",
+                            KeeperException.create(KeeperException.Code.get(rc), path));
+            }
         }
     };
-
+    
     public void waitForShutdown() {
         try {
             shutdownSignal.await();
@@ -294,25 +295,30 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
             LOG.info("Initiating Core Broker shutdown.");
         }
     }
-
-    public void setShutDownWatch() {
-        zk.exists(zkConf.getShutDownPath(), cleanUpWatcher, cleanUpCallback, zk);
+    
+    public void setShutDownWatch(ZooKeeper zk) {
+        zk.exists(zkConf.getShutDownPath(), cleanUpWatcher, cleanUpCallback, null);
     }
 
-    private final AsyncCallback.StatCallback cleanUpCallback = (int rc, String path, Object ctx, Stat stat) -> {
-        switch (KeeperException.Code.get(rc)) {
-            case CONNECTIONLOSS:
-                setShutDownWatch();
-                break;
-            case NONODE:
-                LOG.info("Watch registered on: " + path);
-                break;
-            case OK:
-                LOG.error("Node exists: " + path);
-                break;
-            default:
-                LOG.error("Something went wrong: ",
-                        KeeperException.create(KeeperException.Code.get(rc), path));
+    private final AsyncCallback.StatCallback cleanUpCallback = new AsyncCallback.StatCallback() {
+        @Override
+        public void processResult(int rc, String path, Object ctx, Stat stat) {
+            switch (KeeperException.Code.get(rc)) {
+                case CONNECTIONLOSS:
+                    zkClient.zkExec((zk) -> {
+                        setShutDownWatch(zk);
+                    });
+                    break;
+                case NONODE:
+                    LOG.info("Watch registered on: " + path);
+                    break;
+                case OK:
+                    LOG.error("Node exists: " + path);
+                    break;
+                default:
+                    LOG.error("Something went wrong: ",
+                            KeeperException.create(KeeperException.Code.get(rc), path));
+            }
         }
     };
 
@@ -326,15 +332,6 @@ public abstract class CoreBroker extends ZkConnectionWatcher implements Runnable
 
     public void shutdown() {
         LOG.info("Initiating Core Broker shutdown.");
-        try {
-            // close session
-            stop();
-        } catch (InterruptedException ex) {
-            // log the event
-            LOG.warn("Thread Interruped. Stopping.");
-            // set the interrupt status
-            Thread.currentThread().interrupt();
-        }
         // release latch to finish execution
         shutdownSignal.countDown();
     }

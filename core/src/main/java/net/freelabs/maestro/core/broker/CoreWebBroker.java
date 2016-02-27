@@ -16,6 +16,7 @@
  */
 package net.freelabs.maestro.core.broker;
 
+import net.freelabs.maestro.core.zookeeper.ZkExecutor;
 import com.github.dockerjava.api.ConflictException;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.NotFoundException;
@@ -58,8 +59,8 @@ public class CoreWebBroker extends CoreBroker {
      * @param con the container object.
      * @param dockerClient an instance of a docker client.
      */
-    public CoreWebBroker(ZkConfig zkConf, WebContainer con, DockerClient dockerClient) {
-        super(zkConf, con, dockerClient);
+    public CoreWebBroker(ZkConfig zkConf, WebContainer con, DockerClient dockerClient, ZkExecutor zkClient) {
+        super(zkConf, con, dockerClient, zkClient);
         webCon = con;
     }
 

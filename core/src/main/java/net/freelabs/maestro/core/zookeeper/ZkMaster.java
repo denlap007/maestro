@@ -47,7 +47,7 @@ import org.apache.zookeeper.data.Stat;
  * zookeeper, create hierarchical namespace and set configuration data to
  * zkNodes declared in the zookeeper configuration.
  */
-public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
+public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkExecutor {
 
     /**
      * Zookeeper configuration.
@@ -650,4 +650,8 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
         }
     }
 
+    @Override
+    public void zkExec(ZkExecutable obj) {
+        obj.exec(zk);
+    }
 }

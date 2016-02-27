@@ -172,13 +172,13 @@ public final class Bootstrap {
 
             if (con instanceof WebContainer) {
                 WebContainer webCon = (WebContainer) con;
-                cb = new CoreWebBroker(zkConf, webCon, docker);
+                cb = new CoreWebBroker(zkConf, webCon, docker, master);
             } else if (con instanceof BusinessContainer) {
                 BusinessContainer businessCon = (BusinessContainer) con;
-                cb = new CoreBusinessBroker(zkConf, businessCon, docker);
+                cb = new CoreBusinessBroker(zkConf, businessCon, docker, master);
             } else if (con instanceof DataContainer) {
                 DataContainer dataCon = (DataContainer) con;
-                cb = new CoreDataBroker(zkConf, dataCon, docker);
+                cb = new CoreDataBroker(zkConf, dataCon, docker, master);
             }
 
             if (cb != null) {

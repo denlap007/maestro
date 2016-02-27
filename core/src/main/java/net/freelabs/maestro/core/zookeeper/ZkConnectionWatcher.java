@@ -30,7 +30,7 @@ import org.apache.zookeeper.ZooKeeper;
 public class ZkConnectionWatcher implements Watcher {
 
     /**
-     * A zookeeper handler.
+     * A zookeeper handle.
      */
     protected ZooKeeper zk;
     /**
