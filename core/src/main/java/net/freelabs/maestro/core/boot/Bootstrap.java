@@ -24,7 +24,7 @@ import net.freelabs.maestro.core.broker.CoreBroker;
 import net.freelabs.maestro.core.broker.CoreBusinessBroker;
 import net.freelabs.maestro.core.broker.CoreDataBroker;
 import net.freelabs.maestro.core.broker.CoreWebBroker;
-import net.freelabs.maestro.core.broker.DependencyAnalyzer;
+import net.freelabs.maestro.core.analyze.RestrictionAnalyzer;
 import net.freelabs.maestro.core.cl.CommandLineOptions;
 import net.freelabs.maestro.core.xml.XmlProcessor;
 import net.freelabs.maestro.core.docker.DockerInitializer;
@@ -78,8 +78,8 @@ public final class Bootstrap {
             String webAppName = webApp.getWebAppName();
             // create a handler to query for container information
             ContainerHandler handler = createConHandler(webApp);
-            // analyze schema to detect possible circular dependencies
-            analyzeDependencies(handler);
+            // analyze restrictions and check if apply on schema
+            analyzeRestrictions(handler);
             // create zk configuration
             ZkConfig zkConf = createZkConf(progConf.getZkHosts(), progConf.getZkSessionTimeout(), handler, webAppName);
             // initialize zk and start master process
@@ -112,22 +112,34 @@ public final class Bootstrap {
             }
         });
     }
+
     /**
-     * Analyzes the declared container dependencies and searches for circular
-     * dependencies.
+     * <p>
+     * Analyzes the restrictions that must apply on the schema.
+     * <p>
+     * No circular dependencies are allowed.
+     * <p>No duplicate container names are allowed.
+     *
      * @param handler object to query for containers.
      */
-    private void analyzeDependencies(ContainerHandler handler){
+    private void analyzeRestrictions(ContainerHandler handler) {
+        // create analyzer to check restrictions on schema
+        RestrictionAnalyzer ra = new RestrictionAnalyzer(handler.listContainers());
+
+        // analyze dependencies
         LOG.info("Analyzing dependencies.");
-        // get the list of containers
-        List<Container> containers = handler.listContainers();
-        // create and initialize an analyzer
-        DependencyAnalyzer analyzer = new DependencyAnalyzer(containers);
         // search for circular dependencies
-        boolean found =  analyzer.detectCircular();
-        
-        if (found){
-            LOG.error("CIRCULAR DEPENDENCY found on application description.");
+        boolean found = ra.detectCircularDependencies();
+        // if circular dependencies found exit
+        if (found) {
+            exitProgram();
+        }
+
+        // analyze container names 
+        LOG.info("Analyzing container names.");
+        found = ra.detectDuplicateNames();
+        // if duplicate contianer names found exit
+        if (found) {
             exitProgram();
         }
     }

@@ -35,7 +35,7 @@
         </businessContainer>
         <dataContainer>
             <name>data</name>
-            <connectWith/>
+            <connectWith></connectWith>
             <dockerImage>dio/mysql_jre:v2</dockerImage>
             <start>
                 <main>/broker/testCases/crudApp/dataTier/data-entrypoint.sh mysqld</main>
