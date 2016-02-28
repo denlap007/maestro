@@ -17,14 +17,13 @@
 package net.freelabs.maestro.broker.tasks;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
  *
  * Class that defines an executor for Tasks.
  */
-public final class TaskExecutor {
+public final class TaskHandler {
     /**
      * List of tasks to execute.
      */
@@ -33,13 +32,13 @@ public final class TaskExecutor {
      * Constructor.
      * @param tasks tasks to execute.
      */
-    public TaskExecutor(Task... tasks){
-        this.tasks = Arrays.asList(tasks);
+    public TaskHandler(List<Task> tasks){
+        this.tasks = tasks;
     }
     /**
      * Constructor.
      */
-    public TaskExecutor(){
+    public TaskHandler(){
         this.tasks = new ArrayList<>();
     }
     /**

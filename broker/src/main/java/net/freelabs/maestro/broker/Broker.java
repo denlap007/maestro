@@ -16,7 +16,8 @@
  */
 package net.freelabs.maestro.broker;
 
-import net.freelabs.maestro.broker.process.EnvironmentHandler;
+import net.freelabs.maestro.broker.env.EnvironmentMapper;
+import net.freelabs.maestro.broker.env.EnvironmentHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.File;
 import java.io.IOException;
@@ -32,9 +33,8 @@ import net.freelabs.maestro.broker.services.ServiceManager;
 import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
 import net.freelabs.maestro.broker.shutdown.Shutdown;
 import net.freelabs.maestro.broker.shutdown.ShutdownNotifier;
-import net.freelabs.maestro.broker.tasks.SubstEnv;
-import net.freelabs.maestro.broker.tasks.Task;
-import net.freelabs.maestro.broker.tasks.TaskExecutor;
+import net.freelabs.maestro.broker.tasks.TaskHandler;
+import net.freelabs.maestro.broker.tasks.TaskMapper;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.ContainerEnvironment;
@@ -182,8 +182,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
             waitForConDescription();
             // wait for shutdown
             waitForShutdown(SHUTDOWN);
-        }else{
-             LOG.error("FAILED to start broker. Terminating.");
+        } else {
+            LOG.error("FAILED to start broker. Terminating.");
         }
     }
 
@@ -775,8 +775,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
         ResourceMapper rm = new ResourceMapper(res.getPreMain(), res.getPostMain(), res.getMain());
         // create the environment for the container processes
         Map<String, String> env = initProcsEnv();
-        // create TaskExecutor to execute defined tasks
-        TaskExecutor taskExec = initTaskExecutor(container.getTasks(), env);
+        // create TaskHandler to execute defined tasks
+        TaskHandler taskExec = initTaskExecutor(container.getTasks(), env);
         // get handler for the interaction with the main process
         MainProcessHandler mainProcHandler = initMainProc(rm, env);
         // get handlers for the interaction with processes scheduled before main
@@ -827,15 +827,16 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
      * @param env the environment of the processes.
      * @return an object that will handle task execution.
      */
-    private TaskExecutor initTaskExecutor(Tasks tasks, Map<String, String> env) {
-        TaskExecutor taskExec;
-        // init substEnv task
+    private TaskHandler initTaskExecutor(Tasks tasks, Map<String, String> env) {
+        TaskHandler taskExec;
+        // if there are tasks defined
         if (tasks != null) {
-            List<String> substEnvPaths = tasks.getSubstEnv();
-            Task substEnv = new SubstEnv(substEnvPaths, env);
-            taskExec = new TaskExecutor(substEnv);
+            // create Task Mapper
+            TaskMapper tm = new TaskMapper(tasks, env);
+            // init Task Executor
+            taskExec = new TaskHandler(tm.getTasks());
         } else {
-            taskExec = new TaskExecutor();
+            taskExec = new TaskHandler();
         }
         return taskExec;
     }

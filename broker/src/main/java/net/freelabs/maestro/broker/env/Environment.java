@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.broker.process;
+package net.freelabs.maestro.broker.env;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
