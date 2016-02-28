@@ -757,7 +757,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
      * <ul>
      * <li>Creates the {@link ProcessManager process manager} to manage process
      * execution.</li>
-     * <li>Creates the {@link ResourceHandler resource handler}, that is
+     * <li>Creates the {@link ResourceMapper resource handler}, that is
      * initialized with all the resources, to handle resource manipulation.</li>
      * <li>Creates the environment for the processes (env vars).</li>
      * <li>Creates and initializes the {@link ProcessHandler process handlers}
@@ -770,19 +770,19 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
     private void bootstrapProcess() {
         // create the process manager that will start processes
         procMngr = new ProcessManager();
-        // create the resource handler to manipulate resources
+        // create the resource mapper to map schema declarations to resources
         Resources res = container.getStart();
-        ResourceHandler rh = new ResourceHandler(res.getPreMain(), res.getPostMain(), res.getMain());
+        ResourceMapper rm = new ResourceMapper(res.getPreMain(), res.getPostMain(), res.getMain());
         // create the environment for the container processes
         Map<String, String> env = initProcsEnv();
         // create TaskExecutor to execute defined tasks
         TaskExecutor taskExec = initTaskExecutor(container.getTasks(), env);
         // get handler for the interaction with the main process
-        MainProcessHandler mainProcHandler = initMainProc(rh, env);
+        MainProcessHandler mainProcHandler = initMainProc(rm, env);
         // get handlers for the interaction with processes scheduled before main
-        List<ProcessHandler> preMainProcHandlers = initOtherProcs(rh, rh.getPreMainRes(), env);
+        List<ProcessHandler> preMainProcHandlers = initOtherProcs(rm, rm.getPreMainRes(), env);
         // get handlers for the interaction with processes scheduled after main
-        List<ProcessHandler> postMainProcHandlers = initOtherProcs(rh, rh.getPostMainRes(), env);
+        List<ProcessHandler> postMainProcHandlers = initOtherProcs(rm, rm.getPostMainRes(), env);
         // set configuration to process manager
         procMngr.setMainProcHandler(mainProcHandler);
         procMngr.setPreMainProcHandlers(preMainProcHandlers);
@@ -809,8 +809,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
             // add to map
             depConEnvMap.put(name, env);
         });
-        // create handler to act on resources
-        envHandler = new EnvironmentHandler(conEnv, depConEnvMap);
+        // create environment mapper to map declared environments to env objects
+        EnvironmentMapper envMap = new EnvironmentMapper(conEnv, container.getName(), depConEnvMap);
+        // create handler to act on env objects
+        envHandler = new EnvironmentHandler(envMap.getConEnv(), envMap.getDepConEnvMap());
         // create environment for processes
         return envHandler.createProcsEnv();
     }
@@ -848,20 +850,20 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
      * Creates and initializes the {@link MainProcessHandler MainProcessHandler}
      * object that handles the interaction with the main process.
      *
-     * @param rh the resource handler to query for resources to run.
+     * @param rh the resource mapper to query for resources to run.
      * @param env the environment of the process.
      * @return the {@link MainProcessHandler MainProcessHandler} object that
      * handles the interaction with the main process. NUll if there was a
      * problem with the main resource.
      */
-    private MainProcessHandler initMainProc(ResourceHandler rh, Map<String, String> env) {
+    private MainProcessHandler initMainProc(ResourceMapper rm, Map<String, String> env) {
         MainProcessHandler pHandler = null;
         // check if main resource is ok
-        if (rh.isResourceOk(rh.getMainRes())) {
+        if (rm.isResourceOk(rm.getMainRes())) {
             // get the port the proc is listening
             int procPort = getHostPort();
             // create and init the object that stores all the process configuration
-            MainProcessData pdata = new MainProcessData(rh.getMainRes(), env, "localhost", procPort);
+            MainProcessData pdata = new MainProcessData(rm.getMainRes(), env, "localhost", procPort);
             // create and handler for main process execution
             pHandler = new MainProcessHandler(pdata);
             // set code to execute if process executed successfully
@@ -895,17 +897,17 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
      * At first, a resource is checked for errors. Then the process handler is
      * initialized with the resource and the environment.
      *
-     * @param rh the resource handler, used to manipulate resources.
+     * @param rh the resource mapper, used to manipulate resources.
      * @param resources the list of the resources to execute.
      * @param env the environment of the processes.
      * @return the list of process handlers initialized to start processes.
      */
-    private List<ProcessHandler> initOtherProcs(ResourceHandler rh, List<Resource> resources, Map<String, String> env) {
+    private List<ProcessHandler> initOtherProcs(ResourceMapper rm, List<Resource> resources, Map<String, String> env) {
         List<ProcessHandler> pHandlers = new ArrayList<>();
         // iterate through resources
         for (Resource res : resources) {
             // check resource for errors
-            if (rh.isResourceOk(res)) {
+            if (rm.isResourceOk(res)) {
                 // create and init the obj that stores all necessary process data
                 ProcessData pData = new ProcessData(res, env);
                 // create and init the obj that handles the process execution

@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
  *
  * Class that provides methods to handle all the resources to run.
  */
-public final class ResourceHandler {
+public final class ResourceMapper {
 
     /**
      * A list with the resources to execute before the main resource.
@@ -45,7 +45,7 @@ public final class ResourceHandler {
     /**
      * A Logger object.
      */
-    private static final Logger LOG = LoggerFactory.getLogger(ResourceHandler.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ResourceMapper.class);
 
     /**
      * Constructor.
@@ -54,7 +54,7 @@ public final class ResourceHandler {
      * @param postMain
      * @param main
      */
-    public ResourceHandler(List<RunElem> preMain, List<RunElem> postMain, String main) {
+    public ResourceMapper(List<RunElem> preMain, List<RunElem> postMain, String main) {
         initResources(preMain, postMain, main);
     }
 

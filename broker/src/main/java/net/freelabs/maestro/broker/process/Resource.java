@@ -31,7 +31,7 @@ public final class Resource {
     /**
      * A resource to execute.
      */
-    private String res;
+    private final String res;
     /**
      * Abort all descending processes execution if resource execution fails.
      */
@@ -101,10 +101,6 @@ public final class Resource {
      */
     public String getDescription() {
         return res;
-    }
-
-    public void setRes(String res) {
-        this.res = res;
     }
 
     public boolean isAbortOnFail() {
