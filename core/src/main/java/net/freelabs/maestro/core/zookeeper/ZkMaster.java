@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import static net.freelabs.maestro.core.zookeeper.ErrorHandler.ACTION.SHUTDOWN;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
 import org.apache.zookeeper.AsyncCallback.StatCallback;
 import org.apache.zookeeper.CreateMode;
@@ -47,7 +48,7 @@ import org.apache.zookeeper.data.Stat;
  * zookeeper, create hierarchical namespace and set configuration data to
  * zkNodes declared in the zookeeper configuration.
  */
-public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkExecutor {
+public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkExecutor, ErrorHandler {
 
     /**
      * Zookeeper configuration.
@@ -121,14 +122,12 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * hierarchy.
      */
     public void runMaster() {
-        // watch for a cleanup zNode to cleanUp and shutdown
-        setShutDownWatch();
         // create zookeeper namespace for the application
         createZkNamespace();
 
         if (!masterInitError) {
             // set watch for services
-            setSrvWatch();
+            //setSrvWatch();
             // notify callers that master finished processing
             masterInitSignal.countDown();
             // wait until it's time for shutdown
@@ -634,6 +633,25 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
         }
     }
 
+    /**
+     * Initiates master process shutdown without affecting the state of the
+     * deployed application.
+     */
+    public void shutdownMaster() {
+        LOG.warn("Initiating master shutdown.");
+        try {
+            // close session
+            stop();
+        } catch (InterruptedException ex) {
+            // log the event
+            LOG.warn("Thread Interruped. Stopping.");
+            // set the interrupt status
+            Thread.currentThread().interrupt();
+        }
+        // release latch to finish execution
+        shutdownSignal.countDown();
+    }
+
     public void createShutdownNode() {
 
     }
@@ -653,5 +671,12 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     @Override
     public void zkExec(ZkExecutable obj) {
         obj.exec(zk);
+    }
+
+    @Override
+    public void error(ACTION action) {
+        if (action == SHUTDOWN) {
+
+        }
     }
 }

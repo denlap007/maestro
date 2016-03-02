@@ -152,7 +152,7 @@ public class CoreDataBroker extends CoreBroker {
     }
 
     @Override
-    protected void setIP(String IP) {
+    protected void updateIP(String IP) {
         dataCon.getEnvironment().setHost_IP(IP);
     }
 }

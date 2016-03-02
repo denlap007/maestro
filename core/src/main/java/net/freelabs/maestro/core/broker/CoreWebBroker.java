@@ -58,6 +58,7 @@ public class CoreWebBroker extends CoreBroker {
      * @param zkConf the zookeeper configuration.
      * @param con the container object.
      * @param dockerClient an instance of a docker client.
+     * @param zkClient
      */
     public CoreWebBroker(ZkConfig zkConf, WebContainer con, DockerClient dockerClient, ZkExecutor zkClient) {
         super(zkConf, con, dockerClient, zkClient);
@@ -151,7 +152,7 @@ public class CoreWebBroker extends CoreBroker {
     }
 
     @Override
-    protected void setIP(String IP) {
+    protected void updateIP(String IP) {
         webCon.getEnvironment().setHost_IP(IP);
     }
 

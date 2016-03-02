@@ -89,6 +89,10 @@ public abstract class CoreBroker implements Runnable {
      * interface. This object delegates zookeeper requests to a zk handle.
      */
     private final ZkExecutor zkClient;
+    /**
+     * Handles errors.
+     */
+    //private final ErrorHandler errHandler; 
 
     /**
      * Constructor
@@ -98,12 +102,14 @@ public abstract class CoreBroker implements Runnable {
      * @param dockerClient a docker client to communicate with the docker
      * daemon.
      * @param zkClient a zkClient that will make requests to zookeeper.
+     * //@param errHandler a handler to call in case of error.
      */
     public CoreBroker(ZkConfig zkConf, Container con, DockerClient dockerClient, ZkExecutor zkClient) {
         this.zkConf = zkConf;
         this.con = con;
         this.dockerClient = dockerClient;
         this.zkClient = zkClient;
+        //this.errHandler = errHandler;
         zNode = zkConf.getZkContainers().get(con.getName());
     }
 
@@ -114,10 +120,6 @@ public abstract class CoreBroker implements Runnable {
     }
 
     private void runBroker() {
-        // watch for a cleanup zNode to cleanUp and shutdown
-        zkClient.zkExec((zk) -> {
-            setShutDownWatch(zk);
-        });
         // boot the container
         CID = bootContainer();
         // check for errors
@@ -125,7 +127,7 @@ public abstract class CoreBroker implements Runnable {
             // get container IP
             String IP = getContainerIP(CID);
             // update container ip
-            setIP(IP);
+            updateIP(IP);
 
             try {
                 // update zNode configuration
@@ -140,7 +142,6 @@ public abstract class CoreBroker implements Runnable {
             zkClient.zkExec((zk) -> {
                 createNode(zk, zNode.getConfNodePath(), zNode.getData());
             });
-            //createNode(zNode.getConfNodePath(), zNode.getData());
             // Sets the thread to wait until it's time to shutdown
             waitForShutdown();
         } else {
@@ -177,11 +178,11 @@ public abstract class CoreBroker implements Runnable {
     protected abstract CreateContainerResponse createContainer();
 
     /**
-     * Sets the IP of the container.
+     * Updates the IP of the container.
      *
      * @param IP the container IP.
      */
-    protected abstract void setIP(String IP);
+    protected abstract void updateIP(String IP);
 
     /**
      * Gets the IP of the container with this container ID.
@@ -228,6 +229,7 @@ public abstract class CoreBroker implements Runnable {
                     break;
                 case OK:
                     LOG.info("Created zNode: " + path);
+                    shutdown();
                     break;
                 default:
                     LOG.error("Something went wrong: ",
@@ -273,8 +275,9 @@ public abstract class CoreBroker implements Runnable {
                      */
                     if (Arrays.equals(data, (byte[]) ctx) == true) {
                         LOG.info("ZkNode created successfully: " + path);
+                        shutdown();
                     } else {
-                        LOG.error("ΖkNode already exists: " + path);
+                        LOG.error("ΖkNode exists but was NOT created by this client: " + path);
                     }
                     break;
                 default:
@@ -335,7 +338,7 @@ public abstract class CoreBroker implements Runnable {
         // release latch to finish execution
         shutdownSignal.countDown();
     }
-
+    
     /**
      * Shuts down a container.
      *

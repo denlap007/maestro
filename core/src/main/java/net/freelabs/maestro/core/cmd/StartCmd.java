@@ -14,7 +14,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package net.freelabs.maestro.core.boot;
+package net.freelabs.maestro.core.cmd;
 
 import com.github.dockerjava.api.DockerClient;
 import java.io.IOException;
@@ -25,7 +25,7 @@ import net.freelabs.maestro.core.broker.CoreBusinessBroker;
 import net.freelabs.maestro.core.broker.CoreDataBroker;
 import net.freelabs.maestro.core.broker.CoreWebBroker;
 import net.freelabs.maestro.core.analyze.RestrictionAnalyzer;
-import net.freelabs.maestro.core.cl.CommandLineOptions;
+import net.freelabs.maestro.core.boot.ProgramConf;
 import net.freelabs.maestro.core.xml.XmlProcessor;
 import net.freelabs.maestro.core.docker.DockerInitializer;
 import net.freelabs.maestro.core.generated.BusinessContainer;
@@ -38,42 +38,41 @@ import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.utils.Utils;
 import net.freelabs.maestro.core.zookeeper.ZkConfig;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Class that starts and configures program's components.
  */
-public final class Bootstrap {
+public final class StartCmd extends Command {
 
     /**
      * The master zk process.
      */
     private ZkMaster master;
     /**
-     * The path of the program's working directory.
+     * A list with all CoreBroker threads created from bootstrap process.
      */
-    private String workDirPath;
+    private final List<Thread> threadList = new ArrayList<>();
     /**
      * A Logger object.
      */
-    private static final Logger LOG = LoggerFactory.getLogger(Bootstrap.class);
-    /**
-     * A list with all threads created from bootstrap process, used for clean
-     * shutdown.
-     */
-    private final List<Thread> threadList = new ArrayList<>();
+    private static final Logger LOG = LoggerFactory.getLogger(StartCmd.class);
 
-    public void boot() {
+    /**
+     * Constructor.
+     *
+     * @param cmd the name of the command.
+     */
+    public StartCmd(String cmd) {
+        super(cmd);
+    }
+
+    @Override
+    public void exec(ProgramConf pConf) {
         try {
-            // Read configuration
-            ProgramConf progConf = new ProgramConf(workDirPath);
             // unmarshall xml file into a top-level object
-            WebApp webApp = unmarshalXml(progConf.getXmlSchemaPath(), progConf.getXmlFilePath());
+            WebApp webApp = unmarshalXml(pConf.getXmlSchemaPath(), pConf.getXmlFilePath());
             // get the name of the webApp
             String webAppName = webApp.getWebAppName();
             // create a handler to query for container information
@@ -81,16 +80,16 @@ public final class Bootstrap {
             // analyze restrictions and check if apply on schema
             analyzeRestrictions(handler);
             // create zk configuration
-            ZkConfig zkConf = createZkConf(progConf.getZkHosts(), progConf.getZkSessionTimeout(), handler, webAppName);
+            ZkConfig zkConf = createZkConf(pConf.getZkHosts(), pConf.getZkSessionTimeout(), handler, webAppName);
             // initialize zk and start master process
             initZk(zkConf);
             // create a docker client customized for the app
-            DockerInitializer appDocker = new DockerInitializer(progConf.getDockerURI());
+            DockerInitializer appDocker = new DockerInitializer(pConf.getDockerURI());
             DockerClient docker = appDocker.getDockerClient();
             // launch the CoreBrokers to boot containers
             launchBrokers(handler, zkConf, docker);
-            // wait until shutdown 
-            waitForShutdown();
+            // wait until Brokers shutdown and shutdown master
+            waitBrokersShutdown();
         } catch (Exception ex) {
             exitProgram(ex);
         }
@@ -98,12 +97,12 @@ public final class Bootstrap {
 
     /**
      * <p>
-     * Waits for all threads started in {@link #boot boot} method to finish
-     * execution.
+     * Waits for all {@link CoreBroker CoreBrokers ) to finish execution. Then
+     * initiates master process shutdown.
      * <p>
      * The method blocks.
      */
-    private void waitForShutdown() {
+    private void waitBrokersShutdown() {
         threadList.stream().forEach((t) -> {
             try {
                 t.join();
@@ -111,6 +110,7 @@ public final class Bootstrap {
                 LOG.warn("Thread interrupted. Stopping.");
             }
         });
+        master.shutdownMaster();
     }
 
     /**
@@ -118,7 +118,8 @@ public final class Bootstrap {
      * Analyzes the restrictions that must apply on the schema.
      * <p>
      * No circular dependencies are allowed.
-     * <p>No duplicate container names are allowed.
+     * <p>
+     * No duplicate container names are allowed.
      *
      * @param handler object to query for containers.
      */
@@ -328,8 +329,6 @@ public final class Bootstrap {
         master = new ZkMaster(zkConf);
         // Create a new thread to run the master 
         Thread masterThread = new Thread(master, "Master-thread");
-        // add to thread list
-        threadList.add(masterThread);
         // start the master process
         masterThread.start();
         // wait for initialization
@@ -358,46 +357,5 @@ public final class Bootstrap {
         LOG.error("The program will exit!");
 
         System.exit(1);
-    }
-
-    /**
-     * @param workDirPath the workDirPath to set
-     */
-    private void setWorkDirPath(String workDirPath) {
-        this.workDirPath = workDirPath;
-    }
-
-    /* -------------------------------------------------------------------------
-       ------------------------------ MAIN -------------------------------------
-       -------------------------------------------------------------------------*/
-    public static void main(String[] args) {
-        // create the bootstrap object to boot the program
-        Bootstrap bootObj = new Bootstrap();
-        // create an object of the class that holds the cli options
-        CommandLineOptions opt = new CommandLineOptions();
-        // create a parser to parse cli options
-        CommandLineParser parser = new DefaultParser();
-        CommandLine cmd = null;
-
-        try {
-            // parse cli arguments
-            cmd = parser.parse(opt.getOptions(), args);
-        } catch (ParseException ex) {
-            LOG.error(ex.getMessage());
-            // Unrecognized arguments, print help
-            opt.help();
-            // exit
-            System.exit(1);
-        }
-
-        if (cmd.hasOption("w")) {
-            // set work directory 
-            bootObj.setWorkDirPath(cmd.getOptionValue("w"));
-            // boot program
-            bootObj.boot();
-        } else {
-            // Show help
-            opt.help();
-        }
     }
 }

@@ -58,6 +58,7 @@ public class CoreBusinessBroker extends CoreBroker {
      * @param zkConf the zookeeper configuration.
      * @param con the container object.
      * @param dockerClient an instance of a docker client.
+     * @param zkClient a zkClient that will make requests to zookeeper.
      */
     public CoreBusinessBroker(ZkConfig zkConf, BusinessContainer con, DockerClient dockerClient, ZkExecutor zkClient) {
         super(zkConf, con, dockerClient, zkClient);
@@ -151,7 +152,7 @@ public class CoreBusinessBroker extends CoreBroker {
     }
 
     @Override
-    protected void setIP(String IP) {
+    protected void updateIP(String IP) {
         businessCon.getEnvironment().setHost_IP(IP);
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Dionysis Lappas (dio@freelabs.net)
+ * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,8 +14,17 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+package net.freelabs.maestro.core.boot.cl;
 
 /**
- * Provides Java Class for command line options.
+ *
+ * @author Dionysis Lappas <dio@freelabs.net>
  */
-package net.freelabs.maestro.core.cl;
+public class CliProcessor {
+    
+            // create object with supported command line parameters and commands
+        private final CliOptions opts = new CliOptions();
+        // create command line processor to p
+    
+    
+}

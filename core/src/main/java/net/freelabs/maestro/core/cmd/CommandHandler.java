@@ -1,0 +1,115 @@
+/*
+ * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package net.freelabs.maestro.core.cmd;
+
+import java.util.ArrayList;
+import java.util.List;
+import net.freelabs.maestro.core.boot.ProgramConf;
+
+/**
+ *
+ * Class whose instances handle the execution of all system
+ * {@link Command Command} objects.
+ */
+public final class CommandHandler implements Commandable {
+
+    /**
+     * Configuration of the program.
+     */
+    private final ProgramConf pConf;
+    /**
+     * Start command.
+     */
+    private final StartCmd startCmd;
+    /**
+     * Stop command.
+     */
+    private final StopCmd stopCmd;
+    /**
+     * Clean command.
+     */
+    private final CleanCmd cleanCmd;
+    /**
+     * List with names of the supported commands.
+     */
+    private final List<String> cmdNames;
+
+    /**
+     * Constructor.
+     *
+     * @param pConf
+     */
+    public CommandHandler(ProgramConf pConf) {
+        this.pConf = pConf;
+        // initialize commands
+        startCmd = new StartCmd("start");
+        stopCmd = new StopCmd("stop");
+        cleanCmd = new CleanCmd("clean");
+        
+        // create list
+        cmdNames = new ArrayList<>();
+        // add to list
+        cmdNames.add(startCmd.getCmdName());
+        cmdNames.add(stopCmd.getCmdName());
+        cmdNames.add(cleanCmd.getCmdName());
+    }
+
+    @Override
+    public void exec_start() {
+        startCmd.exec(pConf);
+    }
+
+    @Override
+    public void exec_stop() {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void exec_clean() {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    /**
+     *
+     * @return the list with the names of the supported commands.
+     */
+    public List<String> getCmdNames() {
+        return cmdNames;
+    }
+
+    /**
+     *
+     * @return the start Command object.
+     */
+    public StartCmd getStartCmd() {
+        return startCmd;
+    }
+    /**
+     * 
+     * @return the stop Command object.
+     */
+    public StopCmd getStopCmd() {
+        return stopCmd;
+    }
+    /**
+     * 
+     * @return the clean Command object.
+     */
+    public CleanCmd getCleanCmd() {
+        return cleanCmd;
+    }
+}
