@@ -116,7 +116,7 @@ public class Main {
                 if (ok) {
                     // execute START command
                     LOG.info("STARTING.");
-                    //System.exit(0);
+                    //System.exit(0);           // FOR TESTING
                     cmdExec.exec_start();
                 } else {
                     System.exit(1);
@@ -127,6 +127,11 @@ public class Main {
             if (stopCmdOpt.isHelp()) {
                 cl.usage(stop);
                 System.exit(0);
+            }else{
+                // get the name of the app
+                pConf.setAppName(stopCmdOpt.getApps().get(0));
+                // execute STOP command
+                cmdExec.exec_stop();
             }
 
         } else if (parsedCmd.equals(clean)) {

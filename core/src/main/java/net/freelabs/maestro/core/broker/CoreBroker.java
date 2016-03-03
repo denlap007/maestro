@@ -25,7 +25,7 @@ import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
-import net.freelabs.maestro.core.zookeeper.ZkConfig;
+import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkNode;
 import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.CreateMode;
@@ -56,7 +56,7 @@ public abstract class CoreBroker implements Runnable {
     /**
      * The zookeeper configuration.
      */
-    protected final ZkConfig zkConf;
+    protected final ZkConf zkConf;
     /**
      * The docker client that will communicate with the docker daemon.
      */
@@ -80,15 +80,16 @@ public abstract class CoreBroker implements Runnable {
     private final CountDownLatch shutdownSignal = new CountDownLatch(1);
     /**
      * Number of times to try and execute code passed to null null null null
-     * null null     {@link 
+     * null null null     {@link 
      * #runAndRetry(net.freelabs.maestro.core.broker.CoreBroker.RunCmd, int) runAndRetry}.
      */
     private static final int RETRY_ATTEMPTS = 3;
     /**
-     * An object implementing the {@link ZkExecutor ZkExecutor}
-     * interface. This object delegates zookeeper requests to a zk handle.
+     * An object implementing the {@link ZkExecutor ZkExecutor} interface. This
+     * object delegates zookeeper requests to a zk handle.
      */
     private final ZkExecutor zkClient;
+
     /**
      * Handles errors.
      */
@@ -101,16 +102,16 @@ public abstract class CoreBroker implements Runnable {
      * @param con the container which will be bound to the broker.
      * @param dockerClient a docker client to communicate with the docker
      * daemon.
-     * @param zkClient a zkClient that will make requests to zookeeper.
-     * //@param errHandler a handler to call in case of error.
+     * @param zkClient a zkClient that will make requests to zookeeper. //@param
+     * errHandler a handler to call in case of error.
      */
-    public CoreBroker(ZkConfig zkConf, Container con, DockerClient dockerClient, ZkExecutor zkClient) {
+    public CoreBroker(ZkConf zkConf, Container con, DockerClient dockerClient, ZkExecutor zkClient) {
         this.zkConf = zkConf;
         this.con = con;
         this.dockerClient = dockerClient;
         this.zkClient = zkClient;
         //this.errHandler = errHandler;
-        zNode = zkConf.getZkContainers().get(con.getName());
+        zNode = zkConf.getZkAppConf().getContainers().get(con.getName());
     }
 
     @Override
@@ -286,7 +287,7 @@ public abstract class CoreBroker implements Runnable {
             }
         }
     };
-    
+
     public void waitForShutdown() {
         try {
             shutdownSignal.await();
@@ -298,9 +299,9 @@ public abstract class CoreBroker implements Runnable {
             LOG.info("Initiating Core Broker shutdown.");
         }
     }
-    
+
     public void setShutDownWatch(ZooKeeper zk) {
-        zk.exists(zkConf.getShutDownPath(), cleanUpWatcher, cleanUpCallback, null);
+        zk.exists(zkConf.getZkAppConf().getShutdown().getPath(), cleanUpWatcher, cleanUpCallback, null);
     }
 
     private final AsyncCallback.StatCallback cleanUpCallback = new AsyncCallback.StatCallback() {
@@ -338,7 +339,7 @@ public abstract class CoreBroker implements Runnable {
         // release latch to finish execution
         shutdownSignal.countDown();
     }
-    
+
     /**
      * Shuts down a container.
      *

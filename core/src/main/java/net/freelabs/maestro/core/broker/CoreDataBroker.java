@@ -27,7 +27,7 @@ import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.command.PullImageResultCallback;
 import static net.freelabs.maestro.core.broker.CoreBroker.LOG;
 import net.freelabs.maestro.core.generated.DataContainer;
-import net.freelabs.maestro.core.zookeeper.ZkConfig;
+import net.freelabs.maestro.core.zookeeper.ZkConf;
 
 /**
  *
@@ -60,7 +60,7 @@ public class CoreDataBroker extends CoreBroker {
      * @param con the container object.
      * @param dockerClient an instance of a docker client.
      */
-    public CoreDataBroker(ZkConfig zkConf, DataContainer con, DockerClient dockerClient, ZkExecutor zkClient) {
+    public CoreDataBroker(ZkConf zkConf, DataContainer con, DockerClient dockerClient, ZkExecutor zkClient) {
         super(zkConf, con, dockerClient, zkClient);
         dataCon = con;
     }
@@ -133,11 +133,11 @@ public class CoreDataBroker extends CoreBroker {
     @Override
     protected String createBootEnv() {
         // set boot environment configuration
-        String ZK_HOSTS = zkConf.getHosts();
-        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSESSION_TIMEOUT());
+        String ZK_HOSTS = zkConf.getSrvHosts();
+        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSrvTimeout());
         String ZK_CONTAINER_PATH = zNode.getPath();
-        String ZK_NAMING_SERVICE = zkConf.getNamingServicePath();
-        String SHUTDOWN_NODE = zkConf.getShutDownPath();
+        String ZK_NAMING_SERVICE = zkConf.getZkAppConf().getServices().getPath();
+        String SHUTDOWN_NODE = zkConf.getZkAppConf().getShutdown().getPath();
         String CONF_NODE = zNode.getConfNodePath();
         // create a string with all the key-value pairs
         String env = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"

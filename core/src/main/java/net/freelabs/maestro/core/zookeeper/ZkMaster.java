@@ -29,6 +29,7 @@ import static net.freelabs.maestro.core.zookeeper.ErrorHandler.ACTION.SHUTDOWN;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
 import org.apache.zookeeper.AsyncCallback.StatCallback;
 import org.apache.zookeeper.CreateMode;
+import static org.apache.zookeeper.CreateMode.EPHEMERAL;
 import static org.apache.zookeeper.CreateMode.PERSISTENT;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.Code;
@@ -53,7 +54,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     /**
      * Zookeeper configuration.
      */
-    private final ZkConfig zkConf;
+    private final ZkConf zkConf;
     /**
      * A Logger object.
      */
@@ -87,19 +88,19 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * Latch set when Master process starts and is released when it initializes.
      */
     private final CountDownLatch masterInitSignal = new CountDownLatch(1);
-
+    
     /**
      * Constructor
      *
      * @param zkConf the zookeeper configuration
      */
-    public ZkMaster(ZkConfig zkConf) {
+    public ZkMaster(ZkConf zkConf) {
         // initialize super class
-        super(zkConf.getHosts(), zkConf.getSESSION_TIMEOUT());
+        super(zkConf.getSrvHosts(), zkConf.getSrvTimeout());
         // initialize sub-class
         this.zkConf = zkConf;
-        this.ns = new ZkNamingService(zkConf.getNamingServicePath());
-        shutDownNode = zkConf.getShutDownPath();
+        this.ns = new ZkNamingService(zkConf.getZkAppConf().getServices().getPath());
+        shutDownNode = zkConf.getZkAppConf().getShutdown().getPath();
     }
 
     @Override
@@ -127,7 +128,6 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
 
         if (!masterInitError) {
             // set watch for services
-            //setSrvWatch();
             // notify callers that master finished processing
             masterInitSignal.countDown();
             // wait until it's time for shutdown
@@ -163,19 +163,17 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     public void createZkNamespace() {
         // create zk root node
         LOG.info("Creating App root zNode.");
-        String zkRootPath = createNode(zkConf.getZK_ROOT(), MASTER_ID.getBytes(), PERSISTENT);
-        // update the App zk root path because it is a sequential node
-        //zkConf.setZK_ROOT(zkRootPath);
+        createNode(zkConf.getZkAppConf().getRoot().getPath(), MASTER_ID.getBytes(), PERSISTENT);
         if (!masterInitError) {
             // create zk configuration node
             LOG.info("Creating container conf zNode.");
-            createNode(zkConf.getUserConfPath(), MASTER_ID.getBytes(), PERSISTENT);
+            createNode(zkConf.getZkAppConf().getConDesc().getPath(), MASTER_ID.getBytes(), PERSISTENT);
             // craete zk naming service node
             LOG.info("Creating services zNode.");
-            createNode(zkConf.getNamingServicePath(), MASTER_ID.getBytes(), PERSISTENT);
+            createNode(zkConf.getZkAppConf().getServices().getPath(), MASTER_ID.getBytes(), PERSISTENT);
             // create zk container type nodes
             LOG.info("Creating container type zNodes.");
-            zkConf.getZkContainerTypes().stream().forEach((node) -> {
+            zkConf.getZkAppConf().getContainerTypes().stream().forEach((node) -> {
                 createNode(node.getPath(), node.getData(), PERSISTENT);
             });
         }
@@ -192,11 +190,11 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
         while (!masterInitError) {
             try {
                 nodePath = zk.create(zkPath, data, OPEN_ACL_UNSAFE, mode);
-                LOG.info("Created zNode: " + zkPath);
+                LOG.info("Created zNode: " + nodePath);
                 break;
             } catch (NodeExistsException e) {
                 // node exists while shoudln't
-                LOG.error("Node exists: " + zkPath);
+                LOG.error("Node exists: " + nodePath);
                 masterInitError = true;
             } catch (ConnectionLossException e) {
                 LOG.warn("Connection loss was detected. Retrying...");
@@ -290,7 +288,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      */
     private void setSrvWatch() {
         // iterate through containers map and get container names
-        for (String conName : zkConf.getZkContainers().keySet()) {
+        for (String conName : zkConf.getZkAppConf().getContainers().keySet()) {
             // get the zNode path of the service offered by the container
             String srvPath = ns.resolveSrvName(conName);
             // set watch
@@ -456,7 +454,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     public void cleanZkNamespace() {
         LOG.info("Cleaning zookeeper namespace.");
 
-        List<String> nodesToDelete = getAllNodes(zkConf.getZK_ROOT());
+        List<String> nodesToDelete = getAllNodes(zkConf.getZkAppConf().getRoot().getPath());
         ListIterator<String> iter = nodesToDelete.listIterator();
 
         while (iter.hasNext()) {
@@ -653,12 +651,23 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     }
 
     public void createShutdownNode() {
+        createNode(zkConf.getZkAppConf().getShutdown().getPath(), MASTER_ID.getBytes(), EPHEMERAL);
+    }
 
+    /**
+     *
+     * @return the name of the root zookeeper node of the deployed application
+     * namespace.
+     */
+    public String getDeployedName() {
+        String name = zkConf.getZkAppConf().getRoot().getName();
+        LOG.info("*** APPLICATION DEPLOYED WITH NAME: " + name + " ***");
+        return name;
     }
 
     public void display() {
         try {
-            List<String> children = zk.getChildren(zkConf.getZK_ROOT(), false);
+            List<String> children = zk.getChildren(zkConf.getZkAppConf().getRoot().getPath(), false);
             LOG.info("Printing children of ROOT.");
             for (String child : children) {
                 LOG.info("Node: " + child);

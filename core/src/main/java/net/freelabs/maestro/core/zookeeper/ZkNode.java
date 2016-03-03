@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Dionysis Lappas (dio@freelabs.net)
+ * Copyright (C) 2015-2016 Dionysis Lappas (dio@freelabs.net)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@ public class ZkNode{
     /**
      * The path of the zookeeper node.
      */
-    private final String path;
+    private String path;
     /**
      * The data of the zookeeper node.
      */
@@ -37,7 +37,7 @@ public class ZkNode{
     /**
      * The path of the zookeeper node with the configuration for this node.
      */
-    private final String confNodePath;
+    private String confNodePath;
 
     /**
      * Constructor.
@@ -90,5 +90,11 @@ public class ZkNode{
         this.data = data;
     }
 
-    
+    public void setPath(String path) {
+        this.path = path;
+    }
+
+    public void setConfNodePath(String confNodePath) {
+        this.confNodePath = confNodePath;
+    }
 }

@@ -36,8 +36,10 @@ import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.handler.ContainerHandler;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.utils.Utils;
-import net.freelabs.maestro.core.zookeeper.ZkConfig;
+import net.freelabs.maestro.core.zookeeper.ZkAppConf;
+import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
+import net.freelabs.maestro.core.zookeeper.ZkSrvConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +52,10 @@ public final class StartCmd extends Command {
      * The master zk process.
      */
     private ZkMaster master;
+    /**
+     * The thread running the master process
+     */
+    private Thread masterThread;
     /**
      * A list with all CoreBroker threads created from bootstrap process.
      */
@@ -80,7 +86,7 @@ public final class StartCmd extends Command {
             // analyze restrictions and check if apply on schema
             analyzeRestrictions(handler);
             // create zk configuration
-            ZkConfig zkConf = createZkConf(pConf.getZkHosts(), pConf.getZkSessionTimeout(), handler, webAppName);
+            ZkConf zkConf = createZkConf(pConf.getZkHosts(), pConf.getZkSessionTimeout(), handler, webAppName);
             // initialize zk and start master process
             initZk(zkConf);
             // create a docker client customized for the app
@@ -110,7 +116,16 @@ public final class StartCmd extends Command {
                 LOG.warn("Thread interrupted. Stopping.");
             }
         });
+        // shutdown 
         master.shutdownMaster();
+        try {
+            // wait to finish
+            masterThread.join();
+        } catch (InterruptedException ex) {
+            LOG.warn("Thread interrupted. Stopping.");
+        }
+        // show the application's deployed name
+        master.getDeployedName();
     }
 
     /**
@@ -162,7 +177,7 @@ public final class StartCmd extends Command {
      * @throws IOException if connection to zk cannot be established.
      * @throws InterruptedException if thread is interrupted.
      */
-    public void launchBrokers(ContainerHandler handler, ZkConfig zkConf, DockerClient docker) throws IOException, InterruptedException {
+    public void launchBrokers(ContainerHandler handler, ZkConf zkConf, DockerClient docker) throws IOException, InterruptedException {
         /*  Get a Container from the container handler. The Container can be of 
             any type. Create the CoreBroker and initialize it. The Broker will 
             connect to zk and then start execution on a new thread.
@@ -235,9 +250,9 @@ public final class StartCmd extends Command {
      * start.
      * <p>
      * The Zookeeper configuration is stored at a
-     * {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConfig} object. The
-     * object stores zk connection configuration along with the zk namespace
-     * nodes that need to be created for the application.
+     * {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConf} object. The object
+     * stores zk connection configuration along with the zk namespace nodes that
+     * need to be created for the application.
      * <p>
      * A handler is passed to retrieve information from/and containers in order
      * to initialize the configuration. The Container Types are the parent nodes
@@ -248,22 +263,22 @@ public final class StartCmd extends Command {
      * @param handler a Container handler object to query for container
      * information.
      * @param webAppName the name of the WebApp
-     * @return a {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConfig} object
+     * @return a {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConf} object
      * that holds all the configuration for zookeeper.
      * @throws IOException if serialization of Container object fails.
      */
-    public ZkConfig createZkConf(String hosts, int timeout, ContainerHandler handler, String webAppName) throws IOException {
+    public ZkConf createZkConf(String hosts, int timeout, ContainerHandler handler, String webAppName) throws IOException {
         /*
-         Create a zookeeper configuration object. This object holds all the
-         necessary configuration information needed for zookeeper to boostrap-
-         initialize and for the program to work. Among others, it holds the host:port 
-         connection server list, client session timeout, paths and data of parent 
-         zookeeper nodes that correspond to the first nodes created -based to the 
-         different Container Types (e.g. web, business, data e.t.c.) declared, 
-         paths and data of children zookeeper nodes that correspond to the children 
-         of parent nodes based on declared Containers e.t.c.
+        Create the zookeeper service configuration. All the configuration parameters
+        regarding the zookeeper service are stored to this object.
          */
-        ZkConfig zkConf = new ZkConfig(hosts, timeout, webAppName);
+        ZkSrvConf zkSrvConf = new ZkSrvConf(hosts, timeout);
+
+        /*
+        Create the configufation for the application that will be deployed to the
+        zookeeper service.
+         */
+        ZkAppConf zkAppConf = new ZkAppConf(webAppName);
 
         /* 
          Initialize zookeeper parent nodes. The zookeeper namespace has an 
@@ -279,7 +294,7 @@ public final class StartCmd extends Command {
          */
         for (String type : handler.getContainerTypes()) {
             LOG.info("Container type: " + type);
-            zkConf.initZkContainerTypes(type, new byte[0]);
+            zkAppConf.initZkContainerType(type, new byte[0]);
         }
 
         /*
@@ -301,8 +316,24 @@ public final class StartCmd extends Command {
             String type = Utils.getType(con);
             // initialize child node
             LOG.info("Container name:type: " + name + ":" + type + ". Data size: " + data.length);
-            zkConf.initZkContainers(name, type, data);
+            zkAppConf.initZkContainer(name, type, data);
         }
+
+        /*
+         Create a zookeeper configuration object. This object holds all the
+         necessary configuration information needed for zookeeper to boostrap-
+         initialize and for the program to work. Among others, it holds the host:port 
+         connection server list, client session timeout, paths and data of parent 
+         zookeeper nodes that correspond to the first nodes created -based to the 
+         different Container Types (e.g. web, business, data e.t.c.) declared, 
+         paths and data of children zookeeper nodes that correspond to the children 
+         of parent nodes based on declared Containers e.t.c.
+         */
+        ZkConf zkConf = new ZkConf(zkAppConf, zkSrvConf);
+
+        // initialize zkConf node with data
+        byte[] data = JsonSerializer.serialize(zkConf);
+        zkAppConf.initZkConf(data);
 
         return zkConf;
     }
@@ -318,17 +349,17 @@ public final class StartCmd extends Command {
      * establishes a session with the zookeeper servers. After the session is
      * established, the Master is created, the watched event is processed and
      * bootstraps the creation of the namespace from the
-     * {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConfig} object.
+     * {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConf} object.
      *
      * @param zkConf an object with the zk configuration.
      * @throws InterruptedException if thread is interrupted.
      * @throws IOException in cases of network failure.
      */
-    public void initZk(ZkConfig zkConf) throws InterruptedException, IOException {
+    public void initZk(ZkConf zkConf) throws InterruptedException, IOException {
         // create a master object and initialize it with zk configuration
         master = new ZkMaster(zkConf);
         // Create a new thread to run the master 
-        Thread masterThread = new Thread(master, "Master-thread");
+        masterThread = new Thread(master, "Master-thread");
         // start the master process
         masterThread.start();
         // wait for initialization

@@ -30,7 +30,6 @@ public final class StopCmd extends Command {
 
     @Override
     protected void exec(ProgramConf pConf) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
     
 }

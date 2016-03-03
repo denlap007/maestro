@@ -23,6 +23,7 @@ import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.WebContainer;
+import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode;
 
 /**
@@ -120,6 +121,17 @@ public class JsonSerializer {
         return MAPPER.writeValueAsBytes(map);
     }
 
+    public static byte[] serialize(ZkConf zkConf) throws JsonProcessingException {
+        // ZkConf -> byte[]
+        return MAPPER.writeValueAsBytes(zkConf);
+    }
+
+    public static ZkConf deserializeZkConf(byte[] data) throws IOException {
+        // byte[] -> ZkConf
+        return MAPPER.readValue(data, new TypeReference<ZkConf>() {
+        });
+    }
+
     public static Map<String, Object> deserializeToMap(byte[] data) throws IOException {
         // byte[] -> Map<String, Object>
         return MAPPER.readValue(data, new TypeReference<Map<String, Object>>() {
@@ -165,7 +177,7 @@ public class JsonSerializer {
         // write java value as json to file
         MAPPER.writeValue(newFile, con);
     }
-    
+
     /**
      * Serializes a {@link ZkNamingServiceNode ZkNamingServiceNode}.
      *
@@ -179,7 +191,9 @@ public class JsonSerializer {
     }
 
     /**
-     * Deserializes a byte array to a {@link ZkNamingServiceNode ZkNamingServiceNode}.
+     * Deserializes a byte array to a
+     * {@link ZkNamingServiceNode ZkNamingServiceNode}.
+     *
      * @param data the data to deserialize.
      * @return a {@link ZkNamingServiceNode ZkNamingServiceNode}.
      * @throws IOException
