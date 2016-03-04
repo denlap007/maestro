@@ -88,7 +88,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * Latch set when Master process starts and is released when it initializes.
      */
     private final CountDownLatch masterInitSignal = new CountDownLatch(1);
-    
+
     /**
      * Constructor
      *
@@ -161,21 +161,12 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * Creates the zookeeper hierarchical namespace defined for the application.
      */
     public void createZkNamespace() {
-        // create zk root node
-        LOG.info("Creating App root zNode.");
-        createNode(zkConf.getZkAppConf().getRoot().getPath(), MASTER_ID.getBytes(), PERSISTENT);
-        if (!masterInitError) {
-            // create zk configuration node
-            LOG.info("Creating container conf zNode.");
-            createNode(zkConf.getZkAppConf().getConDesc().getPath(), MASTER_ID.getBytes(), PERSISTENT);
-            // craete zk naming service node
-            LOG.info("Creating services zNode.");
-            createNode(zkConf.getZkAppConf().getServices().getPath(), MASTER_ID.getBytes(), PERSISTENT);
-            // create zk container type nodes
-            LOG.info("Creating container type zNodes.");
-            zkConf.getZkAppConf().getContainerTypes().stream().forEach((node) -> {
+
+        for (ZkNode node : zkConf.getZkAppConf().getZkAppNamespace()) {
+            if (!masterInitError) {
+                node.setData(MASTER_ID.getBytes());
                 createNode(node.getPath(), node.getData(), PERSISTENT);
-            });
+            }
         }
     }
 

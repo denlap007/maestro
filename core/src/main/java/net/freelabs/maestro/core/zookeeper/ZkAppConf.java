@@ -76,6 +76,10 @@ public final class ZkAppConf {
      * The zkNodes holding info about containers.
      */
     private final Map<String, ZkNode> containers;
+    /**
+     * The namespace of the application to the zookeeper service.
+     */
+    private final List<ZkNode> zkAppNamespace;
 
     /**
      * Constructor.
@@ -83,41 +87,50 @@ public final class ZkAppConf {
      * @param root the root application node to the zookeeper namespace.
      */
     public ZkAppConf(String root) {
+        // create namespace list
+        zkAppNamespace = new ArrayList<>();
         // create root zkNode
         // create ID for root node, an 8-digit positive number zero padded
         int numId = (new Random().nextInt(90000000) + 10000000);
         String strId = String.format("%08d", numId);
         String name = root + "-" + strId;
         String rootPath = "/" + name;
-        this.root = new ZkNode(rootPath, null, name, null);
+        this.root = new ZkNode(rootPath, new byte[0], name, "");
+        zkAppNamespace.add(this.root);
         // create services zkNode
         String path = rootPath + "/services";
         name = "services";
-        services = new ZkNode(path, null, name, null);
+        services = new ZkNode(path, new byte[0], name, "");
+        zkAppNamespace.add(services);
         // create zknode for container descriptions
         path = rootPath + "/conf";
         name = "conf";
-        conDesc = new ZkNode(path, null, name, null);
+        conDesc = new ZkNode(path, new byte[0], name, "");
+        zkAppNamespace.add(conDesc);
         // create shutdown zkNode
         path = rootPath + "/shutdown";
         name = "shutdown";
-        shutdown = new ZkNode(path, null, name, null);
+        shutdown = new ZkNode(path, new byte[0], name, "");
         // create master zkNode
         path = rootPath + "/master";
         name = "master";
-        master = new ZkNode(path, null, name, null);
+        master = new ZkNode(path, new byte[0], name, "");
+        zkAppNamespace.add(master);
         // create zkNode for zookeeper configuration
         path = master.getPath() + "/zkConf";
         name = "zkConf";
-        zkConf = new ZkNode(path, null, name, null);
+        zkConf = new ZkNode(path, new byte[0], name, "");
+        zkAppNamespace.add(zkConf);
         // create zkNode for program configuration
         path = master.getPath() + "/progConf";
         name = "progConf";
-        progConf = new ZkNode(path, null, name, null);
+        progConf = new ZkNode(path, new byte[0], name, "");
+        zkAppNamespace.add(progConf);
         // create zkNode for appplication configuration
         path = master.getPath() + "/appConf";
         name = "appConf";
-        appConf = new ZkNode(path, null, name, null);
+        appConf = new ZkNode(path, new byte[0], name, "");
+        zkAppNamespace.add(appConf);
         // create Lists-Maps
         containerTypes = new ArrayList<>();
         containers = new HashMap<>();
@@ -136,9 +149,10 @@ public final class ZkAppConf {
         // craete node's name
         String name = "/" + type;
         // create a new zk node object 
-        ZkNode zkNode = new ZkNode(path, data, name, null);
+        ZkNode zkNode = new ZkNode(path, data, name, "");
         // add to list
         containerTypes.add(zkNode);
+        zkAppNamespace.add(zkNode);
     }
 
     /**
@@ -213,4 +227,9 @@ public final class ZkAppConf {
     public Map<String, ZkNode> getContainers() {
         return containers;
     }
+
+    public List<ZkNode> getZkAppNamespace() {
+        return zkAppNamespace;
+    }
+    
 }
