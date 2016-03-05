@@ -111,7 +111,7 @@ public abstract class CoreBroker implements Runnable {
         this.dockerClient = dockerClient;
         this.zkClient = zkClient;
         //this.errHandler = errHandler;
-        zNode = zkConf.getZkAppConf().getContainers().get(con.getName());
+        zNode = zkConf.getContainers().get(con.getName());
     }
 
     @Override
@@ -301,7 +301,7 @@ public abstract class CoreBroker implements Runnable {
     }
 
     public void setShutDownWatch(ZooKeeper zk) {
-        zk.exists(zkConf.getZkAppConf().getShutdown().getPath(), cleanUpWatcher, cleanUpCallback, null);
+        zk.exists(zkConf.getShutdown().getPath(), cleanUpWatcher, cleanUpCallback, null);
     }
 
     private final AsyncCallback.StatCallback cleanUpCallback = new AsyncCallback.StatCallback() {

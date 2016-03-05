@@ -133,11 +133,11 @@ public class CoreBusinessBroker extends CoreBroker {
     @Override
     protected String createBootEnv() {
         // set boot environment configuration
-        String ZK_HOSTS = zkConf.getSrvHosts();
-        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getSrvTimeout());
+        String ZK_HOSTS = zkConf.getZkSrvConf().getHosts();
+        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getZkSrvConf().getTimeout());
         String ZK_CONTAINER_PATH = zNode.getPath();
-        String ZK_NAMING_SERVICE = zkConf.getZkAppConf().getServices().getPath();
-        String SHUTDOWN_NODE = zkConf.getZkAppConf().getShutdown().getPath();
+        String ZK_NAMING_SERVICE = zkConf.getServices().getPath();
+        String SHUTDOWN_NODE = zkConf.getShutdown().getPath();
         String CONF_NODE = zNode.getConfNodePath();
         // create a string with all the key-value pairs
         String env = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"

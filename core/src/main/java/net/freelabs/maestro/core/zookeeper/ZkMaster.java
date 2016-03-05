@@ -56,10 +56,6 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      */
     private final ZkConf zkConf;
     /**
-     * A Logger object.
-     */
-    private static final Logger LOG = LoggerFactory.getLogger(ZkMaster.class);
-    /**
      * Data for the master node.
      */
     private static final String MASTER_ID = Long.toString(new Random().nextLong());
@@ -68,12 +64,10 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * that need to occur before it releases all	waiting threads.
      */
     private final CountDownLatch shutdownSignal = new CountDownLatch(1);
-
     /**
-     * The node that signals the shutdown of the master.
+     * Latch set when Master process starts and is released when it initializes.
      */
-    private final String shutDownNode;
-
+    private final CountDownLatch masterInitSignal = new CountDownLatch(1);
     /**
      * A naming service instance to resolve container names to service names and
      * de-serialize data from service nodes.
@@ -85,9 +79,9 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      */
     private boolean masterInitError;
     /**
-     * Latch set when Master process starts and is released when it initializes.
+     * A Logger object.
      */
-    private final CountDownLatch masterInitSignal = new CountDownLatch(1);
+    private static final Logger LOG = LoggerFactory.getLogger(ZkMaster.class);
 
     /**
      * Constructor
@@ -96,11 +90,10 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      */
     public ZkMaster(ZkConf zkConf) {
         // initialize super class
-        super(zkConf.getSrvHosts(), zkConf.getSrvTimeout());
+        super(zkConf.getZkSrvConf().getHosts(), zkConf.getZkSrvConf().getTimeout());
         // initialize sub-class
         this.zkConf = zkConf;
-        this.ns = new ZkNamingService(zkConf.getZkAppConf().getServices().getPath());
-        shutDownNode = zkConf.getZkAppConf().getShutdown().getPath();
+        this.ns = new ZkNamingService(zkConf.getServices().getPath());
     }
 
     @Override
@@ -162,7 +155,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      */
     public void createZkNamespace() {
 
-        for (ZkNode node : zkConf.getZkAppConf().getZkAppNamespace()) {
+        for (ZkNode node : zkConf.getZkAppNamespace()) {
             if (!masterInitError) {
                 node.setData(MASTER_ID.getBytes());
                 createNode(node.getPath(), node.getData(), PERSISTENT);
@@ -279,7 +272,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      */
     private void setSrvWatch() {
         // iterate through containers map and get container names
-        for (String conName : zkConf.getZkAppConf().getContainers().keySet()) {
+        for (String conName : zkConf.getContainers().keySet()) {
             // get the zNode path of the service offered by the container
             String srvPath = ns.resolveSrvName(conName);
             // set watch
@@ -445,7 +438,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     public void cleanZkNamespace() {
         LOG.info("Cleaning zookeeper namespace.");
 
-        List<String> nodesToDelete = getAllNodes(zkConf.getZkAppConf().getRoot().getPath());
+        List<String> nodesToDelete = getAllNodes(zkConf.getRoot().getPath());
         ListIterator<String> iter = nodesToDelete.listIterator();
 
         while (iter.hasNext()) {
@@ -573,7 +566,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * Sets a watch for the znode that indicates the program shutdown.
      */
     private void setShutDownWatch() {
-        zk.exists(shutDownNode, shutDownWatcher, setShutDownWatchCallback, zk);
+        zk.exists(zkConf.getShutdown().getPath(), shutDownWatcher, setShutDownWatchCallback, zk);
     }
     /**
      * Callback to be used with {@link #setShutDownWatch() setShutDownWatch}.
@@ -642,7 +635,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     }
 
     public void createShutdownNode() {
-        createNode(zkConf.getZkAppConf().getShutdown().getPath(), MASTER_ID.getBytes(), EPHEMERAL);
+        createNode(zkConf.getShutdown().getPath(), MASTER_ID.getBytes(), EPHEMERAL);
     }
 
     /**
@@ -651,14 +644,14 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * namespace.
      */
     public String getDeployedName() {
-        String name = zkConf.getZkAppConf().getRoot().getName();
+        String name = zkConf.getRoot().getName();
         LOG.info("*** APPLICATION DEPLOYED WITH NAME: " + name + " ***");
         return name;
     }
 
     public void display() {
         try {
-            List<String> children = zk.getChildren(zkConf.getZkAppConf().getRoot().getPath(), false);
+            List<String> children = zk.getChildren(zkConf.getRoot().getPath(), false);
             LOG.info("Printing children of ROOT.");
             for (String child : children) {
                 LOG.info("Node: " + child);

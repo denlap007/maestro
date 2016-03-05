@@ -26,11 +26,11 @@ public final class ZkSrvConf {
     /**
      * The zookeeper client session time out.
      */
-    private int timeout;
+    private final int timeout;
     /**
      * The list of zookeepers hosts.
      */
-    private String hosts;
+    private final String hosts;
 
     /**
      * Constructor.
@@ -60,21 +60,5 @@ public final class ZkSrvConf {
      */
     public int getTimeout() {
         return timeout;
-    }
-
-    /**
-     *
-     * @param hosts set the zookeeper hosts list.
-     */
-    public void setHosts(String hosts) {
-        this.hosts = hosts;
-    }
-
-    /**
-     *
-     * @param timeout set the client session timeout.
-     */
-    public void setTimeout(int timeout) {
-        this.timeout = timeout;
     }
 }

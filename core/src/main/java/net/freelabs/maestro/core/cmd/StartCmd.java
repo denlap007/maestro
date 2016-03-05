@@ -36,10 +36,8 @@ import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.handler.ContainerHandler;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.utils.Utils;
-import net.freelabs.maestro.core.zookeeper.ZkAppConf;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
-import net.freelabs.maestro.core.zookeeper.ZkSrvConf;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -269,16 +267,16 @@ public final class StartCmd extends Command {
      */
     public ZkConf createZkConf(String hosts, int timeout, ContainerHandler handler, String webAppName) throws IOException {
         /*
-        Create the zookeeper service configuration. All the configuration parameters
-        regarding the zookeeper service are stored to this object.
+         Create a zookeeper configuration object. This object holds all the
+         necessary configuration information needed for zookeeper to boostrap-
+         initialize and for the program to work. Among others, it holds the host:port 
+         connection server list, client session timeout, paths and data of parent 
+         zookeeper nodes that correspond to the first nodes created -based to the 
+         different Container Types (e.g. web, business, data e.t.c.) declared, 
+         paths and data of children zookeeper nodes that correspond to the children 
+         of parent nodes based on declared Containers e.t.c.
          */
-        ZkSrvConf zkSrvConf = new ZkSrvConf(hosts, timeout);
-
-        /*
-        Create the configufation for the application that will be deployed to the
-        zookeeper service.
-         */
-        ZkAppConf zkAppConf = new ZkAppConf(webAppName);
+        ZkConf zkConf = new ZkConf(webAppName, hosts, timeout);
 
         /* 
          Initialize zookeeper parent nodes. The zookeeper namespace has an 
@@ -294,7 +292,7 @@ public final class StartCmd extends Command {
          */
         for (String type : handler.getContainerTypes()) {
             LOG.info("Container type: " + type);
-            zkAppConf.initZkContainerType(type, new byte[0]);
+            zkConf.initZkContainerType(type, new byte[0]);
         }
 
         /*
@@ -316,25 +314,12 @@ public final class StartCmd extends Command {
             String type = Utils.getType(con);
             // initialize child node
             LOG.info("Container name:type: " + name + ":" + type + ". Data size: " + data.length);
-            zkAppConf.initZkContainer(name, type, data);
+            zkConf.initZkContainer(name, type, data);
         }
-
-        /*
-         Create a zookeeper configuration object. This object holds all the
-         necessary configuration information needed for zookeeper to boostrap-
-         initialize and for the program to work. Among others, it holds the host:port 
-         connection server list, client session timeout, paths and data of parent 
-         zookeeper nodes that correspond to the first nodes created -based to the 
-         different Container Types (e.g. web, business, data e.t.c.) declared, 
-         paths and data of children zookeeper nodes that correspond to the children 
-         of parent nodes based on declared Containers e.t.c.
-         */
-        ZkConf zkConf = new ZkConf(zkAppConf, zkSrvConf);
 
         // initialize zkConf node with data
         byte[] data = JsonSerializer.serialize(zkConf);
-        zkAppConf.initZkConf(data);
-
+        zkConf.initZkConf(data);
         return zkConf;
     }
 
