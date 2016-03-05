@@ -101,19 +101,40 @@ public class CliOptions {
     @Parameters(commandDescription = "Stop application deployment")
     public class StopCmdOpt {
 
-        @Parameter(names = {"-h", "--help"},  description = "Help for this command", help = true)
+        @Parameter(names = {"-h", "--help"}, description = "Help for this command", help = true)
         private boolean help;
 
-        @Parameter(description = "<name>... The list with the names of deployed applications to stop.", required = true)
-        private List<String> apps;
+        @Parameter(description = "<name> The name of the deployed application to stop.", required = true)
+        private List<String> app;
+
+        @Parameter(names = {"-c", "--conf"}, description = "<program conf> Set path of .properties file with program's configuration.", required = false)
+        private String conf;
+
+        @Parameter(names = {"-t", "--zTimeout"}, description = "<session timeout> Set zookeeper client session timeout.", required = false)
+        private int zTimeout;
+
+        @Parameter(names = {"-z", "--zHosts"}, description = "<hosts> Set zookeeper host list (comma seperated host:port pairs--no space).", required = false)
+        private String zHosts;
 
         // Getters
         public boolean isHelp() {
             return this.help;
         }
 
-        public List<String> getApps() {
-            return apps;
+        public List<String> getApp() {
+            return app;
+        }
+
+        public String getConf() {
+            return conf;
+        }
+
+        public int getzTimeout() {
+            return zTimeout;
+        }
+
+        public String getzHosts() {
+            return zHosts;
         }
     }
 

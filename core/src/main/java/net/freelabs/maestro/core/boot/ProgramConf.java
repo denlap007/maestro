@@ -41,7 +41,6 @@ public final class ProgramConf {
     private String xmlSchemaPath;
     private String xmlFilePath;
     private String dockerURI;
-    private String AppName;
     private static final String PROPERTIES_FILE_NAME = "maestro.properties";
     private static final String PROGRAM_NAME = "maestro";
     private static final String VERSION = "0.1.0";
@@ -246,12 +245,4 @@ public final class ProgramConf {
     public static String getPROGRAM_NAME() {
         return PROGRAM_NAME;
     } 
-
-    public String getAppName() {
-        return AppName;
-    }
-
-    public void setAppName(String AppName) {
-        this.AppName = AppName;
-    }
 }

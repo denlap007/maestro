@@ -73,7 +73,7 @@ public final class StartCmd extends Command {
     }
 
     @Override
-    public void exec(ProgramConf pConf) {
+    public void exec(ProgramConf pConf, String... args) {
         try {
             // unmarshall xml file into a top-level object
             WebApp webApp = unmarshalXml(pConf.getXmlSchemaPath(), pConf.getXmlFilePath());
@@ -84,7 +84,7 @@ public final class StartCmd extends Command {
             // analyze restrictions and check if apply on schema
             analyzeRestrictions(handler);
             // create zk configuration
-            ZkConf zkConf = createZkConf(pConf.getZkHosts(), pConf.getZkSessionTimeout(), handler, webAppName);
+            ZkConf zkConf = createZkConf(pConf.getZkHosts(), pConf.getZkSessionTimeout(), handler, webAppName, pConf);
             // initialize zk and start master process
             initZk(zkConf);
             // create a docker client customized for the app
@@ -265,7 +265,7 @@ public final class StartCmd extends Command {
      * that holds all the configuration for zookeeper.
      * @throws IOException if serialization of Container object fails.
      */
-    public ZkConf createZkConf(String hosts, int timeout, ContainerHandler handler, String webAppName) throws IOException {
+    public ZkConf createZkConf(String hosts, int timeout, ContainerHandler handler, String webAppName, ProgramConf pConf) throws IOException {
         /*
          Create a zookeeper configuration object. This object holds all the
          necessary configuration information needed for zookeeper to boostrap-
@@ -276,7 +276,7 @@ public final class StartCmd extends Command {
          paths and data of children zookeeper nodes that correspond to the children 
          of parent nodes based on declared Containers e.t.c.
          */
-        ZkConf zkConf = new ZkConf(webAppName, hosts, timeout);
+        ZkConf zkConf = new ZkConf(webAppName, true, hosts, timeout);
 
         /* 
          Initialize zookeeper parent nodes. The zookeeper namespace has an 
@@ -292,7 +292,7 @@ public final class StartCmd extends Command {
          */
         for (String type : handler.getContainerTypes()) {
             LOG.info("Container type: " + type);
-            zkConf.initZkContainerType(type, new byte[0]);
+            zkConf.initZkContainerType(type);
         }
 
         /*
@@ -317,9 +317,13 @@ public final class StartCmd extends Command {
             zkConf.initZkContainer(name, type, data);
         }
 
-        // initialize zkConf node with data
+        // initialize zkConf zknode with data
         byte[] data = JsonSerializer.serialize(zkConf);
-        zkConf.initZkConf(data);
+        zkConf.getZkConf().setData(data);
+        // initialize progConf zknode with data
+        data = JsonSerializer.serialize(pConf);
+        zkConf.getProgConf().setData(data);
+        
         return zkConf;
     }
 

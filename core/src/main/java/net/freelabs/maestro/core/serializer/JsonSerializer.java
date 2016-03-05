@@ -19,6 +19,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.charset.Charset;
 import java.util.Map;
+import net.freelabs.maestro.core.boot.ProgramConf;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.DataContainer;
@@ -124,6 +125,17 @@ public class JsonSerializer {
     public static byte[] serialize(ZkConf zkConf) throws JsonProcessingException {
         // ZkConf -> byte[]
         return MAPPER.writeValueAsBytes(zkConf);
+    }
+
+    public static byte[] serialize(ProgramConf pConf) throws JsonProcessingException {
+        // progConf -> byte[] 
+        return MAPPER.writeValueAsBytes(pConf);
+    }
+
+    public static ZkConf deserializeProgConf(byte[] data) throws IOException {
+        // byte[] -> ZkConf
+        return MAPPER.readValue(data, new TypeReference<ProgramConf>() {
+        });
     }
 
     public static ZkConf deserializeZkConf(byte[] data) throws IOException {

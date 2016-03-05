@@ -29,7 +29,7 @@ public final class CleanCmd extends Command{
     }
 
     @Override
-    protected void exec(ProgramConf pConf) {
+    protected void exec(ProgramConf pConf, String... args) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
     

@@ -80,6 +80,11 @@ public final class ZkConf {
      * The client configuration that connects to the zookeeper service.
      */
     private final ZkSrvConf zkSrvConf;
+    /**
+     * An id used as data for nodes without data. Also, this is the suffic to
+     * the zk root node for the application.
+     */
+    private final String strId;
 
     /**
      * Constructor.
@@ -90,46 +95,65 @@ public final class ZkConf {
      *
      * @param timeout the time until session is closed if the client hasn't
      * contacted the server.
+     * @param suffixed determines weather to apply an 8-digit suffix to the
+     * application root zNode.
      */
-    public ZkConf(String root, String hosts, int timeout) {
+    public ZkConf(String root, boolean suffixed, String hosts, int timeout) {
         // create namespace list
         zkAppNamespace = new ArrayList<>();
         // create root zkNode
         // create ID for root node, an 8-digit positive number zero padded
-        int numId = (new Random().nextInt(90000000) + 10000000);
-        String strId = String.format("%08d", numId);
-        String name = root + "-" + strId;
+        int numId;
+
+        String name;
+        if (suffixed) {
+            numId = (new Random().nextInt(90000000) + 10000000);
+            strId = String.format("%08d", numId);
+            name = root + "-" + strId;
+        } else {
+            name = root;
+            String[] tokens = name.split("-");
+            if (tokens != null) {
+                if (tokens.length == 2) {
+                    strId = tokens[1];
+                } else {
+                    strId = "0";
+                }
+            } else {
+                strId = "0";
+            }
+        }
         String rootPath = "/" + name;
-        this.root = new ZkNode(rootPath, new byte[0], name, "");
+        this.root = new ZkNode(rootPath, strId.getBytes(), name, "");
         zkAppNamespace.add(this.root);
         // create services zkNode
         String path = rootPath + "/services";
         name = "services";
-        services = new ZkNode(path, new byte[0], name, "");
+        services = new ZkNode(path, strId.getBytes(), name, "");
         zkAppNamespace.add(services);
         // create zknode for container descriptions
         path = rootPath + "/conf";
         name = "conf";
-        conDesc = new ZkNode(path, new byte[0], name, "");
+        conDesc = new ZkNode(path, strId.getBytes(), name, "");
         zkAppNamespace.add(conDesc);
         // create shutdown zkNode
         path = rootPath + "/shutdown";
         name = "shutdown";
-        shutdown = new ZkNode(path, new byte[0], name, "");
+        shutdown = new ZkNode(path, strId.getBytes(), name, "");
         // create master zkNode
         path = rootPath + "/master";
         name = "master";
-        master = new ZkNode(path, new byte[0], name, "");
+        master = new ZkNode(path, strId.getBytes(), name, "");
         zkAppNamespace.add(master);
         // create zkNode for zookeeper configuration
         path = master.getPath() + "/zkConf";
         name = "zkConf";
-        zkConf = new ZkNode(path, new byte[0], name, "");
+        zkConf = new ZkNode(path, strId.getBytes(), name, "");
         zkAppNamespace.add(zkConf);
         // create zkNode for program configuration
         path = master.getPath() + "/progConf";
         name = "progConf";
-        progConf = new ZkNode(path, new byte[0], name, "");
+        progConf = new ZkNode(path, strId.getBytes(), name, "");
         zkAppNamespace.add(progConf);
         // create Lists-Maps
         containerTypes = new ArrayList<>();
@@ -143,15 +167,14 @@ public final class ZkConf {
      * derived from two components: the zookeeper root + the type argument.
      *
      * @param type container type.
-     * @param data zkNode's data.
      */
-    public void initZkContainerType(String type, byte[] data) {
+    public void initZkContainerType(String type) {
         // create node's path
         String path = root.getPath() + "/" + type;
         // craete node's name
         String name = "/" + type;
         // create a new zk node object 
-        ZkNode zkNode = new ZkNode(path, data, name, "");
+        ZkNode zkNode = new ZkNode(path, strId.getBytes(), name, "");
         // add to list
         containerTypes.add(zkNode);
         zkAppNamespace.add(zkNode);
@@ -177,16 +200,6 @@ public final class ZkConf {
         ZkNode zkNode = new ZkNode(nodePath, data, nodeName, conConfPath);
         // add to list
         containers.put(name, zkNode);
-    }
-
-    /**
-     * Initializes {@link #zkConf zkConf} with data.
-     *
-     * @param data
-     */
-    public void initZkConf(byte[] data) {
-        // add data to zkConf node
-        zkConf.setData(data);
     }
 
     // Getters 

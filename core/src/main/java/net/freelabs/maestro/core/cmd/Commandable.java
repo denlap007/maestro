@@ -38,10 +38,10 @@ package net.freelabs.maestro.core.cmd;
  */
 public interface Commandable {
 
-    public void exec_start();
+    public void exec_start(String... args);
 
-    public void exec_stop();
+    public void exec_stop(String... args);
 
-    public void exec_clean();
+    public void exec_clean(String... args);
 
 }

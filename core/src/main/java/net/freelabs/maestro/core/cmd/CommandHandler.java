@@ -69,17 +69,17 @@ public final class CommandHandler implements Commandable {
     }
 
     @Override
-    public void exec_start() {
+    public void exec_start(String... args) {
         startCmd.exec(pConf);
     }
 
     @Override
-    public void exec_stop() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public void exec_stop(String... args) {
+        stopCmd.exec(pConf, args);
     }
 
     @Override
-    public void exec_clean() {
+    public void exec_clean(String... args) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 

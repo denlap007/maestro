@@ -41,7 +41,7 @@ abstract class Command {
     /**
      * Executes the user command.
      */
-    protected abstract void exec(ProgramConf pConf);
+    protected abstract void exec(ProgramConf pConf, String... args);
 
     /**
      *

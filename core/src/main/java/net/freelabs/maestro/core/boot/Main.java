@@ -19,6 +19,7 @@ package net.freelabs.maestro.core.boot;
 import net.freelabs.maestro.core.cmd.CommandHandler;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterException;
+import java.util.Scanner;
 import net.freelabs.maestro.core.boot.cl.CliOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,13 +41,13 @@ public class Main {
      * @param args command line arguments.
      */
     public static void main(String[] args) {
-        /* FOR TESTING
+        /* FOR TESTING*/
         Scanner sc = new Scanner(System.in);
         String input = sc.nextLine();
         String[] inputArgs = input.split(" ");
-        -------------------------------------------------------------------- */
-        
-        
+        args = inputArgs;
+        //-------------------------------------------------------------------- 
+
         // create object that holds program's configuration
         ProgramConf pConf = new ProgramConf();
         // create commnad handler to execute commands
@@ -115,8 +116,6 @@ public class Main {
                 boolean ok = pConf.isConfInit();
                 if (ok) {
                     // execute START command
-                    LOG.info("STARTING.");
-                    //System.exit(0);           // FOR TESTING
                     cmdExec.exec_start();
                 } else {
                     System.exit(1);
@@ -127,11 +126,26 @@ public class Main {
             if (stopCmdOpt.isHelp()) {
                 cl.usage(stop);
                 System.exit(0);
-            }else{
-                // get the name of the app
-                pConf.setAppName(stopCmdOpt.getApps().get(0));
-                // execute STOP command
-                cmdExec.exec_stop();
+            } else {
+                // check configuration
+                pConf.setZkHosts(stopCmdOpt.getzHosts());
+                pConf.setZkSessionTimeout(stopCmdOpt.getzTimeout());
+                // init unset (if any) conf parameters with file input (if any)
+                // check for external properties file
+                if (stopCmdOpt.getConf() != null) {
+                    // if found load parameters to pConf
+                    pConf.loadFromFileUnset(stopCmdOpt.getConf());
+                }else {
+                    // check for properties file to the running path
+                    pConf.loadFromFileUnset("");
+                }
+                // check if program's configuration is complete
+                if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0) {
+                    // execute STOP command
+                    cmdExec.exec_stop(stopCmdOpt.getApp().get(0));
+                } else {
+                    LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                }
             }
 
         } else if (parsedCmd.equals(clean)) {
