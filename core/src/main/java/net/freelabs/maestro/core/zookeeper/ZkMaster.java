@@ -37,8 +37,10 @@ import org.apache.zookeeper.KeeperException.NoNodeException;
 import org.apache.zookeeper.KeeperException.NodeExistsException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
+import static org.apache.zookeeper.Watcher.Event.EventType.NodeChildrenChanged;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeDataChanged;
+import static org.apache.zookeeper.Watcher.Event.EventType.NodeDeleted;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 import org.apache.zookeeper.data.Stat;
 
@@ -53,7 +55,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     /**
      * Zookeeper configuration.
      */
-    private ZkConf zkConf;
+    private final ZkConf zkConf;
     /**
      * A CountDownLatch with a count of one, representing the number of events
      * that need to occur before it releases all	waiting threads.
@@ -64,15 +66,23 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      */
     private final CountDownLatch masterInitSignal = new CountDownLatch(1);
     /**
+     * Latch set when waiting for application services to stop.
+     */
+    private final CountDownLatch servicesStopped = new CountDownLatch(1);
+    /**
      * A naming service instance to resolve container names to service names and
      * de-serialize data from service nodes.
      */
-    private ZkNamingService ns;
+    private final ZkNamingService ns;
     /**
      * Indicates if there was an error during initialization of the Master
      * process. If so, then the master process is not properly initialized.
      */
     private boolean masterError;
+    /**
+     * List of running services.
+     */
+    private List<String> servicesCache;
     /**
      * A Logger object.
      */
@@ -263,16 +273,18 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * Checks if zNode exists.
      *
      * @param path the path of the zNode to check.
-     * @return a {@link Stat Stat} object with metadata about the zNode.
+     * @return true if zNode exists.
      */
-    public Stat nodeExists(String path) {
+    public boolean nodeExists(String path) {
         while (true) {
             try {
-                Stat stat =  zk.exists(path, false);
-                if (stat == null){
-                    LOG.error("Node does NOT exist: " + path);
+                Stat stat = zk.exists(path, null);
+                if (stat == null) {
+                    LOG.error("NO {} node found.", path);
+                    break;
+                } else {
+                    return true;
                 }
-                return stat;
             } catch (ConnectionLossException e) {
                 LOG.warn("Connection loss was detected. Retrying...");
             } catch (KeeperException ex) {
@@ -288,7 +300,123 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
                 break;
             }
         }
-        return null;
+        return false;
+    }
+
+    /**
+     * Makes a getChildren call to application services node and registers a
+     * watcher to node's children. If an error occurs, the {@link #masterError
+     * masterError} flag is set to true. 
+     *
+     * @return the list of children of application services node. An empty list
+     * in case there are no children, NULL if an error occurred.
+     */
+    public List<String> watchServices() {
+        // make a get children call to leave watch for node's children
+        List<String> children = null;
+        while (true) {
+            try {
+                children = zk.getChildren(zkConf.getServices().getPath(), childrenWatcher);
+                return children;
+            } catch (InterruptedException ex) {
+                masterError = true;
+                // log event
+                LOG.warn("Interrupted. Stopping");
+                // set interupt flag
+                Thread.currentThread().interrupt();
+                break;
+            } catch (ConnectionLossException ex) {
+                LOG.warn("Connection loss was detected! Retrying...");
+            } catch (NoNodeException ex) {
+                masterError = true;
+                LOG.error("Node does NOT exist: {}", ex.getMessage());
+                break;
+            } catch (KeeperException ex) {
+                masterError = true;
+                LOG.error("Something went wrong", ex);
+                break;
+            }
+        }
+        return children;
+    }
+
+    /**
+     * A watcher to activate when change in registered node's children happens.
+     */
+    public final Watcher childrenWatcher = (WatchedEvent event) -> {
+        LOG.info(event.getType() + ", " + event.getPath());
+        // re-set watch
+        List<String> children = watchServices();
+        // if no error
+        if (children != null) {
+            // if no children exist
+            if (children.isEmpty()) {
+                printStoppedSrvs(children, servicesCache);
+                LOG.info("ALL containers-Services STOPPED.");
+                servicesStopped.countDown();
+            } else if (event.getType() == NodeDeleted || event.getType() == NodeChildrenChanged) {
+                // services still exist, check which service(s) stopped
+                printStoppedSrvs(children, servicesCache);
+            }
+            servicesCache = children;
+        } else {
+            servicesStopped.countDown();
+        }
+    };
+
+    /**
+     * Prints stopped services. The method accepts two lists. The srcList is
+     * checked against the trgList. If srcList has less elements than the
+     * trgList, them the elements of trgList that are not included in srcList
+     * are printed.
+     *
+     * @param srcList the list of elements to check.
+     * @param trgList the list of elements to check against.
+     */
+    private void printStoppedSrvs(List<String> srcList, List<String> trgList) {
+        // if there are nodes not included in srcList
+        if (!srcList.containsAll(trgList)) {
+            // create the difference of lists
+            List<String> diff = trgList;
+            // get the difference of two lists
+            diff.removeAll(srcList);
+            // print diff
+            for (String srv : diff) {
+                String[] tokens = srv.split("/");
+                int size = tokens.length;
+                String name = tokens[size - 1];
+                LOG.info("Container-Service stopped: {}.", name);
+            }
+        }
+    }
+
+    /**
+     * Waits until all application services have stopped.
+     *
+     * @param services list of services to wait to stop.
+     * @return true if all services stopped. False in case an error occurred.
+     */
+    public boolean waitServicesToStop(List<String> services) {
+        // get services running
+        servicesCache = services;
+
+        if (servicesCache != null) {
+            if (!servicesCache.isEmpty()) {
+                try {
+                    servicesStopped.await();
+                } catch (InterruptedException ex) {
+                    masterError = true;
+                    // log the event
+                    LOG.warn("Thread Interruped. Stopping.");
+                    // set the interrupt status
+                    Thread.currentThread().interrupt();
+                }
+            } else {
+                LOG.error("Containers-Services NOT running.");
+                masterError = true;
+            }
+        }
+        return !masterError;
     }
 
     /**
@@ -301,7 +429,8 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     public byte[] nodeData(String path, Stat stat) {
         while (true) {
             try {
-                return zk.getData(path, false, stat);
+                byte[] data = zk.getData(path, false, stat);
+                return data;
             } catch (NoNodeException e) {
                 masterError = true;
                 break;

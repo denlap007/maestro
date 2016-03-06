@@ -16,11 +16,10 @@
  */
 package net.freelabs.maestro.core.cmd;
 
-import com.github.dockerjava.api.DockerClient;
+import java.util.List;
 import net.freelabs.maestro.core.boot.ProgramConf;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
-import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,7 +45,11 @@ public final class StopCmd extends Command {
 
     @Override
     protected void exec(ProgramConf pConf, String... args) {
+        // flag indicating if stop command was successful
         boolean stopped = false;
+        // msg 
+        String msg = "";
+        // initialize object to re-create application namespace
         ZkConf zkConf = new ZkConf(args[0], false, pConf.getZkHosts(), pConf.getZkSessionTimeout());
         // initialize master to connect to zookeeper
         ZkMaster master = new ZkMaster(zkConf);
@@ -54,41 +57,40 @@ public final class StopCmd extends Command {
         master.connectToZk();
         // check for errors
         if (!master.isMasterError()) {
-            // check if root node exists
-            Stat stat = master.nodeExists(zkConf.getRoot().getPath());
-            
-            if (stat != null) {
-                // create shutdown node
-                master.createShutdownNode();
-                if (!master.isMasterError()) {
-                    stopped = true;
+            boolean exists = master.nodeExists(zkConf.getRoot().getPath());
+            if (exists) {
+                // register watch to services
+                List<String> services = master.watchServices();
+                // if no error
+                if (services != null) {
+                    // if no services
+                    if (!services.isEmpty()) {
+                        // create shutdown node
+                        master.createShutdownNode();
+                        // make sure shutdown node was created without errors
+                        if (!master.isMasterError()) {
+                            // wait services to stop
+                            stopped = master.waitServicesToStop(services);
+                        }
+                    } else {
+                        msg = String.format("NO containers-Services running. \'%s\' alredy stopped.", args[0]);
+                    }
                 }
+            } else {
+                msg = "Application does NOT exist.";
             }
         }
 
-        try {
-            // close session
-            master.stop();
-        } catch (InterruptedException ex) {
-            // log the event
-            LOG.warn("Thread Interruped. Stopping.");
-        }
-        
-        // print messages
-        if (stopped){
-            LOG.info("*** Stopped: {} ***", args[0]);
-        }else{
-            LOG.error("*** FAILED to stop: {} ***", args[0]);
-        }
+        master.shutdownMaster();
 
-    }
-
-    public void stopContainers(DockerClient docker) {
-        docker.stopContainerCmd(cmdName);
+        if (stopped) {
+            LOG.info("*** App stopped: {} ***", args[0]);
+        } else {
+            LOG.error("*** FAILED to stop App: {}. {} ***", args[0], msg);
+        }
     }
 
     public void exit() {
         System.exit(1);
     }
-
 }
