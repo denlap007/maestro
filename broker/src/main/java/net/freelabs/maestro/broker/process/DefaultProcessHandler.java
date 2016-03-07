@@ -40,9 +40,9 @@ public class DefaultProcessHandler extends ProcessHandler {
      */
     private boolean succeeded;
     /**
-     * Indicates if the process exited before the timeout.
+     * Indicates if the process exitedOnTime before the timeout.
      */
-    private boolean exited;
+    private boolean exitedOnTime;
     /**
      * Time to wait for execution to complete before aborting process measured
      * in {@link #TIME_UNIT TIME_UNITs}.
@@ -80,12 +80,17 @@ public class DefaultProcessHandler extends ProcessHandler {
             // log the event
             LOG.info("Started process: {}", pData.getResDescription());
             // wait for execution to complete 
-            exited = _proc.waitFor(EXEC_TIMEOUT, MINUTES);
+            exitedOnTime = _proc.waitFor(EXEC_TIMEOUT, MINUTES);
             // get the exit code
             int errCode = _proc.exitValue();
             // if exited before timeout and exit code is 0, proc exec successful
-            if (errCode == 0 && exited == true) {
+            if (errCode == 0 && exitedOnTime == true) {
+                LOG.info("Process executed successfully: {}", pData.getResDescription());
                 succeeded = true;
+            }else if (!exitedOnTime){
+                LOG.error("Process execution TIMED OUT: {}", pData.getResDescription());
+            }else if (errCode != 0 ){
+                LOG.error("Process execution FAILED: {}. Exit Code: {}.", pData.getResDescription(), errCode);
             }
         } catch (IOException ex) {
             LOG.error("FAILED to start process: " + ex);
@@ -98,7 +103,7 @@ public class DefaultProcessHandler extends ProcessHandler {
 
     @Override
     public void stop() {
-        LOG.warn("STOPPING process.");
+        LOG.warn("STOPPING process: {}", pData.getResDescription());
         _proc.destroyForcibly();
     }
 

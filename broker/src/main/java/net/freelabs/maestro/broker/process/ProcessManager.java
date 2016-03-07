@@ -76,7 +76,7 @@ public final class ProcessManager {
      *
      * @return true if the main container process is running.
      */
-    protected boolean isMainProcRunning() {
+    public boolean isMainProcRunning() {
         return startHandler.isMainProcRunning();
     }
 
