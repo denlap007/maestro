@@ -96,7 +96,7 @@ public class ZkConnectionWatcher implements Watcher {
      * zookeeper handle}.
      * @throws java.lang.InterruptedException if thread is interrupted.
      */
-    public void stop() throws InterruptedException {
+    public void closeSession() throws InterruptedException {
             zk.close();
     }
 }

@@ -88,7 +88,7 @@ public class Bootstrap {
             // set name to thread
             Thread.currentThread().setName(brokerThreadName);
             // start broker
-            broker.bootstrap();
+            broker.boot();
         } else {
             LOG.error("FAILED to initialize broker!");
         }

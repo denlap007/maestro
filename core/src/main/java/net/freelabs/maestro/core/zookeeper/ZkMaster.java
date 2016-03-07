@@ -65,7 +65,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      */
     private final CountDownLatch masterInitSignal = new CountDownLatch(1);
     /**
-     * Latch set when waiting for application services to stop.
+     * Latch set when waiting for application services to closeSession.
      */
     private final CountDownLatch servicesStopped = new CountDownLatch(1);
     /**
@@ -343,7 +343,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * A watcher to activate when change in registered node's children happens.
      */
     public final Watcher childrenWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
+        LOG.debug(event.getType() + ", " + event.getPath());
         // re-set watch
         List<String> children = watchServices();
         // if no error
@@ -392,7 +392,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     /**
      * Waits until all application services have stopped.
      *
-     * @param services list of services to wait to stop.
+     * @param services list of services to wait to closeSession.
      * @return true if all services stopped. False in case an error occurred.
      */
     public boolean waitServicesToStop(List<String> services) {
@@ -736,7 +736,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
         cleanZkNamespace();
         try {
             // close session
-            stop();
+            closeSession();
         } catch (InterruptedException ex) {
             // log the event
             LOG.warn("Thread Interruped. Stopping.");
@@ -772,7 +772,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
         LOG.warn("Initiating master shutdown.");
         try {
             // close session
-            stop();
+            closeSession();
         } catch (InterruptedException ex) {
             // log the event
             LOG.warn("Thread Interruped. Stopping.");

@@ -71,7 +71,7 @@ import org.slf4j.MDC;
 /**
  * Class that defines a Broker client to the zookeeper configuration store.
  */
-public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
+public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Lifecycle {
 
     /**
      * The path of the Container to the zookeeper namespace.
@@ -179,19 +179,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
     /**
      * Bootstraps the broker.
      */
-    public void bootstrap() {
+    @Override
+    public void boot() {
         // connect to zookeeper
         boolean connected = connectToZk();
         // if succeeded
         if (connected) {
-            // set watch for shutdown zNode
-            setShutDownWatch();
-            // create container zNode
-            createZkNodeEphemeral(zkContainerPath, BROKER_ID.getBytes());
-            // set watch for the container description
-            waitForConDescription();
-            // wait for shutdown
-            waitForShutdown(SHUTDOWN);
+            // start initialization
+            init();
         } else {
             LOG.error("FAILED to start broker. Terminating.");
         }
@@ -222,6 +217,18 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
      * INITIALIZATION
      * **************************************************************************
      */
+    @Override
+    public void init() {
+        // set watch for shutdown zNode
+        setShutDownWatch();
+        // create container zNode
+        createZkNodeEphemeral(zkContainerPath, BROKER_ID.getBytes());
+        // set watch for the container description
+        waitForConDescription();
+        // wait for shutdown
+        waitForShutdown(SHUTDOWN);
+    }
+
     /**
      * Sets a watch on the zookeeper shutdown node. When the shutdown zNode is
      * created execution is terminated.
@@ -258,7 +265,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
         LOG.info(event.getType() + ", " + event.getPath());
 
         if (event.getType() == NodeCreated) {
-            shutdown(SHUTDOWN);
+            shutdown();
         }
     };
 
@@ -709,7 +716,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
         // set the service conf status of service-dependency to PROCESSED
         srvMngr.setSrvConfStatusProc(ns.resolveSrvName(conName));
         LOG.info("Service: {}\tStatus: {}.", conName, SRV_CONF_STATUS.PROCESSED.toString());
-        // check if container is initialized in order to start the entrypoint process
+        // check if container is initialized in order to start processes
         checkInitialization();
     }
 
@@ -740,37 +747,36 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
                     // check if srvs are initialized
                     if (srvMngr.areSrvInitialized()) {
                         // start the entryoint process
-                        bootStartProcs();
+                        start();
                     }
                 }
             } else // check if srvs are initialized
-            {
-                if (srvMngr.areSrvInitialized()) {
+             if (srvMngr.areSrvInitialized()) {
                     // start processes
                     executorService.execute(() -> {
-                        bootStartProcs();
+                        start();
                     });
                 }
-            }
         } else {
             conInitialized = true;
             LOG.info("Container INITIALIZED!");
             // execute in new thread
             executorService.execute(() -> {
-                bootStartProcs();
+                start();
             });
         }
     }
 
     /**
-     * Initializes start-stop group processes, executes tasks and start group
-     * processes, in that order.
+     * Initializes start-closeSession group processes, executes tasks and start group
+ processes, in that order.
      */
-    private void bootStartProcs() {
+    @Override
+    public void start() {
         // create the process manager that will start processes
         procMngr = new ProcessManager();
         // initialization of process groups
-        initProcGroup();
+        initProcGroups();
         // execute tasks
         taskHandler.execTasks();
         // execute START processes
@@ -778,20 +784,20 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
     }
 
     /**
-     * Initializes process declared in start group and stop group.
+     * Initializes process declared in start group and closeSession group.
      */
-    private void initProcGroup() {
+    private void initProcGroups() {
         // initialize processes in start group
-        initStartProcs();
-        // initialize processes in stop group
-        initStopProcs();
+        initStartGroup();
+        // initialize processes in closeSession group
+        initStopGroup();
     }
 
     /**
      * Initializes container processes defined in start group:
      * <ul>
-     * <li>Initializes the {@link ProcessManager process manager} to
-     * manage start group process execution.</li>
+     * <li>Initializes the {@link ProcessManager process manager} to manage
+     * start group process execution.</li>
      * <li>Creates the {@link StartResMapper resource mapper}, that is
      * initialized with start resources, to handle resource manipulation.</li>
      * <li>Creates the environment for the processes (env vars).</li>
@@ -802,7 +808,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
      * that handles the execution of the processes defined in start group.</li>
      * </ul>
      */
-    private void initStartProcs() {
+    private void initStartGroup() {
         // create the resource mapper to map schema declarations to resources
         StartRes res = container.getStart();
         StartResMapper rm = new StartResMapper(res.getPreMain(), res.getPostMain(), res.getMain());
@@ -821,12 +827,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
     }
 
     /**
-     * Initializes all processes defined in stop group.
+     * Initializes all processes defined in closeSession group.
      */
-    private void initStopProcs() {
-        // get resources from stop section
+    private void initStopGroup() {
+        // get resources from closeSession section
         StopRes res = container.getStop();
-        // create resource mapper to map resources from stop tag
+        // create resource mapper to map resources from closeSession tag
         StopResMapper rm = new StopResMapper(res.getPreMain(), res.getPostMain(), res.getMain());
         // get the environment
         Map<String, String> env = null;
@@ -840,16 +846,17 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
         resources.addAll(rm.getPostMainRes());
         // init handlers
         List<ProcessHandler> handlers = initDefaultProcs(rm, resources, env);
-        // init proc manager for stop procs
+        // init proc manager for closeSession procs
         procMngr.initStopHandler(handlers);
     }
 
     /**
-     * Boots processes declared in stop group.
+     * Boots processes declared in closeSession group.
      */
-    private void bootStopProcs() {
+    @Override
+    public void stop() {
         LOG.info("Executing stop group processes.");
-        // execute stop processes
+        // execute closeSession processes
         procMngr.exec_stop();
     }
 
@@ -1285,20 +1292,17 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
         }
     }
 
-    /**
-     * Releases the latch to initiate shutdown.
-     */
     @Override
     public void shutdown(ShutdownNotifier notifier) {
         // signaled to shutdown 
         notifier.setSignaledShutDown(true);
-        // excute stop commands
-        bootStopProcs();
+        // excute closeSession commands
+        stop();
         // shut down the executorService to free resources
         executorService.shutdownNow();
         try {
             // close zk client session
-            stop();
+            closeSession();
         } catch (InterruptedException ex) {
             // log the event
             LOG.warn("Thread Interruped. Stopping.");
@@ -1309,5 +1313,11 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
         LOG.info("Initiating Broker shutdown " + zkContainerPath);
         notifier.shutDown();
     }
-
+    
+    
+    @Override
+    public void shutdown(){
+        shutdown(SHUTDOWN);
+    }
+    
 }
