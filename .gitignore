@@ -32,3 +32,5 @@ docker-cleanup-volumes.sh
 /commons/
 /bck/
 /custom containers/
+/doxygen
+/uml/

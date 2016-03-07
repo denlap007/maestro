@@ -40,7 +40,6 @@ import org.apache.zookeeper.Watcher;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeChildrenChanged;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeDataChanged;
-import static org.apache.zookeeper.Watcher.Event.EventType.NodeDeleted;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 import org.apache.zookeeper.data.Stat;
 
@@ -354,7 +353,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
                 printStoppedSrvs(children, servicesCache);
                 LOG.info("ALL containers-Services STOPPED.");
                 servicesStopped.countDown();
-            } else if (event.getType() == NodeDeleted || event.getType() == NodeChildrenChanged) {
+            } else if (event.getType() == NodeChildrenChanged) {
                 // services still exist, check which service(s) stopped
                 printStoppedSrvs(children, servicesCache);
             }

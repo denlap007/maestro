@@ -27,7 +27,11 @@ public final class ShutdownNotifier {
     /**
      * Latch that blocks and gets released when signaled to shutdown.
      */
-    private final CountDownLatch SHUTDOWN_SIGNAL = new CountDownLatch(1);
+    private final CountDownLatch shutDownSignal = new CountDownLatch(1);
+    /**
+     * Indicates if shutdown has been set by user.
+     */
+    private boolean signaledShutDown;
 
     /**
      * <p>
@@ -38,15 +42,28 @@ public final class ShutdownNotifier {
      * @throws InterruptedException if interrupted.
      */
     public void waitForShutDown() throws InterruptedException {
-        SHUTDOWN_SIGNAL.await();
+        shutDownSignal.await();
     }
 
     /**
-     * Releases the {@link #SHUTDOWN_SIGNAL SHUTDOWN} latch. Registered clients
+     * Releases the {@link #shutDownSignal SHUTDOWN} latch. Registered clients
      * waiting on this latch will unblock and initiate shutdown.
      */
     public void shutDown() {
-        SHUTDOWN_SIGNAL.countDown();
+        shutDownSignal.countDown();
     }
-
+    /**
+     * 
+     * @return true if user signaled to shutdown.
+     */
+    public boolean isSignaledShutDown() {
+        return signaledShutDown;
+    }
+    /**
+     * Sets flag that indicates if user requested shutdown.
+     * @param signaledShutDown flag that indicates if user requested shutdown.
+     */
+    public void setSignaledShutDown(boolean signaledShutDown) {
+        this.signaledShutDown = signaledShutDown;
+    }
 }

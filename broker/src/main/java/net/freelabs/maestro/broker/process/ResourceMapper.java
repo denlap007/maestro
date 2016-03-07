@@ -18,65 +18,52 @@ package net.freelabs.maestro.broker.process;
 
 import java.util.ArrayList;
 import java.util.List;
-import net.freelabs.maestro.core.generated.RunElem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  *
- * Class that provides methods to handle all the resources to run.
+ * Class template provides functionality to map resources. This class must be
+ * sub-classed to implement custom functionality.
+ *
+ * @param <T1> the type argument for preMain and postMain resources (lists).
+ * @param <T2> the type argument for the main resource.
  */
-public final class ResourceMapper {
+public abstract class ResourceMapper<T1, T2> {
 
     /**
      * A list with the resources to execute before the main resource.
      */
-    private final List<Resource> preMainRes = new ArrayList<>();
+    protected final List<Resource> preMainRes = new ArrayList<>();
 
     /**
      * A list with the resources to execute after the main resource.
      */
-    private final List<Resource> postMainRes = new ArrayList<>();
+    protected final List<Resource> postMainRes = new ArrayList<>();
     /**
      * The main resource to execute.
      */
-    private Resource mainRes;
-
+    protected Resource mainRes;
     /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(ResourceMapper.class);
-
+    
     /**
      * Constructor.
-     *
-     * @param preMain
-     * @param postMain
-     * @param main
      */
-    public ResourceMapper(List<RunElem> preMain, List<RunElem> postMain, String main) {
-        initResources(preMain, postMain, main);
+    public ResourceMapper(){
+        
     }
 
     /**
-     * Initializes the {@link #preMainRes preMainRes} list, {@link #postMainRes
-     * postMainRes} list and {@link #mainRes mainRes}.
+     * Initializes the Resources of mapper. Maps declared objects to Resources.
+     *
+     * @param preMain list with pre main resources.
+     * @param postMain list with post main resources.
+     * @param main main resource.
      */
-    private void initResources(List<RunElem> preMain, List<RunElem> postMain, String main) {
-        // create preMain resource list
-        preMain.stream().forEach((elem) -> {
-
-            Resource res = new Resource(elem.getValue(), elem.isAbortOnFail());
-            preMainRes.add(res);
-        });
-        // create postMain resource list
-        postMain.stream().forEach((elem) -> {
-            Resource res = new Resource(elem.getValue(), elem.isAbortOnFail());
-            postMainRes.add(res);
-        });
-        // create main resource
-        mainRes = new Resource(main, true);
-    }
+    public abstract void initResources(List<T1> preMain, List<T1> postMain, T2 main);
 
     /**
      * Checks if a resource is defined and not empty.
@@ -99,27 +86,17 @@ public final class ResourceMapper {
         return ok;
     }
 
-    /**
-     *
-     * @return resources to run before the {@link #mainRes main resource}.
-     */
+    // Getters
+    public Resource getMainRes() {
+        return mainRes;
+    }
+
     public List<Resource> getPreMainRes() {
         return preMainRes;
     }
 
-    /**
-     *
-     * @return resources to run after {@link #mainRes main resource}..
-     */
     public List<Resource> getPostMainRes() {
         return postMainRes;
     }
 
-    /**
-     *
-     * @return the {@link #mainRes main resource} to run.
-     */
-    public Resource getMainRes() {
-        return mainRes;
-    }
 }

@@ -16,6 +16,7 @@
  */
 package net.freelabs.maestro.broker.process;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,7 +51,11 @@ public class ProcessData {
      */
     public ProcessData(Resource res, Map<String, String> env) {
         this.res = res;
-        environment = env;
+        if (env == null){
+             environment = new HashMap<>();
+        }else{
+            environment = env;
+        }
     }
 
     // Getters - Setters

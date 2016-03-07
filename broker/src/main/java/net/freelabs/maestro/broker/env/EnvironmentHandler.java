@@ -141,4 +141,12 @@ public final class EnvironmentHandler {
         }
         return dependenciesEnv;
     }
+
+    /**
+     * 
+     * @return the environment with which processes are initialized.
+     */
+    public Map<String, String> getProcsEnv() {
+        return procsEnv;
+    }
 }

@@ -16,117 +16,59 @@
  */
 package net.freelabs.maestro.broker.process;
 
+import net.freelabs.maestro.broker.process.start.MainProcessHandler;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import net.freelabs.maestro.broker.process.start.StartGroupHandler;
+import net.freelabs.maestro.broker.process.stop.StopGroupHandler;
 
 /**
  *
  * Class that manages process execution.
  */
 public final class ProcessManager {
+    /**
+     * Process manager for processes defined in start section.
+     */
+    private StartGroupHandler startHandler;
+    /**
+     * Process manager for processes defined in stop section.
+     */
+    private StopGroupHandler stopHandler;
 
     /**
-     * The handler for the main process.
+     * Initializes process manager that handles execution of processes defined
+     * in start section.
+     *
+     * @param preHandlers
+     * @param postHandlers
+     * @param mainHandler
      */
-    private MainProcessHandler mainProcHandler;
-    /**
-     * List of handlers for other processes to be executed before the main
-     * process.
-     */
-    private List<ProcessHandler> preMainProcHandlers;
-    /**
-     * List of handlers for other processes to be executed after the main
-     * process is executed successfully.
-     */
-    private List<ProcessHandler> postMainProcHandlers;
-    /**
-     * A Logger object.
-     */
-    private static final Logger LOG = LoggerFactory.getLogger(ProcessManager.class);
-
-    /**
-     * <p>
-     * Starts executing declared processes.
-     * <p>
-     * If declared, any process to be run before the main is executed. Then, the
-     * main container process is started. If executed successfully the other
-     * processes are spawned.
-     * <p>
-     * The method waits for {@link MainProcessHandler#start() start} method of
-     * {@link MainProcessHandler MainProcessHandler} to return.
-     * <p>
-     * The method blocks.
-     */
-    public void startProcesses() {
-        if (isProcMngrInitialized()) {
-            boolean preMainSuccess = true;
-            boolean postMainSuccess = true;
-
-            // execute pre-main processes, if any
-            if (!preMainProcHandlers.isEmpty()) {
-                for (ProcessHandler procHandler : preMainProcHandlers) {
-                    // execute process and get success value
-                    preMainSuccess = procHandler.execute();
-                    // get user requirement in case of failure
-                    boolean abortOnFail = procHandler.pData.getRes().isAbortOnFail();
-                    // if there was an error and user concurs exit
-                    if (!preMainSuccess && abortOnFail) {
-                        break;
-                    } else {
-                        // correct flag if error is ignored to execute main proc
-                        preMainSuccess = true;
-                    }
-                }
-            }
-
-            // if preMain procs executed successfully, execute main
-            if (preMainSuccess) {
-                // execute the main Process
-                boolean mainSuccess = mainProcHandler.execute();
-
-                // if main proc executed successfully, execute postMain procs
-                if (mainSuccess) {
-                    // execute post-main processes, if any
-                    if (!postMainProcHandlers.isEmpty()) {
-                        for (ProcessHandler procHandler : postMainProcHandlers) {
-                            // execute process and get success value
-                            postMainSuccess = procHandler.execute();
-                            // get user requirement in case of failure
-                            boolean abortOnFail = procHandler.pData.getRes().isAbortOnFail();
-                            // if there was an error and user concurs exit
-                            if (!postMainSuccess && abortOnFail) {
-                                break;
-                            } else {
-                                // correct flag if error is ignored
-                                postMainSuccess = true;
-                            }
-                        }
-                        // check for errors on postMain proc execution to abort
-                        if (!postMainSuccess) {
-                            LOG.error("Post-main process execution FAILED.");
-                            mainProcHandler.stop();
-                        }
-                    }
-                }
-            } else {
-                LOG.error("Pre-main process execution FAILED. "
-                        + "ABORTING main process execution.");
-            }
-        } else {
-            LOG.error("Process Manager CANNOT start: "
-                    + "Main Process Handler NOT INITIALIZED properly.");
-        }
+    public void initStartHandler(List<ProcessHandler> preHandlers, List<ProcessHandler> postHandlers, MainProcessHandler mainHandler) {
+        startHandler = new StartGroupHandler(preHandlers, postHandlers, mainHandler);
     }
 
     /**
+     * Initializes process manager that handles execution of processes defined
+     * in stop section.
      *
-     * @return true if {@link ProcessManager ProcessManager} is initialized
-     * properly, that is when at least the
-     * {@link MainProcessHandler MainProcessHandler} is set.
+     * @param handlers list of handlers for processes to be executed.
      */
-    private boolean isProcMngrInitialized() {
-        return (mainProcHandler != null);
+    public void initStopHandler(List<ProcessHandler> handlers) {
+        stopHandler = new StopGroupHandler(handlers);
+    }
+
+    /**
+     * Executes processes defined in start section.
+     */
+    public void exec_start() {
+        startHandler.exec_startProcs();
+    }
+
+    /**
+     * Executes processes defined in stop section.
+     */
+    public void exec_stop() {
+        stopHandler.exec_stopProcs();
     }
 
     /**
@@ -135,43 +77,14 @@ public final class ProcessManager {
      * @return true if the main container process is running.
      */
     protected boolean isMainProcRunning() {
-        return mainProcHandler.isMainProcRunning();
+        return startHandler.isMainProcRunning();
     }
 
     /**
-     * Blocks until the main process stops running.
+     * Waits until the main process stops running.
      */
     public void waitForMainProc() {
-        mainProcHandler.waitForMainProc();
-    }
-
-    /**
-     * Set the handler for the main process.
-     *
-     * @param mainProcHandler the handler for the main process.
-     */
-    public void setMainProcHandler(MainProcessHandler mainProcHandler) {
-        this.mainProcHandler = mainProcHandler;
-    }
-
-    /**
-     * Set the list of handlers for other processes to be executed after main
-     * process executed successfully.
-     *
-     * @param postMainProcHandlers a list of handlers for other processes.
-     */
-    public void setPostMainProcHandlers(List<ProcessHandler> postMainProcHandlers) {
-        this.postMainProcHandlers = postMainProcHandlers;
-    }
-
-    /**
-     * Set the list of handlers for other processes to be executed before main
-     * process.
-     *
-     * @param preMainProcHandlers a list of handlers for other processes.
-     */
-    public void setPreMainProcHandlers(List<ProcessHandler> preMainProcHandlers) {
-        this.preMainProcHandlers = preMainProcHandlers;
+        startHandler.waitForMainProc();
     }
 
 }

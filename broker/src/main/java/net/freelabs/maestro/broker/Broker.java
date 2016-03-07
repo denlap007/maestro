@@ -16,6 +16,9 @@
  */
 package net.freelabs.maestro.broker;
 
+import net.freelabs.maestro.broker.process.start.MainProcessHandler;
+import net.freelabs.maestro.broker.process.start.MainProcessData;
+import net.freelabs.maestro.broker.process.start.StartResMapper;
 import net.freelabs.maestro.broker.env.EnvironmentMapper;
 import net.freelabs.maestro.broker.env.EnvironmentHandler;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -29,6 +32,8 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import net.freelabs.maestro.broker.process.*;
+import net.freelabs.maestro.broker.process.start.StartGroupHandler;
+import net.freelabs.maestro.broker.process.stop.StopResMapper;
 import net.freelabs.maestro.broker.services.ServiceManager;
 import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
 import net.freelabs.maestro.broker.shutdown.Shutdown;
@@ -39,7 +44,8 @@ import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.ContainerEnvironment;
 import net.freelabs.maestro.core.generated.DataContainer;
-import net.freelabs.maestro.core.generated.Resources;
+import net.freelabs.maestro.core.generated.StartRes;
+import net.freelabs.maestro.core.generated.StopRes;
 import net.freelabs.maestro.core.generated.Tasks;
 import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
@@ -129,6 +135,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
      * Handles the environment creation of container processes.
      */
     private EnvironmentHandler envHandler;
+    /**
+     * Handler tasks execution.
+     */
+    private TaskHandler taskHandler;
     /**
      * Blocks/Un-blocks execution for shutdown.
      */
@@ -730,7 +740,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
                     // check if srvs are initialized
                     if (srvMngr.areSrvInitialized()) {
                         // start the entryoint process
-                        bootstrapProcess();
+                        bootStartProcs();
                     }
                 }
             } else // check if srvs are initialized
@@ -738,7 +748,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
                 if (srvMngr.areSrvInitialized()) {
                     // start processes
                     executorService.execute(() -> {
-                        bootstrapProcess();
+                        bootStartProcs();
                     });
                 }
             }
@@ -747,54 +757,114 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
             LOG.info("Container INITIALIZED!");
             // execute in new thread
             executorService.execute(() -> {
-                bootstrapProcess();
+                bootStartProcs();
             });
         }
     }
 
     /**
-     * Bootstraps container processes. The method:
+     * Initializes start-stop group processes, executes tasks and start group
+     * processes, in that order.
+     */
+    private void bootStartProcs() {
+        // create the process manager that will start processes
+        procMngr = new ProcessManager();
+        // initialization of process groups
+        initProcGroup();
+        // execute tasks
+        taskHandler.execTasks();
+        // execute START processes
+        procMngr.exec_start();
+    }
+
+    /**
+     * Initializes process declared in start group and stop group.
+     */
+    private void initProcGroup() {
+        // initialize processes in start group
+        initStartProcs();
+        // initialize processes in stop group
+        initStopProcs();
+    }
+
+    /**
+     * Initializes container processes defined in start group:
      * <ul>
-     * <li>Creates the {@link ProcessManager process manager} to manage process
-     * execution.</li>
-     * <li>Creates the {@link ResourceMapper resource handler}, that is
-     * initialized with all the resources, to handle resource manipulation.</li>
+     * <li>Initializes the {@link ProcessManager process manager} to
+     * manage start group process execution.</li>
+     * <li>Creates the {@link StartResMapper resource mapper}, that is
+     * initialized with start resources, to handle resource manipulation.</li>
      * <li>Creates the environment for the processes (env vars).</li>
      * <li>Creates and initializes the {@link ProcessHandler process handlers}
      * for the main and other processes, to handle process initialization and
      * initiation.</li>
-     * <li>Starts the {@link ProcessManager process manager} that executes the
-     * processes.</li>
+     * <li>Creates and initializes the {@link StartGroupHandler start handler}
+     * that handles the execution of the processes defined in start group.</li>
      * </ul>
      */
-    private void bootstrapProcess() {
-        // create the process manager that will start processes
-        procMngr = new ProcessManager();
+    private void initStartProcs() {
         // create the resource mapper to map schema declarations to resources
-        Resources res = container.getStart();
-        ResourceMapper rm = new ResourceMapper(res.getPreMain(), res.getPostMain(), res.getMain());
+        StartRes res = container.getStart();
+        StartResMapper rm = new StartResMapper(res.getPreMain(), res.getPostMain(), res.getMain());
         // create the environment for the container processes
         Map<String, String> env = initProcsEnv();
         // create TaskHandler to execute defined tasks
-        TaskHandler taskExec = initTaskExecutor(container.getTasks(), env);
+        taskHandler = initTaskHandler(container.getTasks(), env);
         // get handler for the interaction with the main process
-        MainProcessHandler mainProcHandler = initMainProc(rm, env);
+        MainProcessHandler mainHandler = initMainProc(rm, env);
         // get handlers for the interaction with processes scheduled before main
-        List<ProcessHandler> preMainProcHandlers = initOtherProcs(rm, rm.getPreMainRes(), env);
+        List<ProcessHandler> preMainHandlers = initDefaultProcs(rm, rm.getPreMainRes(), env);
         // get handlers for the interaction with processes scheduled after main
-        List<ProcessHandler> postMainProcHandlers = initOtherProcs(rm, rm.getPostMainRes(), env);
+        List<ProcessHandler> postMainHandlers = initDefaultProcs(rm, rm.getPostMainRes(), env);
         // set configuration to process manager
-        procMngr.setMainProcHandler(mainProcHandler);
-        procMngr.setPreMainProcHandlers(preMainProcHandlers);
-        procMngr.setPostMainProcHandlers(postMainProcHandlers);
-
-        // execute tasks
-        taskExec.execTasks();
-
-        // start processes
-        procMngr.startProcesses();
+        procMngr.initStartHandler(preMainHandlers, postMainHandlers, mainHandler);
     }
 
+    /**
+     * Initializes all processes defined in stop group.
+     */
+    private void initStopProcs() {
+        // get resources from stop section
+        StopRes res = container.getStop();
+        // create resource mapper to map resources from stop tag
+        StopResMapper rm = new StopResMapper(res.getPreMain(), res.getPostMain(), res.getMain());
+        // get the environment
+        Map<String, String> env = null;
+        if (envHandler != null) {
+            env = envHandler.getProcsEnv();
+        }
+        // gather resources
+        List<Resource> resources = new ArrayList<>();
+        resources.addAll(rm.getPreMainRes());
+        resources.add(rm.getMainRes());
+        resources.addAll(rm.getPostMainRes());
+        // init handlers
+        List<ProcessHandler> handlers = initDefaultProcs(rm, resources, env);
+        // init proc manager for stop procs
+        procMngr.initStopHandler(handlers);
+    }
+
+    /**
+     * Boots processes declared in stop group.
+     */
+    private void bootStopProcs() {
+        LOG.info("Executing stop group processes.");
+        // execute stop processes
+        procMngr.exec_stop();
+    }
+
+    /**
+     * <p>
+     * Initializes the environment that will be used from processes. The
+     * container environment is extracted along with the environment from its
+     * dependencies.
+     * <p>
+     * The environment used by container processes consists of all the key-value
+     * pairs of the environment variables declared in application schema.
+     *
+     * @return a map with all the key-value pairs of the environment variables
+     * available to container processes.
+     */
     private Map<String, String> initProcsEnv() {
         // get the environment obj of the container obj associated with Broker
         ContainerEnvironment conEnv = getEnvObj();
@@ -827,18 +897,18 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
      * @param env the environment of the processes.
      * @return an object that will handle task execution.
      */
-    private TaskHandler initTaskExecutor(Tasks tasks, Map<String, String> env) {
-        TaskHandler taskExec;
+    private TaskHandler initTaskHandler(Tasks tasks, Map<String, String> env) {
+        TaskHandler th;
         // if there are tasks defined
         if (tasks != null) {
             // create Task Mapper
             TaskMapper tm = new TaskMapper(tasks, env);
-            // init Task Executor
-            taskExec = new TaskHandler(tm.getTasks());
+            // init Task Handler
+            th = new TaskHandler(tm.getTasks());
         } else {
-            taskExec = new TaskHandler();
+            th = new TaskHandler();
         }
-        return taskExec;
+        return th;
     }
 
     /**
@@ -857,7 +927,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
      * handles the interaction with the main process. NUll if there was a
      * problem with the main resource.
      */
-    private MainProcessHandler initMainProc(ResourceMapper rm, Map<String, String> env) {
+    private MainProcessHandler initMainProc(StartResMapper rm, Map<String, String> env) {
         MainProcessHandler pHandler = null;
         // check if main resource is ok
         if (rm.isResourceOk(rm.getMainRes())) {
@@ -891,19 +961,18 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
 
     /**
      * <p>
-     * If there are other processes to execute except main process, this method
-     * initializes the {@link ProcessHandler process handlers} that will execute
-     * the processes.
+     * Initializes any default process. A default process is a process that is
+     * executed by a {@link DefaultProcessHandler DefaultProcessHandler}.
      * <p>
      * At first, a resource is checked for errors. Then the process handler is
      * initialized with the resource and the environment.
      *
-     * @param rh the resource mapper, used to manipulate resources.
+     * @param rm the resource mapper, used to manipulate resources.
      * @param resources the list of the resources to execute.
      * @param env the environment of the processes.
      * @return the list of process handlers initialized to start processes.
      */
-    private List<ProcessHandler> initOtherProcs(ResourceMapper rm, List<Resource> resources, Map<String, String> env) {
+    private List<ProcessHandler> initDefaultProcs(ResourceMapper rm, List<Resource> resources, Map<String, String> env) {
         List<ProcessHandler> pHandlers = new ArrayList<>();
         // iterate through resources
         for (Resource res : resources) {
@@ -952,8 +1021,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
         new Thread(() -> {
             procMngr.waitForMainProc();
             if (!Thread.interrupted()) {
-                // change service status to NOT RUNNING
-                updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
+                // change service status to NOT RUNNING if stopped for no reason
+                if (!SHUTDOWN.isSignaledShutDown()) {
+                    updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
+                }
             }
         }
         ).start();
@@ -1219,6 +1290,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown {
      */
     @Override
     public void shutdown(ShutdownNotifier notifier) {
+        // signaled to shutdown 
+        notifier.setSignaledShutDown(true);
+        // excute stop commands
+        bootStopProcs();
         // shut down then executorService to free resources
         executorService.shutdownNow();
         try {

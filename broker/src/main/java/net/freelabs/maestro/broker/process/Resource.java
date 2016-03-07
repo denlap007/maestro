@@ -33,7 +33,7 @@ public final class Resource {
      */
     private final String res;
     /**
-     * Abort all descending processes execution if resource execution fails.
+     * Abort all remaining resource execution if resource execution fails.
      */
     private final boolean abortOnFail;
 

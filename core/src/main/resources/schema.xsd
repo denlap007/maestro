@@ -29,7 +29,7 @@
     <!-- definition of attributes -->
 
     <!-- definition of complex types -->
-    <xs:complexType name="runElem">
+    <xs:complexType name="startElem">
         <xs:simpleContent>
             <xs:extension base="xs:string">
                 <xs:attribute name="abortOnFail" type="xs:boolean" default="true"></xs:attribute>
@@ -37,11 +37,19 @@
         </xs:simpleContent>
     </xs:complexType>
 
-    <xs:complexType name="resources">
+    <xs:complexType name="startRes">
         <xs:sequence> 
-            <xs:element name="preMain" type="runElem" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="preMain" type="startElem" minOccurs="0" maxOccurs="unbounded"/>
             <xs:element name="main" type="xs:string"/>
-            <xs:element name="postMain" type="runElem" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="postMain" type="startElem" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="stopRes">
+        <xs:sequence> 
+            <xs:element name="preMain" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="main" type="xs:string"/>
+            <xs:element name="postMain" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
         </xs:sequence>
     </xs:complexType>
 
@@ -83,8 +91,8 @@
             <xs:element name="name" type="xs:token"/>
             <xs:element name="connectWith" type="stringList"/>
             <xs:element name="dockerImage" type="xs:string"/>
-            <xs:element name="start" type="resources"/>
-            <xs:element name="stop" type="resources" minOccurs="0"/>
+            <xs:element name="start" type="startRes"/>
+            <xs:element name="stop" type="stopRes" minOccurs="0"/>
             <xs:element name="tasks" type="tasks" minOccurs="0"/>
         </xs:sequence>
     </xs:complexType>

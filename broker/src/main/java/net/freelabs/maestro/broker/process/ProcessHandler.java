@@ -236,4 +236,7 @@ public abstract class ProcessHandler {
         this.execOnFailure = execOnFailure;
     }
 
+    public ProcessData getpData() {
+        return pData;
+    }
 }

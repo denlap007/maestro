@@ -9,6 +9,9 @@
                 <preMain abortOnFail="true">cp /broker/testCases/crudApp/webTier/nginx.conf /etc/nginx/nginx.conf</preMain>
                 <main>nginx -g "daemon off;"</main>
             </start>
+            <stop>
+                <main>nginx -s quit</main>
+            </stop>
             <tasks>
                 <substEnv>/broker/testCases/crudApp/webTier/nginx.conf</substEnv>
             </tasks>
@@ -25,6 +28,9 @@
                 <postMain abortOnFail="true">asadmin add-resources /broker/testCases/crudApp/BusinessTier/glassfish-resources.xml</postMain>
                 <postMain abortOnFail="true">asadmin deploy /broker/testCases/crudApp/BusinessTier/ConsultingAgency.war</postMain>
             </start>
+            <stop>
+                <main>asadmin stop-domain domain1</main>
+            </stop>
             <tasks>
                 <substEnv>/broker/testCases/crudApp/BusinessTier/glassfish-resources.xml</substEnv>
             </tasks>
@@ -40,6 +46,9 @@
             <start>
                 <main>/broker/testCases/crudApp/dataTier/data-entrypoint.sh mysqld</main>
             </start>
+            <stop>
+                <main>service mysql stop</main>
+            </stop>
             <environment>
                 <db_port>3306</db_port>
                 <db_user>root</db_user>
