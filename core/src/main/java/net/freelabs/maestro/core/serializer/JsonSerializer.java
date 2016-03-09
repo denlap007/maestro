@@ -132,16 +132,14 @@ public class JsonSerializer {
         return MAPPER.writeValueAsBytes(pConf);
     }
 
-    public static ZkConf deserializeProgConf(byte[] data) throws IOException {
-        // byte[] -> ZkConf
-        return MAPPER.readValue(data, new TypeReference<ProgramConf>() {
-        });
+    public static ProgramConf deserializeProgConf(byte[] data) throws IOException {
+        // byte[] -> ProgramConf
+        return MAPPER.readValue(data, ProgramConf.class);
     }
 
     public static ZkConf deserializeZkConf(byte[] data) throws IOException {
         // byte[] -> ZkConf
-        return MAPPER.readValue(data, new TypeReference<ZkConf>() {
-        });
+        return MAPPER.readValue(data, ZkConf.class);
     }
 
     public static Map<String, Object> deserializeToMap(byte[] data) throws IOException {

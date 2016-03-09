@@ -275,7 +275,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * @param path the path of the zNode to the zookeeper namespace.
      * @param data the data of the zNode.
      */
-    public void createZkNodeEphemeral(String path, byte[] data) {
+    private void createZkNodeEphemeral(String path, byte[] data) {
         zk.create(path, data, OPEN_ACL_UNSAFE,
                 CreateMode.EPHEMERAL, createZkNodeEphemeralCallback, data);
     }
@@ -383,7 +383,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     /**
      * Gets the container description.
      */
-    public void getConDescription() {
+    private void getConDescription() {
         zk.getData(conConfNode, false, getConDescriptionCallback, null);
     }
 
@@ -477,7 +477,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * The service node contains the zNode path of the container offering the
      * service along with the status of the service (initialized or not).
      */
-    public void registerToServices() {
+    private void registerToServices() {
         // create the service path for the naming service
         String path = ns.resolveSrvName(containerName);
         // set service status to NOT_INITIALIZED
@@ -494,7 +494,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * @param path the path of the zNode to the zookeeper namespace.
      * @param data the data of the zNode.
      */
-    public void createZkConSrvNode(String path, byte[] data) {
+    private void createZkConSrvNode(String path, byte[] data) {
         zk.create(path, data, OPEN_ACL_UNSAFE,
                 CreateMode.EPHEMERAL, createZkConSrvNodeCallback, data);
     }
@@ -523,7 +523,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     });
                 } else {
                     executorService.execute(() -> {
-                        checkInitialization();
+                        checkInit();
                     });
                 }
                 break;
@@ -717,7 +717,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         srvMngr.setSrvConfStatusProc(ns.resolveSrvName(conName));
         LOG.info("Service: {}\tStatus: {}.", conName, SRV_CONF_STATUS.PROCESSED.toString());
         // check if container is initialized in order to start processes
-        checkInitialization();
+        checkInit();
     }
 
     /**
@@ -736,7 +736,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * If {@link #conInitialized conInitialized} flag is true, checks if all
      * services-dependencies are initialized and bootstraps the process(es).
      */
-    private synchronized void checkInitialization() {
+    private synchronized void checkInit() {
         if (srvMngr.hasServices()) {
             // if container is not initialized
             if (!conInitialized) {
@@ -746,7 +746,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     LOG.info("Container INITIALIZED!");
                     // check if srvs are initialized
                     if (srvMngr.areSrvInitialized()) {
-                        // start the entryoint process
+                        // start processes
                         start();
                     }
                 }
@@ -768,8 +768,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     }
 
     /**
-     * Initializes start-closeSession group processes, executes tasks and start group
- processes, in that order.
+     * Initializes start-stops group processes, executes tasks and start group
+     * processes, in that order.
      */
     @Override
     public void start() {
@@ -777,6 +777,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         procMngr = new ProcessManager();
         // initialization of process groups
         initProcGroups();
+        // initialize tasks
+        taskHandler = initTaskHandler(container.getTasks(), envHandler.getProcsEnv());
         // execute tasks
         taskHandler.execTasks();
         // execute START processes
@@ -784,12 +786,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     }
 
     /**
-     * Initializes process declared in start group and closeSession group.
+     * Initializes process declared in start group and stop group.
      */
     private void initProcGroups() {
         // initialize processes in start group
         initStartGroup();
-        // initialize processes in closeSession group
+        // initialize processes in stop group
         initStopGroup();
     }
 
@@ -814,8 +816,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         StartResMapper rm = new StartResMapper(res.getPreMain(), res.getPostMain(), res.getMain());
         // create the environment for the container processes
         Map<String, String> env = initProcsEnv();
-        // create TaskHandler to execute defined tasks
-        taskHandler = initTaskHandler(container.getTasks(), env);
         // get handler for the interaction with the main process
         MainProcessHandler mainHandler = initMainProc(rm, env);
         // get handlers for the interaction with processes scheduled before main
@@ -827,12 +827,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     }
 
     /**
-     * Initializes all processes defined in closeSession group.
+     * Initializes all processes defined in stop group.
      */
     private void initStopGroup() {
-        // get resources from closeSession section
+        // get resources from stop section
         StopRes res = container.getStop();
-        // create resource mapper to map resources from closeSession tag
+        // create resource mapper to map resources from stop tag
         StopResMapper rm = new StopResMapper(res.getPreMain(), res.getPostMain(), res.getMain());
         // get the environment
         Map<String, String> env = null;
@@ -846,17 +846,17 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         resources.addAll(rm.getPostMainRes());
         // init handlers
         List<ProcessHandler> handlers = initDefaultProcs(rm, resources, env);
-        // init proc manager for closeSession procs
+        // init proc manager for stop procs
         procMngr.initStopHandler(handlers);
     }
 
     /**
-     * Boots processes declared in closeSession group.
+     * Boots processes declared in stop group.
      */
     @Override
     public void stop() {
         LOG.info("Executing stop group processes.");
-        // execute closeSession processes
+        // execute stop processes
         procMngr.exec_stop();
     }
 
@@ -951,14 +951,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                 // monitor service and update status accordingly for zk service node
                 monService();
             });
-            // set code to execute if process failed to execute
+            // set code to execute if process failed
             boolean running = pHandler.isMainProcRunning();
             pHandler.setExecOnFailure(() -> {
                 if (running) {
                     // change service status to NOT_INITIALIZED
                     updateZkSrvStatus(conZkSrvNode::setStatusNotInitialized);
                 } else {
-                    // change service status to NOT_INITIALIZED
+                    // change service status to NOT_RUNNING
                     updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
                 }
             });
@@ -1002,7 +1002,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * @param con the container object of a dependency.
      * @return the environment object of the dependency.
      */
-    public ContainerEnvironment getDepEnvObj(Container con) {
+    private ContainerEnvironment getDepEnvObj(Container con) {
         ContainerEnvironment conEnv = null;
 
         if (con instanceof WebContainer) {
@@ -1160,7 +1160,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // log
         LOG.info("Status of service {} is: {}", path, srvNode.getStatus().toString());
         // check if all services are initialized
-        checkInitialization();
+        checkInit();
     }
 
     /**
@@ -1296,7 +1296,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     public void shutdown(ShutdownNotifier notifier) {
         // signaled to shutdown 
         notifier.setSignaledShutDown(true);
-        // excute closeSession commands
+        // excute stop commands
         stop();
         // shut down the executorService to free resources
         executorService.shutdownNow();
@@ -1313,11 +1313,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         LOG.info("Initiating Broker shutdown " + zkContainerPath);
         notifier.shutDown();
     }
-    
-    
+
     @Override
-    public void shutdown(){
+    public void shutdown() {
         shutdown(SHUTDOWN);
     }
-    
+
 }

@@ -105,7 +105,7 @@ public class CliOptions {
         private boolean help;
 
         @Parameter(description = "<app name> Name of the deployed application to stop.", required = true)
-        private List<String> app;
+        private List<String> args;
 
         @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path of .properties file with program's configuration.", required = false)
         private String conf;
@@ -121,8 +121,8 @@ public class CliOptions {
             return this.help;
         }
 
-        public List<String> getApp() {
-            return app;
+        public List<String> getArgs() {
+            return args;
         }
 
         public String getConf() {
@@ -138,15 +138,15 @@ public class CliOptions {
         }
     }
 
-    // stop command
-    @Parameters(commandDescription = "Clean zookeeper namespace and remove containers for undeployed application.")
-    public class CleanCmdOpt {
+    // restart command
+    @Parameters(commandDescription = "Restart application deployment")
+    public class RestartCmdOpt {
 
         @Parameter(names = {"-h", "--help"}, description = "Help for this command", help = true)
         private boolean help;
 
-        @Parameter(description = "<name> Name of the undeployed application to perfom cleaning.", required = true)
-        private List<String> apps;
+        @Parameter(description = "<app name> Name of application to restart.", required = true)
+        private List<String> args;
 
         @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path of .properties file with program's configuration.", required = false)
         private String conf;
@@ -165,8 +165,56 @@ public class CliOptions {
             return this.help;
         }
 
-        public List<String> getApps() {
-            return apps;
+        public List<String> getArgs() {
+            return args;
+        }
+
+        public String getConf() {
+            return conf;
+        }
+
+        public int getzTimeout() {
+            return zTimeout;
+        }
+
+        public String getzHosts() {
+            return zHosts;
+        }
+
+        public String getDocker() {
+            return docker;
+        }
+    }
+
+    // clean command
+    @Parameters(commandDescription = "Clean zookeeper namespace and remove containers for undeployed application.")
+    public class CleanCmdOpt {
+
+        @Parameter(names = {"-h", "--help"}, description = "Help for this command", help = true)
+        private boolean help;
+
+        @Parameter(description = "<name> Name of the undeployed application to perfom cleaning.", required = true)
+        private List<String> args;
+
+        @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path of .properties file with program's configuration.", required = false)
+        private String conf;
+
+        @Parameter(names = {"-t", "--timeout"}, description = "<session timeout> Zookeeper client session timeout.", required = false)
+        private int zTimeout;
+
+        @Parameter(names = {"-z", "--zookeeper"}, description = "<hosts> Zookeeper host list (comma seperated host:port pairs--no space).", required = false)
+        private String zHosts;
+
+        @Parameter(names = {"-d", "--docker"}, description = "<docker uri> Docker daemon uri.", required = false)
+        private String docker;
+
+        // Getters
+        public boolean isHelp() {
+            return this.help;
+        }
+
+        public List<String> getArgs() {
+            return args;
         }
 
         public String getConf() {

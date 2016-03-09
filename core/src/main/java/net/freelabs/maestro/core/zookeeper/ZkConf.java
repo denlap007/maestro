@@ -16,6 +16,8 @@
  */
 package net.freelabs.maestro.core.zookeeper;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,62 +31,64 @@ import java.util.Random;
  * <p>
  * The zookeeper namespace of the app is defined along with data for the nodes.
  */
+@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public final class ZkConf {
 
     /**
      * The root zkNode for the application.
      */
-    private final ZkNode root;
+    private ZkNode root;
     /**
      * The naming service zkNode for the application.
      */
-    private final ZkNode services;
+    private ZkNode services;
     /**
      * The container description zkNode for the application. Under this node
      * will be saved all container descriptions.
      */
-    private final ZkNode conDesc;
+    private ZkNode conDesc;
     /**
      * The shutdown node for the application. When created indicates program
      * shutdown.
      */
-    private final ZkNode shutdown;
+    private ZkNode shutdown;
     /**
      * The master zkNode for the application. Under this node will be registered
      * {@link #zkConf zkConf}, {@link #progConf progConf}, {@link appConf appConf}
      * nodes.
      */
-    private final ZkNode master;
+    private ZkNode master;
     /**
      * The zkNode with all the configuration regarding zookeeper service and
      * application deployment to zookeeper service.
      */
-    private final ZkNode zkConf;
+    private ZkNode zkConf;
     /**
      * The zkNode with the program's configuration.
      */
-    private final ZkNode progConf;
+    private ZkNode progConf;
     /**
      * The zkNodes holding info about the container types.
      */
-    private final List<ZkNode> containerTypes;
+    private List<ZkNode> containerTypes;
     /**
      * The zkNodes holding info about containers.
      */
-    private final Map<String, ZkNode> containers;
+    private Map<String, ZkNode> containers;
     /**
      * The namespace of the application to the zookeeper service.
      */
-    private final List<ZkNode> zkAppNamespace;
+    private List<ZkNode> zkAppNamespace;
     /**
      * The client configuration that connects to the zookeeper service.
      */
-    private final ZkSrvConf zkSrvConf;
+    @JsonIgnore
+    private ZkSrvConf zkSrvConf;
     /**
      * An id used as data for nodes without data. Also, this is the suffic to
      * the zk root node for the application.
      */
-    private final String strId;
+    private String strId;
 
     /**
      * Constructor.
@@ -98,7 +102,11 @@ public final class ZkConf {
      * @param suffixed determines weather to apply an 8-digit suffix to the
      * application root zNode.
      */
-    public ZkConf(String root, boolean suffixed, String hosts, int timeout) {
+    public ZkConf(
+            String root,
+            boolean suffixed,
+            String hosts,
+            int timeout) {
         // create namespace list
         zkAppNamespace = new ArrayList<>();
         // create root zkNode
@@ -162,6 +170,13 @@ public final class ZkConf {
         zkSrvConf = new ZkSrvConf(hosts, timeout);
     }
 
+    /**
+     * Default Constructor FOR JACKSON COMPATIBILITY.
+     */
+    public ZkConf(){
+        
+    }
+    
     /**
      * Initializes a (@link ZkNode) for a container type. The zookeeper path is
      * derived from two components: the zookeeper root + the type argument.

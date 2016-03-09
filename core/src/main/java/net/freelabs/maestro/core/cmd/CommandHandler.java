@@ -40,6 +40,10 @@ public final class CommandHandler implements Commandable {
      */
     private final StopCmd stopCmd;
     /**
+     * Restart command.
+     */
+    private final RestartCmd restartCmd;
+    /**
      * Clean command.
      */
     private final CleanCmd cleanCmd;
@@ -58,14 +62,17 @@ public final class CommandHandler implements Commandable {
         // initialize commands
         startCmd = new StartCmd("start");
         stopCmd = new StopCmd("stop");
+        restartCmd = new RestartCmd("restart");
         cleanCmd = new CleanCmd("clean");
-        
+
         // create list
         cmdNames = new ArrayList<>();
         // add to list
         cmdNames.add(startCmd.getCmdName());
         cmdNames.add(stopCmd.getCmdName());
+        cmdNames.add(restartCmd.getCmdName());
         cmdNames.add(cleanCmd.getCmdName());
+
     }
 
     @Override
@@ -76,6 +83,11 @@ public final class CommandHandler implements Commandable {
     @Override
     public void exec_stop(String... args) {
         stopCmd.exec(pConf, args);
+    }
+
+    @Override
+    public void exec_restart(String... args) {
+        restartCmd.exec(pConf, args);
     }
 
     @Override
@@ -98,15 +110,25 @@ public final class CommandHandler implements Commandable {
     public StartCmd getStartCmd() {
         return startCmd;
     }
+
     /**
-     * 
+     *
      * @return the stop Command object.
      */
     public StopCmd getStopCmd() {
         return stopCmd;
     }
+
     /**
      * 
+     * @return the restart Command object.
+     */
+    public RestartCmd getRestartCmd() {
+        return restartCmd;
+    }
+
+    /**
+     *
      * @return the clean Command object.
      */
     public CleanCmd getCleanCmd() {

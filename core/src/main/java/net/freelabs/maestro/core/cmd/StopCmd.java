@@ -45,12 +45,14 @@ public final class StopCmd extends Command {
 
     @Override
     protected void exec(ProgramConf pConf, String... args) {
+        // the application name
+        String appName = args[0];
         // flag indicating if stop command was successful
         boolean stopped = false;
         // msg 
         String msg = "";
         // initialize object to re-create application namespace
-        ZkConf zkConf = new ZkConf(args[0], false, pConf.getZkHosts(), pConf.getZkSessionTimeout());
+        ZkConf zkConf = new ZkConf(appName, false, pConf.getZkHosts(), pConf.getZkSessionTimeout());
         // initialize master to connect to zookeeper
         ZkMaster master = new ZkMaster(zkConf);
         // connect to zk
@@ -87,10 +89,11 @@ public final class StopCmd extends Command {
             LOG.info("*** App stopped: {} ***", args[0]);
         } else {
             LOG.error("*** FAILED to stop App: {}. {} ***", args[0], msg);
+            errExit();
         }
     }
 
-    public void exit() {
+    public void errExit() {
         System.exit(1);
     }
 }

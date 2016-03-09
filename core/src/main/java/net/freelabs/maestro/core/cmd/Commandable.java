@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Dionysis Lappas <dio@freelabs.net>
+ * Copyright (C) 2015-2016 Dionysis Lappas <dio@freelabs.net>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,7 +41,9 @@ public interface Commandable {
     public void exec_start(String... args);
 
     public void exec_stop(String... args);
+    
+    public void exec_restart(String... args);
 
     public void exec_clean(String... args);
-
+    
 }

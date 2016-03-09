@@ -36,7 +36,7 @@ public class Main {
     private static final Logger LOG = LoggerFactory.getLogger(Main.class);
 
     /**
-     * Main_OLD.
+     * Main.
      *
      * @param args command line arguments.
      */
@@ -57,17 +57,22 @@ public class Main {
         // create the command line parser, initialize with cli options-cmds defined
         JCommander cl = new JCommander(opts);
         cl.setProgramName(ProgramConf.getPROGRAM_NAME());
-        // instantiate inner classes of CliOptions (commands)
+
+        /* COMMANDS
+         instantiate inner classes of CliOptions (commands) */
         CliOptions.StartCmdOpt startCmdOpt = opts.new StartCmdOpt();
         CliOptions.StopCmdOpt stopCmdOpt = opts.new StopCmdOpt();
+        CliOptions.RestartCmdOpt restartCmdOpt = opts.new RestartCmdOpt();
         CliOptions.CleanCmdOpt cleanCmdOpt = opts.new CleanCmdOpt();
         // get command names
         String start = cmdExec.getStartCmd().getCmdName();
         String stop = cmdExec.getStopCmd().getCmdName();
+        String restart = cmdExec.getRestartCmd().getCmdName();
         String clean = cmdExec.getCleanCmd().getCmdName();
         // add commands defined to parser
         cl.addCommand(start, startCmdOpt);
         cl.addCommand(stop, stopCmdOpt);
+        cl.addCommand(restart, restartCmdOpt);
         cl.addCommand(clean, cleanCmdOpt);
 
         // parse arguments
@@ -135,14 +140,42 @@ public class Main {
                 if (stopCmdOpt.getConf() != null) {
                     // if found load parameters to pConf
                     pConf.loadFromFileUnset(stopCmdOpt.getConf());
-                }else {
+                } else {
                     // check for properties file to the running path
                     pConf.loadFromFileUnset("");
                 }
                 // check if program's configuration is complete
                 if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0) {
                     // execute STOP command
-                    cmdExec.exec_stop(stopCmdOpt.getApp().get(0));
+                    cmdExec.exec_stop(stopCmdOpt.getArgs().get(0));
+                } else {
+                    LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                }
+            }
+
+        } else if (parsedCmd.equals(restart)) {
+            // restart command
+            if (restartCmdOpt.isHelp()) {
+                cl.usage(restart);
+                System.exit(0);
+            } else {
+                // check configuration
+                pConf.setZkHosts(restartCmdOpt.getzHosts());
+                pConf.setZkSessionTimeout(restartCmdOpt.getzTimeout());
+                pConf.setDockerURI(restartCmdOpt.getDocker());
+                // init unset (if any) conf parameters with file input (if any)
+                // check for external properties file
+                if (restartCmdOpt.getConf() != null) {
+                    // if found load parameters to pConf
+                    pConf.loadFromFileUnset(restartCmdOpt.getConf());
+                } else {
+                    // check for properties file to the running path
+                    pConf.loadFromFileUnset("");
+                }
+                // check if program's configuration is complete
+                if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0 && pConf.getDockerURI() != null) {
+                    // execute RESTART command
+                    cmdExec.exec_restart(restartCmdOpt.getArgs().get(0));
                 } else {
                     LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
                 }

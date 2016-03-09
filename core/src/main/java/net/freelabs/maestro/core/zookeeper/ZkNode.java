@@ -16,11 +16,16 @@
  */
 package net.freelabs.maestro.core.zookeeper;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 /**
  *
  * Class that represents a zookeeper Node.
  */
-public class ZkNode{
+@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
+public class ZkNode {
 
     /**
      * The path of the zookeeper node.
@@ -45,10 +50,15 @@ public class ZkNode{
      * @param path the path of the zookeeper node.
      * @param data the data of the zookeeper node.
      * @param name the name of the zookeeper node.
-     * @param confNodePath the path of the zookeeper node with the user configuration
-     * for this container-node.
+     * @param confNodePath the path of the zookeeper node with the user
+     * configuration for this container-node.
      */
-    public ZkNode(String path, byte[] data, String name, String confNodePath) {
+    @JsonCreator
+    public ZkNode(
+            @JsonProperty("path") String path,
+            @JsonProperty("data") byte[] data, 
+            @JsonProperty("name") String name, 
+            @JsonProperty("confNodePath") String confNodePath) {
         this.path = path;
         this.data = data;
         this.name = name;

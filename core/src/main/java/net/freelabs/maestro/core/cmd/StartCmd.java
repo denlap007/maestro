@@ -146,7 +146,7 @@ public final class StartCmd extends Command {
         boolean found = ra.detectCircularDependencies();
         // if circular dependencies found exit
         if (found) {
-            exitProgram();
+            errExit();
         }
 
         // analyze container names 
@@ -154,7 +154,7 @@ public final class StartCmd extends Command {
         found = ra.detectDuplicateNames();
         // if duplicate contianer names found exit
         if (found) {
-            exitProgram();
+            errExit();
         }
     }
 
@@ -320,10 +320,13 @@ public final class StartCmd extends Command {
         // initialize zkConf zknode with data
         byte[] data = JsonSerializer.serialize(zkConf);
         zkConf.getZkConf().setData(data);
+        LOG.debug("Printing serialized zkConf: {}", JsonSerializer.deserializeToString(data));
+        
         // initialize progConf zknode with data
         data = JsonSerializer.serialize(pConf);
         zkConf.getProgConf().setData(data);
-        
+        LOG.debug("Printing serialized pConf: {}", JsonSerializer.deserializeToString(data));
+
         return zkConf;
     }
 
@@ -355,25 +358,25 @@ public final class StartCmd extends Command {
         LOG.info("WAITING FOR MASTER INITIALIZATION");
         // check initialization
         if (!master.isMasterInitialized()) {
-            exitProgram();
+            errExit();
         }
     }
 
     /**
-     * Terminates the program due to some error with an error exit code.
+     * Terminates the program due to some error printing the cause.
      */
     private void exitProgram(Exception ex) {
-        LOG.error("Something went wrong! The program will exit!", ex);
+        LOG.error("Something went wrong: ", ex);
         if (master != null) {
             master.shutdown();
         }
-        System.exit(1);
+        errExit();
     }
 
     /**
-     * Terminates the program due to some.
+     * Terminates the program due to some error.
      */
-    private void exitProgram() {
+    private void errExit() {
         LOG.error("The program will exit!");
 
         System.exit(1);

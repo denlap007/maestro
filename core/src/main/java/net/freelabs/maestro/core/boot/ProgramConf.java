@@ -16,10 +16,10 @@
  */
 package net.freelabs.maestro.core.boot;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +27,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Class that contains the program's necessary configuration.
  */
+@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public final class ProgramConf {
 
     /**
@@ -34,7 +36,6 @@ public final class ProgramConf {
      */
     private static final Logger LOG = LoggerFactory.getLogger(ProgramConf.class);
 
-    private final Map<String, Boolean> confMap;
 
     private String zkHosts;
     private int zkSessionTimeout;
@@ -44,16 +45,6 @@ public final class ProgramConf {
     private static final String PROPERTIES_FILE_NAME = "maestro.properties";
     private static final String PROGRAM_NAME = "maestro";
     private static final String VERSION = "0.1.0";
-
-    public ProgramConf() {
-        // put configuration parameters to map
-        this.confMap = new HashMap<>();
-        confMap.put("zkHosts", Boolean.FALSE);
-        confMap.put("zkSessionTimeout", Boolean.FALSE);
-        confMap.put("xmlSchemaPath", Boolean.FALSE);
-        confMap.put("xmlFilePath", Boolean.FALSE);
-        confMap.put("dockerURI", Boolean.FALSE);
-    }
 
     /**
      * Loads the configuration parameters from the properties file that were not
