@@ -78,6 +78,7 @@ public final class ZkConf {
     /**
      * The namespace of the application to the zookeeper service.
      */
+    @JsonIgnore
     private List<ZkNode> zkAppNamespace;
     /**
      * The client configuration that connects to the zookeeper service.

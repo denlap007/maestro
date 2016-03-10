@@ -18,9 +18,15 @@ package net.freelabs.maestro.core.broker;
 
 import net.freelabs.maestro.core.zookeeper.ZkExecutor;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.github.dockerjava.api.ConflictException;
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.NotFoundException;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
+import com.github.dockerjava.api.model.AccessMode;
+import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.Volume;
+import com.github.dockerjava.core.command.PullImageResultCallback;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.generated.Container;
@@ -30,9 +36,6 @@ import net.freelabs.maestro.core.zookeeper.ZkNode;
 import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
-import org.apache.zookeeper.WatchedEvent;
-import org.apache.zookeeper.Watcher;
-import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
@@ -60,7 +63,7 @@ public abstract class CoreBroker implements Runnable {
     /**
      * The docker client that will communicate with the docker daemon.
      */
-    protected final DockerClient dockerClient;
+    protected final DockerClient docker;
     /**
      * A Logger object.
      */
@@ -79,11 +82,23 @@ public abstract class CoreBroker implements Runnable {
      */
     private final CountDownLatch shutdownSignal = new CountDownLatch(1);
     /**
-     * Number of times to try and execute code passed to null null null null
-     * null null null     {@link 
+     * Number of times to try and execute code passed to {@link
      * #runAndRetry(net.freelabs.maestro.core.broker.CoreBroker.RunCmd, int) runAndRetry}.
      */
     private static final int RETRY_ATTEMPTS = 3;
+    /**
+     * Max attempts to pull an image from docker hub.
+     */
+    private static final int PULL_ATTEMPTS = 3;
+    /**
+     * The arguments used with the boot command to boot the container.
+     */
+    private String bootArgs;
+    /**
+     * The command that boots the container.
+     */
+    private String bootCmd;
+
     /**
      * An object implementing the {@link ZkExecutor ZkExecutor} interface. This
      * object delegates zookeeper requests to a zk handle.
@@ -94,7 +109,6 @@ public abstract class CoreBroker implements Runnable {
      * Handles errors.
      */
     //private final ErrorHandler errHandler; 
-
     /**
      * Constructor
      *
@@ -108,7 +122,7 @@ public abstract class CoreBroker implements Runnable {
     public CoreBroker(ZkConf zkConf, Container con, DockerClient dockerClient, ZkExecutor zkClient) {
         this.zkConf = zkConf;
         this.con = con;
-        this.dockerClient = dockerClient;
+        this.docker = dockerClient;
         this.zkClient = zkClient;
         //this.errHandler = errHandler;
         zNode = zkConf.getContainers().get(con.getName());
@@ -157,7 +171,23 @@ public abstract class CoreBroker implements Runnable {
      *
      * @return the container ID of the started container.
      */
-    protected abstract String bootContainer();
+    public String bootContainer() {
+        CreateContainerResponse container = createContainer();
+
+        if (container != null) {
+            // START CONTAINER
+            LOG.info("STARTING CONTAINER: " + con.getName());
+            String id = container.getId();
+            boolean runSuccess = runAndRetry(() -> {
+                docker.startContainerCmd(id).exec();
+            }, RETRY_ATTEMPTS);
+            // check if code executed successfully
+            if (runSuccess) {
+                return container.getId();
+            }
+        }
+        return null;
+    }
 
     /**
      * <p>
@@ -167,16 +197,77 @@ public abstract class CoreBroker implements Runnable {
      * environment of the container in order to boot.
      *
      * @return a String with key/value pairs in the form key1=value1,
-     * key2=value2 e.t.c. representing the container description.
+     * key2=value2 e.t.c. representing the boot environment.
      */
-    protected abstract String createBootEnv();
+    protected String createBootEnv() {
+        // set boot environment configuration
+        String ZK_HOSTS = zkConf.getZkSrvConf().getHosts();
+        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getZkSrvConf().getTimeout());
+        String ZK_CONTAINER_PATH = zNode.getPath();
+        String ZK_NAMING_SERVICE = zkConf.getServices().getPath();
+        String SHUTDOWN_NODE = zkConf.getShutdown().getPath();
+        String CONF_NODE = zNode.getConfNodePath();
+        // create a string with all the key-value pairs
+        String env = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
+                + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
+                + "CONF_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
+                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
+        // set the arguments for the container boot command
+        bootArgs = String.format("%s %s %s %s %s %s", ZK_HOSTS, ZK_SESSION_TIMEOUT,
+                ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
+        // create the boot command
+        bootCmd = "java -jar /broker/broker.jar " + bootArgs;
+
+        return env;
+    }
 
     /**
      * Creates a container based on the docker settings specified.
      *
      * @return an instance of response to the create command.
      */
-    protected abstract CreateContainerResponse createContainer();
+    protected CreateContainerResponse createContainer() {
+        Volume volume1 = new Volume("/broker");
+        // get boot arguments
+        String conEnv = createBootEnv();
+
+        // set container configuration
+        CreateContainerResponse container = null;
+        while (container == null) {
+            try {
+                container = docker.createContainerCmd(con.getDockerImage())
+                        .withVolumes(volume1).withBinds()
+                        .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
+                        .withCmd(bootCmd.split(" "))
+                        .withName(con.getName())
+                        .withNetworkMode("bridge")
+                        .withEnv(conEnv.split(","))
+                        .withPrivileged(true)
+                        .exec();
+            } catch (NotFoundException ex) {
+                // image not found locally
+                LOG.warn("Image \'{}\' does not exist locally. Pulling from docker hub.", con.getDockerImage());
+                // pull image from docker hub
+                boolean runSuccess = runAndRetry(() -> {
+                    docker.pullImageCmd(con.getDockerImage())
+                            .exec(new PullImageResultCallback())
+                            .awaitSuccess();
+                }, PULL_ATTEMPTS);
+                // check if code executed successfully
+                if (runSuccess) {
+                    LOG.info("Image \'{}\' pulled successfully.", con.getDockerImage());
+                } else {
+                    LOG.error("FAILED to pull image");
+                    break;
+                }
+            } catch (ConflictException ex) {
+                // container with this name already exists
+                LOG.error("Something went wrong {}", ex.getMessage());
+                break;
+            }
+        }
+        return container;
+    }
 
     /**
      * Updates the IP of the container.
@@ -193,7 +284,7 @@ public abstract class CoreBroker implements Runnable {
      */
     private String getContainerIP(String containerId) {
         // inspect container with id
-        InspectContainerResponse response = dockerClient.inspectContainerCmd(containerId).exec();
+        InspectContainerResponse response = docker.inspectContainerCmd(containerId).exec();
         // get network settings 
         InspectContainerResponse.NetworkSettings settings = response.getNetworkSettings();
         // return the cotnainer's IP
@@ -300,54 +391,10 @@ public abstract class CoreBroker implements Runnable {
         }
     }
 
-    public void setShutDownWatch(ZooKeeper zk) {
-        zk.exists(zkConf.getShutdown().getPath(), cleanUpWatcher, cleanUpCallback, null);
-    }
-
-    private final AsyncCallback.StatCallback cleanUpCallback = new AsyncCallback.StatCallback() {
-        @Override
-        public void processResult(int rc, String path, Object ctx, Stat stat) {
-            switch (KeeperException.Code.get(rc)) {
-                case CONNECTIONLOSS:
-                    zkClient.zkExec((zk) -> {
-                        setShutDownWatch(zk);
-                    });
-                    break;
-                case NONODE:
-                    LOG.info("Watch registered on: " + path);
-                    break;
-                case OK:
-                    LOG.error("Node exists: " + path);
-                    break;
-                default:
-                    LOG.error("Something went wrong: ",
-                            KeeperException.create(KeeperException.Code.get(rc), path));
-            }
-        }
-    };
-
-    private final Watcher cleanUpWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
-
-        if (event.getType() == NodeCreated) {
-            shutdown();
-        }
-    };
-
     public void shutdown() {
         LOG.info("Initiating Core Broker shutdown.");
         // release latch to finish execution
         shutdownSignal.countDown();
-    }
-
-    /**
-     * Shuts down a container.
-     *
-     * @param CID the container ID.
-     */
-    private void shutdownContainer(String CID) {
-        LOG.info("Initiating Container shutdown.");
-        dockerClient.removeContainerCmd(CID).exec();
     }
 
     /**
