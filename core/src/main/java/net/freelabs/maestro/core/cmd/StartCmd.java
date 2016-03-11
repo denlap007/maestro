@@ -317,15 +317,16 @@ public final class StartCmd extends Command {
             zkConf.initZkContainer(name, type, data);
         }
 
-        // initialize zkConf zknode with data
+        // store program configuration 
+        zkConf.setpConf(pConf);
+
+        // initialize  deployed container names
+        zkConf.initDeplCons(handler.listContainerNames());
+
+        // initialize zkConf node with data
         byte[] data = JsonSerializer.serialize(zkConf);
         zkConf.getZkConf().setData(data);
         LOG.debug("Printing serialized zkConf: {}", JsonSerializer.deserializeToString(data));
-        
-        // initialize progConf zknode with data
-        data = JsonSerializer.serialize(pConf);
-        zkConf.getProgConf().setData(data);
-        LOG.debug("Printing serialized pConf: {}", JsonSerializer.deserializeToString(data));
 
         return zkConf;
     }

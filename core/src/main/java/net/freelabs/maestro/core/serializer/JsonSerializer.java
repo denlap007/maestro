@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.nio.charset.Charset;
+import java.util.List;
 import java.util.Map;
 import net.freelabs.maestro.core.boot.ProgramConf;
 import net.freelabs.maestro.core.generated.BusinessContainer;
@@ -113,12 +114,17 @@ public class JsonSerializer {
      * @throws JsonProcessingException
      */
     public static byte[] serialize(Container con) throws JsonProcessingException {
-        // conatiner -> json -> byte[]
+        // conatiner -> byte[]
         return MAPPER.writeValueAsBytes(con);
     }
 
-    public static byte[] serialize(Map<String, Object> map) throws JsonProcessingException {
+    public static <T> byte[] serialize(Map<String, T> map) throws JsonProcessingException {
         // map -> byte[]
+        return MAPPER.writeValueAsBytes(map);
+    }
+
+    public static byte[] serialize(List<String> map) throws JsonProcessingException {
+        // list -> byte[]
         return MAPPER.writeValueAsBytes(map);
     }
 
@@ -145,6 +151,12 @@ public class JsonSerializer {
     public static Map<String, Object> deserializeToMap(byte[] data) throws IOException {
         // byte[] -> Map<String, Object>
         return MAPPER.readValue(data, new TypeReference<Map<String, Object>>() {
+        });
+    }
+
+    public static List<String> deserializeToList(byte[] data) throws IOException {
+        // byte[] -> List<String>
+        return MAPPER.readValue(data, new TypeReference<List<String>>() {
         });
     }
 

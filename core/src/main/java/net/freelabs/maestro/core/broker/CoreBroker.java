@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  * For every container type, there is a subclass of this class that handles
  * initialization and bootstrapping of the container.
  */
-public abstract class CoreBroker implements Runnable {
+public abstract class CoreBroker implements Runnable, ContainerLifecycle {
 
     /**
      * The container associated with the broker.
@@ -71,7 +71,7 @@ public abstract class CoreBroker implements Runnable {
     /**
      * The container id.
      */
-    private String CID;
+    private String cid;
     /**
      * A ZkNode object that holds all the zk configuration about this container.
      */
@@ -93,11 +93,11 @@ public abstract class CoreBroker implements Runnable {
     /**
      * The arguments used with the boot command to boot the container.
      */
-    private String bootArgs;
+    private String conBootArgs;
     /**
      * The command that boots the container.
      */
-    private String bootCmd;
+    private String ConBootCmd;
 
     /**
      * An object implementing the {@link ZkExecutor ZkExecutor} interface. This
@@ -136,11 +136,11 @@ public abstract class CoreBroker implements Runnable {
 
     private void runBroker() {
         // boot the container
-        CID = bootContainer();
+        cid = startContainer();
         // check for errors
-        if (CID != null) {
+        if (cid != null) {
             // get container IP
-            String IP = getContainerIP(CID);
+            String IP = getContainerIP(cid);
             // update container ip
             updateIP(IP);
 
@@ -163,110 +163,6 @@ public abstract class CoreBroker implements Runnable {
             LOG.error("Could NOT start container. Shutting down Broker.");
             shutdown();
         }
-    }
-
-    /**
-     * Boots a container. The method initially defines the necessary
-     * configuration for the environment and then for the container.
-     *
-     * @return the container ID of the started container.
-     */
-    public String bootContainer() {
-        CreateContainerResponse container = createContainer();
-
-        if (container != null) {
-            // START CONTAINER
-            LOG.info("STARTING CONTAINER: " + con.getName());
-            String id = container.getId();
-            boolean runSuccess = runAndRetry(() -> {
-                docker.startContainerCmd(id).exec();
-            }, RETRY_ATTEMPTS);
-            // check if code executed successfully
-            if (runSuccess) {
-                return container.getId();
-            }
-        }
-        return null;
-    }
-
-    /**
-     * <p>
-     * Generates the container boot environment.
-     * <p>
-     * The container boot environment is all the necessary configuration for the
-     * environment of the container in order to boot.
-     *
-     * @return a String with key/value pairs in the form key1=value1,
-     * key2=value2 e.t.c. representing the boot environment.
-     */
-    protected String createBootEnv() {
-        // set boot environment configuration
-        String ZK_HOSTS = zkConf.getZkSrvConf().getHosts();
-        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getZkSrvConf().getTimeout());
-        String ZK_CONTAINER_PATH = zNode.getPath();
-        String ZK_NAMING_SERVICE = zkConf.getServices().getPath();
-        String SHUTDOWN_NODE = zkConf.getShutdown().getPath();
-        String CONF_NODE = zNode.getConfNodePath();
-        // create a string with all the key-value pairs
-        String env = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
-                + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
-                + "CONF_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
-                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
-        // set the arguments for the container boot command
-        bootArgs = String.format("%s %s %s %s %s %s", ZK_HOSTS, ZK_SESSION_TIMEOUT,
-                ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
-        // create the boot command
-        bootCmd = "java -jar /broker/broker.jar " + bootArgs;
-
-        return env;
-    }
-
-    /**
-     * Creates a container based on the docker settings specified.
-     *
-     * @return an instance of response to the create command.
-     */
-    protected CreateContainerResponse createContainer() {
-        Volume volume1 = new Volume("/broker");
-        // get boot arguments
-        String conEnv = createBootEnv();
-
-        // set container configuration
-        CreateContainerResponse container = null;
-        while (container == null) {
-            try {
-                container = docker.createContainerCmd(con.getDockerImage())
-                        .withVolumes(volume1).withBinds()
-                        .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
-                        .withCmd(bootCmd.split(" "))
-                        .withName(con.getName())
-                        .withNetworkMode("bridge")
-                        .withEnv(conEnv.split(","))
-                        .withPrivileged(true)
-                        .exec();
-            } catch (NotFoundException ex) {
-                // image not found locally
-                LOG.warn("Image \'{}\' does not exist locally. Pulling from docker hub.", con.getDockerImage());
-                // pull image from docker hub
-                boolean runSuccess = runAndRetry(() -> {
-                    docker.pullImageCmd(con.getDockerImage())
-                            .exec(new PullImageResultCallback())
-                            .awaitSuccess();
-                }, PULL_ATTEMPTS);
-                // check if code executed successfully
-                if (runSuccess) {
-                    LOG.info("Image \'{}\' pulled successfully.", con.getDockerImage());
-                } else {
-                    LOG.error("FAILED to pull image");
-                    break;
-                }
-            } catch (ConflictException ex) {
-                // container with this name already exists
-                LOG.error("Something went wrong {}", ex.getMessage());
-                break;
-            }
-        }
-        return container;
     }
 
     /**
@@ -395,6 +291,133 @@ public abstract class CoreBroker implements Runnable {
         LOG.info("Initiating Core Broker shutdown.");
         // release latch to finish execution
         shutdownSignal.countDown();
+    }
+
+    @Override
+    public String createContainerEnv() {
+        // set boot environment configuration
+        String ZK_HOSTS = zkConf.getZkSrvConf().getHosts();
+        String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getZkSrvConf().getTimeout());
+        String ZK_CONTAINER_PATH = zNode.getPath();
+        String ZK_NAMING_SERVICE = zkConf.getServices().getPath();
+        String SHUTDOWN_NODE = zkConf.getShutdown().getPath();
+        String CONF_NODE = zNode.getConfNodePath();
+        // create a string with all the key-value pairs
+        String env = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
+                + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
+                + "CONF_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
+                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
+        // set the arguments for the container boot command
+        conBootArgs = String.format("%s %s %s %s %s %s", ZK_HOSTS, ZK_SESSION_TIMEOUT,
+                ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
+        // create the boot command
+        ConBootCmd = "java -jar /broker/broker.jar " + conBootArgs;
+
+        return env;
+    }
+
+    @Override
+    public CreateContainerResponse createContainer() {
+        Volume volume1 = new Volume("/broker");
+        // get boot arguments
+        String conEnv = createContainerEnv();
+
+        // set container configuration
+        CreateContainerResponse container = null;
+        while (container == null) {
+            try {
+                container = docker.createContainerCmd(con.getDockerImage())
+                        .withVolumes(volume1).withBinds()
+                        .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
+                        .withCmd(ConBootCmd.split(" "))
+                        .withName(con.getName()) // get deployed name mapped to defined name
+                        .withNetworkMode("bridge")
+                        .withEnv(conEnv.split(","))
+                        .withPrivileged(true)
+                        .exec();
+            } catch (NotFoundException ex) {
+                // image not found locally
+                LOG.warn("Image \'{}\' does not exist locally. Pulling from docker hub.", con.getDockerImage());
+                // pull image from docker hub
+                boolean runSuccess = runAndRetry(() -> {
+                    pullContainerImg(con.getDockerImage());
+                }, PULL_ATTEMPTS);
+                // check if code executed successfully
+                if (runSuccess) {
+                    LOG.info("Image \'{}\' pulled successfully.", con.getDockerImage());
+                } else {
+                    LOG.error("FAILED to pull image");
+                    break;
+                }
+            } catch (ConflictException ex) {
+                // container with this name already exists
+                LOG.error("Something went wrong {}", ex.getMessage());
+                break;
+            }
+        }
+        return container;
+    }
+
+    @Override
+    public void pullContainerImg(String img) {
+        docker.pullImageCmd(img)
+                .exec(new PullImageResultCallback())
+                .awaitSuccess();
+    }
+
+    @Override
+    public String startContainer() {
+        CreateContainerResponse container = createContainer();
+
+        if (container != null) {
+            // START CONTAINER
+            LOG.info("STARTING CONTAINER: " + con.getName());
+            String id = container.getId();
+            boolean runSuccess = runAndRetry(() -> {
+                docker.startContainerCmd(id).exec();
+            }, RETRY_ATTEMPTS);
+            // check if code executed successfully
+            if (runSuccess) {
+                return container.getId();
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public boolean stopContainer(String con) {
+        LOG.info("Stopping container: {}", con);
+        docker.stopContainerCmd(con).exec();
+        // confirm stop
+        InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
+        if (inspResp.getState().isRunning()) {
+            LOG.error("FAILED to stop container: {}", con);
+            return false;
+        } else {
+            LOG.info("Stopped.");
+            return true;
+        }
+    }
+
+    @Override
+    public boolean restartContainer(String con) {
+        // get first start time
+        InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
+        String startTime1 = inspResp.getState().getStartedAt();
+        // restart
+        LOG.info("Restarting container: {}", con);
+        docker.restartContainerCmd(con).exec();
+        // get second start time of the container
+        InspectContainerResponse inspResp2 = docker.inspectContainerCmd(con).exec();
+        String startTime2 = inspResp2.getState().getStartedAt();
+        // confirm restart
+        if (!startTime1.equals(startTime2)) {
+            LOG.info("Restarted.");
+            return true;
+        } else {
+            LOG.error("FAILED to restart container: {}", con);
+            return false;
+        }
     }
 
     /**

@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import net.freelabs.maestro.core.boot.ProgramConf;
 
 /**
  *
@@ -53,20 +54,10 @@ public final class ZkConf {
      */
     private ZkNode shutdown;
     /**
-     * The master zkNode for the application. Under this node will be registered
-     * {@link #zkConf zkConf}, {@link #progConf progConf}, {@link appConf appConf}
-     * nodes.
-     */
-    private ZkNode master;
-    /**
      * The zkNode with all the configuration regarding zookeeper service and
      * application deployment to zookeeper service.
      */
     private ZkNode zkConf;
-    /**
-     * The zkNode with the program's configuration.
-     */
-    private ZkNode progConf;
     /**
      * The zkNodes holding info about the container types.
      */
@@ -85,6 +76,15 @@ public final class ZkConf {
      */
     @JsonIgnore
     private ZkSrvConf zkSrvConf;
+    /**
+     * Map of the defined container names to the deployed container names.
+     */
+    private Map<String, String> deplCons;
+    /**
+     * The program's configuration
+     */
+    private ProgramConf pConf;
+
     /**
      * An id used as data for nodes without data. Also, this is the suffic to
      * the zk root node for the application.
@@ -111,13 +111,10 @@ public final class ZkConf {
         // create namespace list
         zkAppNamespace = new ArrayList<>();
         // create root zkNode
-        // create ID for root node, an 8-digit positive number zero padded
-        int numId;
-
         String name;
         if (suffixed) {
-            numId = (new Random().nextInt(90000000) + 10000000);
-            strId = String.format("%08d", numId);
+            // create ID for root node, an 8-digit positive zero padded number
+            strId = generateId();
             name = root + "-" + strId;
         } else {
             name = root;
@@ -149,24 +146,15 @@ public final class ZkConf {
         path = rootPath + "/shutdown";
         name = "shutdown";
         shutdown = new ZkNode(path, strId.getBytes(), name, "");
-        // create master zkNode
-        path = rootPath + "/master";
-        name = "master";
-        master = new ZkNode(path, strId.getBytes(), name, "");
-        zkAppNamespace.add(master);
         // create zkNode for zookeeper configuration
-        path = master.getPath() + "/zkConf";
+        path = rootPath + "/zkConf";
         name = "zkConf";
         zkConf = new ZkNode(path, strId.getBytes(), name, "");
         zkAppNamespace.add(zkConf);
-        // create zkNode for program configuration
-        path = master.getPath() + "/progConf";
-        name = "progConf";
-        progConf = new ZkNode(path, strId.getBytes(), name, "");
-        zkAppNamespace.add(progConf);
         // create Lists-Maps
         containerTypes = new ArrayList<>();
         containers = new HashMap<>();
+        deplCons = new HashMap<>();
         // initialize client configuration
         zkSrvConf = new ZkSrvConf(hosts, timeout);
     }
@@ -174,10 +162,23 @@ public final class ZkConf {
     /**
      * Default Constructor FOR JACKSON COMPATIBILITY.
      */
-    public ZkConf(){
-        
+    public ZkConf() {
+
     }
-    
+
+    /**
+     * Generates a random 8-digit positive zero-padded id.
+     *
+     * @return the 8-digit positive zero-padded id.
+     */
+    private String generateId() {
+        int min = 0;
+        int max = 99999999;
+        int numId = (new Random().nextInt(max - min));
+        String id = String.format("%08d", numId);
+        return id;
+    }
+
     /**
      * Initializes a (@link ZkNode) for a container type. The zookeeper path is
      * derived from two components: the zookeeper root + the type argument.
@@ -218,7 +219,24 @@ public final class ZkConf {
         containers.put(name, zkNode);
     }
 
+    /**
+     * Creates the map of defined container names to deployed container names.
+     *
+     * @param deplCons the list of defined container names.
+     */
+    public void initDeplCons(List<String> deplCons) {
+        // init map
+        deplCons.stream().forEach((defName) -> {
+            String deplName = defName + "-" + strId;
+            this.deplCons.put(defName, deplName);
+        });
+    }
+
     // Getters 
+    public String getStrId() {
+        return strId;
+    }
+
     public ZkNode getRoot() {
         return root;
     }
@@ -235,16 +253,8 @@ public final class ZkConf {
         return shutdown;
     }
 
-    public ZkNode getMaster() {
-        return master;
-    }
-
     public ZkNode getZkConf() {
         return zkConf;
-    }
-
-    public ZkNode getProgConf() {
-        return progConf;
     }
 
     public List<ZkNode> getContainerTypes() {
@@ -261,5 +271,17 @@ public final class ZkConf {
 
     public ZkSrvConf getZkSrvConf() {
         return zkSrvConf;
+    }
+
+    public Map<String, String> getDeplCons() {
+        return deplCons;
+    }
+
+    public ProgramConf getpConf() {
+        return pConf;
+    }
+
+    public void setpConf(ProgramConf pConf) {
+        this.pConf = pConf;
     }
 }
