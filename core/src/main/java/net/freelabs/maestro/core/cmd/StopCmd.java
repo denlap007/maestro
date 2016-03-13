@@ -16,8 +16,14 @@
  */
 package net.freelabs.maestro.core.cmd;
 
+import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.command.InspectContainerResponse;
+import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import net.freelabs.maestro.core.boot.ProgramConf;
+import net.freelabs.maestro.core.docker.DockerInitializer;
+import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
 import org.slf4j.Logger;
@@ -28,6 +34,18 @@ import org.slf4j.LoggerFactory;
  * @author Dionysis Lappas <dio@freelabs.net>
  */
 public final class StopCmd extends Command {
+
+    private ZkMaster master;
+
+    private ZkConf zkConf;
+
+    private String appName;
+
+    private DockerClient docker;
+    /**
+     * Message used in exit message.
+     */
+    private String msg = "";
 
     /**
      * A Logger object.
@@ -45,16 +63,10 @@ public final class StopCmd extends Command {
 
     @Override
     protected void exec(ProgramConf pConf, String... args) {
-        // the application name
-        String appName = args[0];
         // flag indicating if stop command was successful
         boolean stopped = false;
-        // msg 
-        String msg = "";
-        // initialize object to re-create application namespace
-        ZkConf zkConf = new ZkConf(appName, false, pConf.getZkHosts(), pConf.getZkSessionTimeout());
-        // initialize master to connect to zookeeper
-        ZkMaster master = new ZkMaster(zkConf);
+        // initialize parameters
+        init(pConf, args);
         // connect to zk
         master.connectToZk();
         // check for errors
@@ -73,9 +85,19 @@ public final class StopCmd extends Command {
                         if (!master.isMasterError()) {
                             // wait services to stop
                             stopped = master.waitServicesToStop(services);
+                            // confirm
+                            if (stopped) {
+                                confirmStop();
+                            }
                         }
                     } else {
-                        msg = String.format("NO containers-Services running. \'%s\' alredy stopped.", args[0]);
+                        // check if containers of the deployed app were stopped
+                        boolean consWereStopped = confirmStop();
+                        if (consWereStopped) {
+                            msg = "No Containers-Services running. App already stopped.";
+                        }else{
+                            stopped = true;
+                        }
                     }
                 }
             } else {
@@ -91,6 +113,87 @@ public final class StopCmd extends Command {
             LOG.error("*** FAILED to stop App: {}. {} ***", args[0], msg);
             errExit();
         }
+    }
+
+    /**
+     * <p>
+     * Confirms that all the containers of the deployed application have stopped
+     * by querying the docker daemon.
+     * <p>
+     * The method downloads the application configuration and extracts the
+     * docker uri and creates a docker client to query the docker host. Then, it
+     * obtains the list of the deployed containers for the application and check
+     * their running state. If a container is still running it is forced to
+     * stop.
+     */
+    private boolean confirmStop() {
+        boolean consWereStopped = true;
+        // get the application configuration
+        downloadZkConf();
+        // get docker uri as saved to conf
+        String dockerURI = zkConf.getpConf().getDockerURI();
+        // create a docker client 
+        DockerInitializer appDocker = new DockerInitializer(dockerURI);
+        docker = appDocker.getDockerClient();
+        // get the deployed container names
+        Map<String, String> deplCons = zkConf.getDeplCons();
+        // iterate and check running state
+        LOG.info("Querying docker host.");
+        
+        for (String deplname : deplCons.values()) {
+            InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
+            // if container running force stop
+            if (inspResp.getState().isRunning()) {
+                LOG.warn("Container \'{}\' is still running. Forcing stop.", deplname);
+                docker.stopContainerCmd(deplname).exec();
+                consWereStopped = false;
+            } else {
+                LOG.info("Confirming that container \'{}\' has stopped.", deplname);
+            }
+        }
+        return consWereStopped;
+    }
+
+    /**
+     * Initializes necessary objects.
+     *
+     * @param pConf program's configuration.
+     * @param args arguments defined in command line.
+     */
+    private void init(ProgramConf pConf, String... args) {
+        // the application to restart
+        appName = args[0];
+        // initialize object to re-create application namespace
+        zkConf = new ZkConf(appName, false, pConf.getZkHosts(), pConf.getZkSessionTimeout());
+        // initialize master to connect to zookeeper
+        master = new ZkMaster(zkConf);
+    }
+
+    /**
+     * Downloads node zkConf from zookeeper application tree and re-initializes
+     * {@link #zkConf zkConf} with the configuration of the application as
+     * deployed.
+     *
+     * @return true if zkConf node was successfully downloaded from zookeeper.
+     */
+    public boolean downloadZkConf() {
+        LOG.info("Downloading application configuration.");
+        boolean downloaded = false;
+        byte[] data = master.nodeData(zkConf.getZkConf().getPath(), null);
+        // check for errors
+        if (data != null) {
+            try {
+                zkConf = JsonSerializer.deserializeZkConf(data);
+                String dataStr = JsonSerializer.deserializeToString(data);
+                LOG.debug("Downloaded application configuration. Printing. {}", dataStr);
+                downloaded = true;
+            } catch (IOException ex) {
+                LOG.error("Something went wrong: ", ex);
+            }
+        } else {
+            LOG.error("Application data NOT found in configuration node zkConf.");
+        }
+        return downloaded;
     }
 
     public void errExit() {

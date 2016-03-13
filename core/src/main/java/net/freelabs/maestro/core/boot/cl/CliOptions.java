@@ -157,9 +157,6 @@ public class CliOptions {
         @Parameter(names = {"-z", "--zookeeper"}, description = "<hosts> Zookeeper host list (comma seperated host:port pairs--no space).", required = false)
         private String zHosts;
 
-        @Parameter(names = {"-d", "--docker"}, description = "<docker uri> Docker daemon uri.", required = false)
-        private String docker;
-
         // Getters
         public boolean isHelp() {
             return this.help;
@@ -179,10 +176,6 @@ public class CliOptions {
 
         public String getzHosts() {
             return zHosts;
-        }
-
-        public String getDocker() {
-            return docker;
         }
     }
 
@@ -205,9 +198,6 @@ public class CliOptions {
         @Parameter(names = {"-z", "--zookeeper"}, description = "<hosts> Zookeeper host list (comma seperated host:port pairs--no space).", required = false)
         private String zHosts;
 
-        @Parameter(names = {"-d", "--docker"}, description = "<docker uri> Docker daemon uri.", required = false)
-        private String docker;
-
         // Getters
         public boolean isHelp() {
             return this.help;
@@ -227,10 +217,6 @@ public class CliOptions {
 
         public String getzHosts() {
             return zHosts;
-        }
-
-        public String getDocker() {
-            return docker;
         }
     }
 }

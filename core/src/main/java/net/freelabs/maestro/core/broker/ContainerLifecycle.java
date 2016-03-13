@@ -26,10 +26,8 @@ public interface ContainerLifecycle {
 
     /**
      * Creates the necessary configuration for the container to boot.
-     * @return a String with key/value pairs in the form key1=value1,
-     * key2=value2 e.t.c. representing the boot environment.
      */
-    public String createContainerEnv();
+    public void createContainerEnv();
 
     /**
      * Creates a container.

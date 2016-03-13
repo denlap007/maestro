@@ -162,7 +162,6 @@ public class Main {
                 // check configuration
                 pConf.setZkHosts(restartCmdOpt.getzHosts());
                 pConf.setZkSessionTimeout(restartCmdOpt.getzTimeout());
-                pConf.setDockerURI(restartCmdOpt.getDocker());
                 // init unset (if any) conf parameters with file input (if any)
                 // check for external properties file
                 if (restartCmdOpt.getConf() != null) {
@@ -173,7 +172,7 @@ public class Main {
                     pConf.loadFromFileUnset("");
                 }
                 // check if program's configuration is complete
-                if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0 && pConf.getDockerURI() != null) {
+                if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0) {
                     // execute RESTART command
                     cmdExec.exec_restart(restartCmdOpt.getArgs().get(0));
                 } else {

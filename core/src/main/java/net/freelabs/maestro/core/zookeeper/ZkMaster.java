@@ -351,7 +351,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
             // if no children exist
             if (children.isEmpty()) {
                 printStoppedSrvs(children, servicesCache);
-                LOG.info("ALL containers-Services STOPPED.");
+                LOG.info("ALL services STOPPED.");
                 servicesStopped.countDown();
             } else if (event.getType() == NodeChildrenChanged) {
                 // services still exist, check which service(s) stopped
@@ -384,7 +384,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
                 String[] tokens = srv.split("/");
                 int size = tokens.length;
                 String name = tokens[size - 1];
-                LOG.info("Container-Service stopped: {}.", name);
+                LOG.info("Service stopped: {}.", name);
             }
         }
     }

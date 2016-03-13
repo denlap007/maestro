@@ -97,7 +97,12 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
     /**
      * The command that boots the container.
      */
-    private String ConBootCmd;
+    private String conBootCmd;
+    /**
+     * The environment with which the container is initialized at boot. This
+     * holds all the environment variables passed for proper boot and init.
+     */
+    private String conBootEnv;
 
     /**
      * An object implementing the {@link ZkExecutor ZkExecutor} interface. This
@@ -135,7 +140,9 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
     }
 
     private void runBroker() {
-        // boot the container
+        // create configration to initialize parameters
+        createContainerEnv();
+        // start the container
         cid = startContainer();
         // check for errors
         if (cid != null) {
@@ -294,7 +301,7 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
     }
 
     @Override
-    public String createContainerEnv() {
+    public void createContainerEnv() {
         // set boot environment configuration
         String ZK_HOSTS = zkConf.getZkSrvConf().getHosts();
         String ZK_SESSION_TIMEOUT = String.valueOf(zkConf.getZkSrvConf().getTimeout());
@@ -303,7 +310,7 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
         String SHUTDOWN_NODE = zkConf.getShutdown().getPath();
         String CONF_NODE = zNode.getConfNodePath();
         // create a string with all the key-value pairs
-        String env = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
+        conBootEnv = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
                 + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
                 + "CONF_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
                 ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
@@ -311,29 +318,36 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
         conBootArgs = String.format("%s %s %s %s %s %s", ZK_HOSTS, ZK_SESSION_TIMEOUT,
                 ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
         // create the boot command
-        ConBootCmd = "java -jar /broker/broker.jar " + conBootArgs;
-
-        return env;
+        conBootCmd = "java -jar /broker/broker.jar " + conBootArgs;
     }
 
     @Override
     public CreateContainerResponse createContainer() {
+        // initialize attributes
+        // deployed name mapped to defined name
+        String conName = zkConf.getDeplCons().get(con.getName()); 
+        String conImg = con.getDockerImage();
+        String[] conCmd = conBootCmd.split(" ");
+        String conNetMode = "bridge";
+        
+        String[] conEnvArr = conBootEnv.split(",");
+        
+        boolean privileged = true;
+        
         Volume volume1 = new Volume("/broker");
-        // get boot arguments
-        String conEnv = createContainerEnv();
 
         // set container configuration
         CreateContainerResponse container = null;
         while (container == null) {
             try {
-                container = docker.createContainerCmd(con.getDockerImage())
+                container = docker.createContainerCmd(conImg)
                         .withVolumes(volume1).withBinds()
                         .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
-                        .withCmd(ConBootCmd.split(" "))
-                        .withName(con.getName()) // get deployed name mapped to defined name
-                        .withNetworkMode("bridge")
-                        .withEnv(conEnv.split(","))
-                        .withPrivileged(true)
+                        .withName(conName) 
+                        .withCmd(conCmd)
+                        .withNetworkMode(conNetMode)
+                        .withEnv(conEnvArr)
+                        .withPrivileged(privileged)
                         .exec();
             } catch (NotFoundException ex) {
                 // image not found locally
@@ -371,7 +385,7 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
 
         if (container != null) {
             // START CONTAINER
-            LOG.info("STARTING CONTAINER: " + con.getName());
+            LOG.info("STARTING CONTAINER for service: " + con.getName());
             String id = container.getId();
             boolean runSuccess = runAndRetry(() -> {
                 docker.startContainerCmd(id).exec();
@@ -386,7 +400,7 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
 
     @Override
     public boolean stopContainer(String con) {
-        LOG.info("Stopping container: {}", con);
+        LOG.info("Stopping: {}", con);
         docker.stopContainerCmd(con).exec();
         // confirm stop
         InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
@@ -394,7 +408,7 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
             LOG.error("FAILED to stop container: {}", con);
             return false;
         } else {
-            LOG.info("Stopped.");
+            LOG.info("Stopped \'{}\'.", con);
             return true;
         }
     }
@@ -405,14 +419,14 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
         InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
         String startTime1 = inspResp.getState().getStartedAt();
         // restart
-        LOG.info("Restarting container: {}", con);
+        LOG.info("Restarting: {}", con);
         docker.restartContainerCmd(con).exec();
         // get second start time of the container
         InspectContainerResponse inspResp2 = docker.inspectContainerCmd(con).exec();
         String startTime2 = inspResp2.getState().getStartedAt();
         // confirm restart
         if (!startTime1.equals(startTime2)) {
-            LOG.info("Restarted.");
+            LOG.info("Restarted \'{}\'.", con);
             return true;
         } else {
             LOG.error("FAILED to restart container: {}", con);
