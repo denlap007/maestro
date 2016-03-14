@@ -751,12 +751,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     }
                 }
             } else // check if srvs are initialized
-             if (srvMngr.areSrvInitialized()) {
+            {
+                if (srvMngr.areSrvInitialized()) {
                     // start processes
                     executorService.execute(() -> {
                         start();
                     });
                 }
+            }
         } else {
             conInitialized = true;
             LOG.info("Container INITIALIZED!");
@@ -1297,12 +1299,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // signaled to shutdown 
         notifier.setSignaledShutDown(true);
         // excute stop commands if initialized
-        if (procMngr != null){
-            if (procMngr.isStopHandlerInit()){
+        if (procMngr != null) {
+            if (procMngr.isStopHandlerInit()) {
                 // run stop group procs
                 stop();
             }
         }
+        // delete persistent zNode with container description in case of restart
+        deleteNode(conConfNode, -1);
         // shut down the executorService to free resources
         executorService.shutdownNow();
         try {
@@ -1322,6 +1326,37 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     @Override
     public void shutdown() {
         shutdown(SHUTDOWN);
+    }
+
+    /**
+     * Deletes the specified zNode. The zNode mustn't have any children. This
+     * method uses the synchronized zk API.
+     *
+     * @param path the zNode to delete.
+     * @param version the data version of the zNode.
+     */
+    public void deleteNode(String path, int version) {
+        while (true) {
+            try {
+                zk.delete(path, version);
+                LOG.info("Deleted node: {}", path);
+                break;
+            } catch (InterruptedException ex) {
+                // log event
+                LOG.warn("Interrupted. Stopping.");
+                // set interupt flag
+                Thread.currentThread().interrupt();
+                break;
+            } catch (KeeperException.ConnectionLossException ex) {
+                LOG.warn("Connection loss was detected. Retrying...");
+            } catch (KeeperException.NoNodeException ex) {
+                LOG.info("Node already deleted: {}", path);
+                break;
+            } catch (KeeperException ex) {
+                LOG.error("Something went wrong", ex);
+                break;
+            }
+        }
     }
 
 }

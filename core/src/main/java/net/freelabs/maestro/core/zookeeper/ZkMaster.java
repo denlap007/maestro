@@ -81,7 +81,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     /**
      * List of running services.
      */
-    private List<String> servicesCache;
+    private volatile List<String> servicesCache;
     /**
      * A Logger object.
      */
@@ -98,6 +98,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
         // initialize sub-class
         this.zkConf = zkConf;
         this.ns = new ZkNamingService(zkConf.getServices().getPath());
+        servicesCache = new ArrayList<>();
     }
 
     @Override
@@ -311,7 +312,6 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * in case there are no children, NULL if an error occurred.
      */
     public List<String> watchServices() {
-        servicesCache = new ArrayList<>();
         // make a get children call to leave watch for node's children
         List<String> children = null;
         while (true) {
@@ -347,6 +347,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
         LOG.debug(event.getType() + ", " + event.getPath());
         // re-set watch
         List<String> children = watchServices();
+
         // if no error
         if (children != null) {
             if (event.getType() == NodeChildrenChanged) {
@@ -773,7 +774,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * deployed application.
      */
     public void shutdownMaster() {
-        LOG.warn("Initiating master shutdown.");
+        LOG.info("Initiating master shutdown.");
         try {
             // close session
             closeSession();

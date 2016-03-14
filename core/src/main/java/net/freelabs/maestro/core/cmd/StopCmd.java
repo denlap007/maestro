@@ -37,20 +37,31 @@ import org.slf4j.LoggerFactory;
  */
 public final class StopCmd extends Command {
 
+    /**
+     * The master zookeeper process.
+     */
     private ZkMaster master;
-
+    /**
+     * The zookeeper configuration for the deployed application.
+     */
     private ZkConf zkConf;
-
+    /**
+     * The deployed application ID.
+     */
     private String appID;
-
+    /**
+     * A docker client to query for state of containers.
+     */
     private DockerClient docker;
-
+    /**
+     * Flag that indicates if application's configuration was successfully
+     * downloaded.
+     */
     private boolean downloadedZkConf;
     /**
      * Message used in exit message.
      */
     private String errMsg = "";
-
     /**
      * A Logger object.
      */
@@ -97,29 +108,29 @@ public final class StopCmd extends Command {
                                 // confirm containers were stopped
                                 if (stopped) {
                                     // create docker client
-                                    initDockerClient(zkConf.getpConf().getDockerURI());
+                                    docker = initDockerClient(zkConf.getpConf().getDockerURI());
                                     // check for running containers
-                                    Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
+                                    Map<String, String> runningCons = getRunningCons(docker, zkConf.getDeplCons());
                                     // if containers still running force stop
                                     if (!runningCons.isEmpty()) {
-                                        stopRunningCons(runningCons);
+                                        stopRunningCons(docker, runningCons);
                                     }
                                     LOG.info("All containers stopped.");
-                                } 
+                                }
                             }
                         } else {
                             // create docker client
-                            initDockerClient(zkConf.getpConf().getDockerURI());
+                            docker = initDockerClient(zkConf.getpConf().getDockerURI());
                             // check for running containers
-                            Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
+                            Map<String, String> runningCons = getRunningCons(docker, zkConf.getDeplCons());
                             // if containers still running force stop
                             if (!runningCons.isEmpty()) {
-                                stopRunningCons(runningCons);
+                                stopRunningCons(docker, runningCons);
                                 stopped = true;
                             } else {
                                 errMsg = String.format("No Containers-Services running. App \'%s\' already stopped.", appID);
                             }
-                        } 
+                        }
                     }
                 }
             } else {
@@ -132,17 +143,24 @@ public final class StopCmd extends Command {
         if (stopped) {
             LOG.info("App \'{}\' successfully STOPPED.", appID);
         } else {
-            if(errMsg.isEmpty()){
+            if (errMsg.isEmpty()) {
                 LOG.error("FAILED to stop App \'{}\'.", appID);
-            }else{
+            } else {
                 LOG.error(errMsg);
             }
-            
+
             errExit();
         }
     }
 
-    private void stopRunningCons(Map<String, String> runningCons) {
+    /**
+     * Stops the containers that are still in running state.
+     *
+     * @param docker the docker client.
+     * @param runningCons map of the defined-deployed container names of the
+     * containers that are running.
+     */
+    private void stopRunningCons(DockerClient docker, Map<String, String> runningCons) {
         for (Map.Entry<String, String> entry : runningCons.entrySet()) {
             String defName = entry.getKey();
             String deplname = entry.getValue();
@@ -155,7 +173,17 @@ public final class StopCmd extends Command {
         }
     }
 
-    private Map<String, String> getRunningCons(Map<String, String> deplCons) {
+    /**
+     * Gets a map with the defined-deployed container names of the containers
+     * that are running.
+     *
+     * @param docker the docker client.
+     * @param deplCons map with the defined-deployed container names of the
+     * deployed containers.
+     * @return map of the defined-deployed container names of the containers at
+     * running state.
+     */
+    private Map<String, String> getRunningCons(DockerClient docker, Map<String, String> deplCons) {
         // map with found running containers if any
         Map<String, String> runningCons = new HashMap<>();
         // iterate and check running state
@@ -169,8 +197,8 @@ public final class StopCmd extends Command {
                 // if container running add to map
                 if (inspResp.getState().isRunning()) {
                     runningCons.put(defName, deplname);
-                }else{
-                     LOG.info("Container for service \'{}\' has stopped.", defName);
+                } else {
+                    LOG.info("Container for service \'{}\' has stopped.", defName);
                 }
             } catch (NotFoundException ex) {
                 LOG.error("Container for service \'{}\' does not exist.", defName);
@@ -179,48 +207,19 @@ public final class StopCmd extends Command {
         return runningCons;
     }
 
-    private void initDockerClient(String dockerURI) {
+    /**
+     * Initializes a docker client.
+     * @param dockerURI the uri of the docker host.
+     * @return a docker client instance.
+     */
+    private DockerClient initDockerClient(String dockerURI) {
         // create a docker client 
         DockerInitializer appDocker = new DockerInitializer(dockerURI);
-        docker = appDocker.getDockerClient();
+        return appDocker.getDockerClient();
     }
 
     /**
-     * <p>
-     * Confirms that all the containers of the deployed application have stopped
-     * by querying the docker daemon.
-     * <p>
-     * The method extracts the docker uri and creates a docker client to query
-     * the docker host. Then, it obtains the list of the deployed containers for
-     * the application and checks their running state. If a container is still
-     * running it is forced to stop.
-     */
-    private void confirmStop() {
-        // get the deployed container names
-        Map<String, String> deplCons = zkConf.getDeplCons();
-        // iterate and check running state
-        LOG.info("Querying docker host.");
-
-        for (Map.Entry<String, String> entry : deplCons.entrySet()) {
-            String defName = entry.getKey();
-            String deplname = entry.getValue();
-            try {
-                InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
-                // if container running force stop
-                if (inspResp.getState().isRunning()) {
-                    LOG.warn("Container for service \'{}\' is still running. Forcing stop.", defName);
-                    docker.stopContainerCmd(deplname).exec();
-                } else {
-                    LOG.info("Container for service \'{}\' has stopped.", defName);
-                }
-            } catch (NotFoundException ex) {
-                LOG.error("Container for service \'{}\' does not exist.", defName);
-            }
-        }
-    }
-
-    /**
-     * Initializes necessary objects.
+     * Initializes necessary parameters.
      *
      * @param pConf program's configuration.
      * @param args arguments defined in command line.
@@ -261,6 +260,9 @@ public final class StopCmd extends Command {
         return downloaded;
     }
 
+    /**
+     * Exit with error code (1).
+     */
     public void errExit() {
         System.exit(1);
     }

@@ -136,10 +136,16 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
     @Override
     public void run() {
         // run Broker 
-        runBroker();
+        runStart();
     }
 
-    private void runBroker() {
+    /**
+     * Runs the start state for the Broker. In the start state, the Broker
+     * creates the container configuration, starts the container and runs the
+     * postStart state where it updates the znode data for the container and
+     * finally creates the configuration node to zookeeper.
+     */
+    public void runStart() {
         // create configration to initialize parameters
         createContainerEnv();
         // start the container
@@ -147,29 +153,53 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
         // check for errors
         if (cid != null) {
             // get container IP
-            String IP = getContainerIP(cid);
-            // update container ip
-            updateIP(IP);
+            runPostStart(cid);
+        } else {
+            LOG.error("Could NOT start container. Shutting down Broker.");
+            shutdown();
+        }
+    }
 
-            try {
-                // update zNode configuration
-                zNode.setData(JsonSerializer.serialize(con));
-                // log the event
-                LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), "IP", IP);
-            } catch (JsonProcessingException ex) {
-                LOG.error("FAILED to update container IP. ", ex);
-            }
+    /**
+     * Runs the postStart state for the Broker. In the postStart state, the
+     * Broker takes any action necessary after the container has started.
+     *
+     * @param cid the container identifier, id or name.
+     * @return true if operations completed without errors.
+     */
+    public boolean runPostStart(String cid) {
+        boolean success = false;
+        String IP = getContainerIP(cid);
+        // update container ip
+        updateIP(IP);
 
+        try {
+            // update zNode configuration
+            zNode.setData(JsonSerializer.serialize(con));
+            // log the event
+            LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), "IP", IP);
             // create zk configuration node
             zkClient.zkExec((zk) -> {
                 createNode(zk, zNode.getConfNodePath(), zNode.getData());
             });
             // Sets the thread to wait until it's time to shutdown
             waitForShutdown();
-        } else {
-            LOG.error("Could NOT start container. Shutting down Broker.");
-            shutdown();
+            success = true;
+        } catch (JsonProcessingException ex) {
+            LOG.error("FAILED to update container IP. ", ex);
         }
+        return success;
+    }
+
+    public boolean runRestart(String con) {
+        boolean success = false;
+        // restart the spedified container
+        boolean restarted = restartContainer(con);
+        if (restarted) {
+            // run post start state
+            success = runPostStart(con);
+        }
+        return success;
     }
 
     /**
@@ -325,15 +355,15 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
     public CreateContainerResponse createContainer() {
         // initialize attributes
         // deployed name mapped to defined name
-        String conName = zkConf.getDeplCons().get(con.getName()); 
+        String conName = zkConf.getDeplCons().get(con.getName());
         String conImg = con.getDockerImage();
         String[] conCmd = conBootCmd.split(" ");
         String conNetMode = "bridge";
-        
+
         String[] conEnvArr = conBootEnv.split(",");
-        
+
         boolean privileged = true;
-        
+
         Volume volume1 = new Volume("/broker");
 
         // set container configuration
@@ -343,7 +373,7 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
                 container = docker.createContainerCmd(conImg)
                         .withVolumes(volume1).withBinds()
                         .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
-                        .withName(conName) 
+                        .withName(conName)
                         .withCmd(conCmd)
                         .withNetworkMode(conNetMode)
                         .withEnv(conEnvArr)
