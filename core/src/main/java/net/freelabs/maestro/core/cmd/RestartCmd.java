@@ -42,7 +42,7 @@ public class RestartCmd extends Command {
 
     private ZkConf zkConf;
 
-    private String appName;
+    private String appID;
 
     private DockerClient docker;
 
@@ -122,7 +122,7 @@ public class RestartCmd extends Command {
                 errExit();
             }
         });
-        LOG.info("Application \'{}\' restarted.", appName);
+        LOG.info("Application \'{}\' restarted.", appID);
         master.shutdownMaster();
     }
 
@@ -160,12 +160,12 @@ public class RestartCmd extends Command {
      */
     private void init(ProgramConf pConf, String... args) {
         // the application to restart
-        appName = args[0];
+        appID = args[0];
         // create a docker client 
         DockerInitializer appDocker = new DockerInitializer(pConf.getDockerURI());
         docker = appDocker.getDockerClient();
         // initialize object to re-create application namespace
-        zkConf = new ZkConf(appName, false, pConf.getZkHosts(), pConf.getZkSessionTimeout());
+        zkConf = new ZkConf(appID, false, pConf.getZkHosts(), pConf.getZkSessionTimeout());
         // initialize master to connect to zookeeper
         master = new ZkMaster(zkConf);
     }
@@ -197,7 +197,7 @@ public class RestartCmd extends Command {
                         if (stopped) {
                             LOG.info("Application stopped.");
                         } else {
-                            LOG.error("FAILED to stop application: ", appName);
+                            LOG.error("FAILED to stop application: ", appID);
                         }
                     }
                 } else {
@@ -206,7 +206,7 @@ public class RestartCmd extends Command {
                 }
             }
         } else {
-            LOG.error("Application: \'{}\' does NOT exist.", appName);
+            LOG.error("Application: \'{}\' does NOT exist.", appID);
         }
 
         return stopped;
@@ -216,7 +216,7 @@ public class RestartCmd extends Command {
      * Exits program with error code (1), exit due to error.
      */
     public void errExit() {
-        LOG.error("Restart of \'{}\' FAILED. Exiting...", appName);
+        LOG.error("Restart of \'{}\' FAILED. Exiting...", appID);
         System.exit(1);
     }
 

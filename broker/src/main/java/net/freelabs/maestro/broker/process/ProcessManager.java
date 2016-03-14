@@ -26,6 +26,7 @@ import net.freelabs.maestro.broker.process.stop.StopGroupHandler;
  * Class that manages process execution.
  */
 public final class ProcessManager {
+
     /**
      * Process manager for processes defined in start section.
      */
@@ -87,4 +88,21 @@ public final class ProcessManager {
         startHandler.waitForMainProc();
     }
 
+    /**
+     * Checks if handler for stop process group is initialized.
+     *
+     * @return true if handler for stop process group is initialized.
+     */
+    public boolean isStopHandlerInit() {
+        return stopHandler != null;
+    }
+
+    /**
+     * Checks if handler for start process group is initialized.
+     *
+     * @return true if handler for start process group is initialized.
+     */
+    public boolean isStartHandlerInit() {
+        return startHandler != null;
+    }
 }

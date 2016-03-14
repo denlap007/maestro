@@ -123,7 +123,7 @@ public final class StartCmd extends Command {
             LOG.warn("Thread interrupted. Stopping.");
         }
         // show the application's deployed name
-        master.getDeployedName();
+        master.getDeployedID();
     }
 
     /**

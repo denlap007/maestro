@@ -17,8 +17,10 @@
 package net.freelabs.maestro.core.cmd;
 
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.NotFoundException;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.freelabs.maestro.core.boot.ProgramConf;
@@ -39,13 +41,15 @@ public final class StopCmd extends Command {
 
     private ZkConf zkConf;
 
-    private String appName;
+    private String appID;
 
     private DockerClient docker;
+
+    private boolean downloadedZkConf;
     /**
      * Message used in exit message.
      */
-    private String msg = "";
+    private String errMsg = "";
 
     /**
      * A Logger object.
@@ -71,48 +75,114 @@ public final class StopCmd extends Command {
         master.connectToZk();
         // check for errors
         if (!master.isMasterError()) {
+            // check if node with appID exists
             boolean exists = master.nodeExists(zkConf.getRoot().getPath());
             if (exists) {
-                // register watch to services
-                List<String> services = master.watchServices();
-                // if no error
-                if (services != null) {
-                    // if no services
-                    if (!services.isEmpty()) {
-                        // create shutdown node
-                        master.createShutdownNode();
-                        // make sure shutdown node was created without errors
-                        if (!master.isMasterError()) {
-                            // wait services to stop
-                            stopped = master.waitServicesToStop(services);
-                            // confirm
-                            if (stopped) {
-                                confirmStop();
+                // download application conf
+                downloadedZkConf = downloadZkConf();
+                // if conf was downloaded
+                if (downloadedZkConf) {
+                    // register watch to services
+                    List<String> services = master.watchServices();
+                    // if no error
+                    if (services != null) {
+                        // if no services
+                        if (!services.isEmpty()) {
+                            // create shutdown node
+                            master.createShutdownNode();
+                            // if shutdown node was created without errors
+                            if (!master.isMasterError()) {
+                                // wait services to stop
+                                stopped = master.waitServicesToStop(services);
+                                // confirm containers were stopped
+                                if (stopped) {
+                                    // create docker client
+                                    initDockerClient(zkConf.getpConf().getDockerURI());
+                                    // check for running containers
+                                    Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
+                                    // if containers still running force stop
+                                    if (!runningCons.isEmpty()) {
+                                        stopRunningCons(runningCons);
+                                    }
+                                    LOG.info("All containers stopped.");
+                                } 
                             }
-                        }
-                    } else {
-                        // check if containers of the deployed app were stopped
-                        boolean consWereStopped = confirmStop();
-                        if (consWereStopped) {
-                            msg = "No Containers-Services running. App already stopped.";
-                        }else{
-                            stopped = true;
-                        }
+                        } else {
+                            // create docker client
+                            initDockerClient(zkConf.getpConf().getDockerURI());
+                            // check for running containers
+                            Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
+                            // if containers still running force stop
+                            if (!runningCons.isEmpty()) {
+                                stopRunningCons(runningCons);
+                                stopped = true;
+                            } else {
+                                errMsg = String.format("No Containers-Services running. App \'%s\' already stopped.", appID);
+                            }
+                        } 
                     }
                 }
             } else {
-                msg = "Application does NOT exist.";
+                errMsg = String.format("Application \'%s\' does NOT exist.", appID);
             }
         }
 
         master.shutdownMaster();
 
         if (stopped) {
-            LOG.info("*** App stopped: {} ***", args[0]);
+            LOG.info("App \'{}\' successfully STOPPED.", appID);
         } else {
-            LOG.error("*** FAILED to stop App: {}. {} ***", args[0], msg);
+            if(errMsg.isEmpty()){
+                LOG.error("FAILED to stop App \'{}\'.", appID);
+            }else{
+                LOG.error(errMsg);
+            }
+            
             errExit();
         }
+    }
+
+    private void stopRunningCons(Map<String, String> runningCons) {
+        for (Map.Entry<String, String> entry : runningCons.entrySet()) {
+            String defName = entry.getKey();
+            String deplname = entry.getValue();
+            try {
+                LOG.warn("Container for service \'{}\' is still running. Forcing stop.", defName);
+                docker.stopContainerCmd(deplname).exec();
+            } catch (NotFoundException ex) {
+                LOG.error("Container for service \'{}\' does not exist.", defName);
+            }
+        }
+    }
+
+    private Map<String, String> getRunningCons(Map<String, String> deplCons) {
+        // map with found running containers if any
+        Map<String, String> runningCons = new HashMap<>();
+        // iterate and check running state
+        LOG.info("Querying docker host.");
+
+        for (Map.Entry<String, String> entry : deplCons.entrySet()) {
+            String defName = entry.getKey();
+            String deplname = entry.getValue();
+            try {
+                InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
+                // if container running add to map
+                if (inspResp.getState().isRunning()) {
+                    runningCons.put(defName, deplname);
+                }else{
+                     LOG.info("Container for service \'{}\' has stopped.", defName);
+                }
+            } catch (NotFoundException ex) {
+                LOG.error("Container for service \'{}\' does not exist.", defName);
+            }
+        }
+        return runningCons;
+    }
+
+    private void initDockerClient(String dockerURI) {
+        // create a docker client 
+        DockerInitializer appDocker = new DockerInitializer(dockerURI);
+        docker = appDocker.getDockerClient();
     }
 
     /**
@@ -120,38 +190,33 @@ public final class StopCmd extends Command {
      * Confirms that all the containers of the deployed application have stopped
      * by querying the docker daemon.
      * <p>
-     * The method downloads the application configuration and extracts the
-     * docker uri and creates a docker client to query the docker host. Then, it
-     * obtains the list of the deployed containers for the application and check
-     * their running state. If a container is still running it is forced to
-     * stop.
+     * The method extracts the docker uri and creates a docker client to query
+     * the docker host. Then, it obtains the list of the deployed containers for
+     * the application and checks their running state. If a container is still
+     * running it is forced to stop.
      */
-    private boolean confirmStop() {
-        boolean consWereStopped = true;
-        // get the application configuration
-        downloadZkConf();
-        // get docker uri as saved to conf
-        String dockerURI = zkConf.getpConf().getDockerURI();
-        // create a docker client 
-        DockerInitializer appDocker = new DockerInitializer(dockerURI);
-        docker = appDocker.getDockerClient();
+    private void confirmStop() {
         // get the deployed container names
         Map<String, String> deplCons = zkConf.getDeplCons();
         // iterate and check running state
         LOG.info("Querying docker host.");
-        
-        for (String deplname : deplCons.values()) {
-            InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
-            // if container running force stop
-            if (inspResp.getState().isRunning()) {
-                LOG.warn("Container \'{}\' is still running. Forcing stop.", deplname);
-                docker.stopContainerCmd(deplname).exec();
-                consWereStopped = false;
-            } else {
-                LOG.info("Confirming that container \'{}\' has stopped.", deplname);
+
+        for (Map.Entry<String, String> entry : deplCons.entrySet()) {
+            String defName = entry.getKey();
+            String deplname = entry.getValue();
+            try {
+                InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
+                // if container running force stop
+                if (inspResp.getState().isRunning()) {
+                    LOG.warn("Container for service \'{}\' is still running. Forcing stop.", defName);
+                    docker.stopContainerCmd(deplname).exec();
+                } else {
+                    LOG.info("Container for service \'{}\' has stopped.", defName);
+                }
+            } catch (NotFoundException ex) {
+                LOG.error("Container for service \'{}\' does not exist.", defName);
             }
         }
-        return consWereStopped;
     }
 
     /**
@@ -162,9 +227,9 @@ public final class StopCmd extends Command {
      */
     private void init(ProgramConf pConf, String... args) {
         // the application to restart
-        appName = args[0];
+        appID = args[0];
         // initialize object to re-create application namespace
-        zkConf = new ZkConf(appName, false, pConf.getZkHosts(), pConf.getZkSessionTimeout());
+        zkConf = new ZkConf(appID, false, pConf.getZkHosts(), pConf.getZkSessionTimeout());
         // initialize master to connect to zookeeper
         master = new ZkMaster(zkConf);
     }
@@ -177,7 +242,7 @@ public final class StopCmd extends Command {
      * @return true if zkConf node was successfully downloaded from zookeeper.
      */
     public boolean downloadZkConf() {
-        LOG.info("Downloading application configuration.");
+        LOG.info("Getting application configuration.");
         boolean downloaded = false;
         byte[] data = master.nodeData(zkConf.getZkConf().getPath(), null);
         // check for errors

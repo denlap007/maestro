@@ -305,12 +305,13 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
     /**
      * Makes a getChildren call to application services node and registers a
      * watcher to node's children. If an error occurs, the {@link #masterError
-     * masterError} flag is set to true. 
+     * masterError} flag is set to true.
      *
      * @return the list of children of application services node. An empty list
      * in case there are no children, NULL if an error occurred.
      */
     public List<String> watchServices() {
+        servicesCache = new ArrayList<>();
         // make a get children call to leave watch for node's children
         List<String> children = null;
         while (true) {
@@ -348,16 +349,18 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
         List<String> children = watchServices();
         // if no error
         if (children != null) {
-            // if no children exist
-            if (children.isEmpty()) {
-                printStoppedSrvs(children, servicesCache);
-                LOG.info("ALL services STOPPED.");
-                servicesStopped.countDown();
-            } else if (event.getType() == NodeChildrenChanged) {
-                // services still exist, check which service(s) stopped
-                printStoppedSrvs(children, servicesCache);
+            if (event.getType() == NodeChildrenChanged) {
+                // if no children exist
+                if (children.isEmpty()) {
+                    printStoppedSrvs(children, servicesCache);
+                    LOG.info("ALL services STOPPED.");
+                    servicesStopped.countDown();
+                } else {
+                    // services still exist, check which service(s) stopped
+                    printStoppedSrvs(children, servicesCache);
+                }
+                servicesCache = children;
             }
-            servicesCache = children;
         } else {
             servicesStopped.countDown();
         }
@@ -396,6 +399,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
      * @return true if all services stopped. False in case an error occurred.
      */
     public boolean waitServicesToStop(List<String> services) {
+        LOG.info("Waiting services to stop.");
         // get services running
         servicesCache = services;
 
@@ -793,13 +797,13 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
 
     /**
      *
-     * @return the name of the root zookeeper node of the deployed application
+     * @return the id of the root zookeeper node of the deployed application
      * namespace.
      */
-    public String getDeployedName() {
-        String name = zkConf.getRoot().getName();
-        LOG.info("*** APPLICATION DEPLOYED WITH NAME: " + name + " ***");
-        return name;
+    public String getDeployedID() {
+        String id = zkConf.getRoot().getName();
+        LOG.info("*** APPLICATION DEPLOYED WITH ID: " + id + " ***");
+        return id;
     }
 
     public void display() {

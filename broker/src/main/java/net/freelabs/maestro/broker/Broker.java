@@ -1296,8 +1296,13 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     public void shutdown(ShutdownNotifier notifier) {
         // signaled to shutdown 
         notifier.setSignaledShutDown(true);
-        // excute stop commands
-        stop();
+        // excute stop commands if initialized
+        if (procMngr != null){
+            if (procMngr.isStopHandlerInit()){
+                // run stop group procs
+                stop();
+            }
+        }
         // shut down the executorService to free resources
         executorService.shutdownNow();
         try {
