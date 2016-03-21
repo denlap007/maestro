@@ -17,22 +17,11 @@
 package net.freelabs.maestro.core.cmd;
 
 import com.github.dockerjava.api.DockerClient;
-import com.github.dockerjava.api.NotFoundException;
-import com.github.dockerjava.api.command.InspectContainerResponse;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import net.freelabs.maestro.core.boot.ProgramConf;
-import net.freelabs.maestro.core.broker.CoreBroker;
-import net.freelabs.maestro.core.broker.CoreBusinessBroker;
-import net.freelabs.maestro.core.broker.CoreDataBroker;
-import net.freelabs.maestro.core.broker.CoreWebBroker;
+import net.freelabs.maestro.core.broker.BrokerInit;
 import net.freelabs.maestro.core.docker.DockerInitializer;
-import net.freelabs.maestro.core.generated.BusinessContainer;
-import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.generated.DataContainer;
-import net.freelabs.maestro.core.generated.WebContainer;
+import net.freelabs.maestro.core.handler.ContainerHandler;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
@@ -62,11 +51,6 @@ public class RestartCmd extends Command {
      */
     private DockerClient docker;
     /**
-     * Flag that indicates if application's configuration was successfully
-     * downloaded.
-     */
-    private boolean downloadedZkConf;
-    /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(RestartCmd.class);
@@ -82,117 +66,53 @@ public class RestartCmd extends Command {
 
     @Override
     protected void exec(ProgramConf pConf, String... args) {
+        boolean success = false;
         // initialization
         init(pConf, args);
         // connect to zk
         master.connectToZk();
         // if no connection errors
         if (!master.isMasterError()) {
-            // stop application if necessary
-            LOG.info("Checking application state.");
-            boolean stopped = stop();
-            if (stopped) {
-                // restart
-                restart();
-            } else {
-                errExit();
-            }
-        }
-    }
-
-    /**
-     * Restart application's containers.
-     */
-    private void restart() {
-        // initiate RESTART
-        LOG.info("Restarting application.");
-        // get deployed container names
-        Map<String, String> deplCons = zkConf.getDeplCons();
-        // restart containers
-        deplCons.entrySet().stream().forEach((entry) -> {
-            String defname = entry.getKey();
-            String deplName = entry.getValue();
-            // initialize the CoreBroker that will handle restarting
-            CoreBroker cb = initBroker(zkConf, defname, docker);
-            if (cb != null) {
-                // restart container
-                //LOG.info("Restarting container for service: {}", defname);
-                boolean restarted = cb.runRestart(deplName);
-
-                if (!restarted) {
-                    errExit();
+            // check if node with appID exists
+            boolean exists = master.nodeExists(zkConf.getRoot().getPath());
+            if (exists) {
+                // download application conf
+                boolean downloadedZkConf = downloadZkConf();
+                // if conf was downloaded
+                if (downloadedZkConf) {
+                    // initialize docker client
+                    initDockerClient(zkConf.getpConf().getDockerURI());
+                    // create and initialize Broker initializer to act on containers
+                    BrokerInit brokerInit = runBrokerInit();
+                    // restart application
+                    success = brokerInit.runRestart();
                 }
             } else {
-                errExit();
+                LOG.error("Application \'{}\' does NOT exist.", appID);
             }
 
-        });
-        LOG.info("Application \'{}\' restarted.", appID);
+        }
+
         master.shutdownMaster();
+
+        if (success) {
+            master.shutdownMaster();
+            LOG.info("Application \'{}\' restarted.", appID);
+        } else {
+            errExit();
+        }
     }
 
     /**
-     * Initializes a CoreBroker to handle the container lifecycle.
-     *
-     * @param zkConf the zookeeper application configuration.
-     * @param defConName the container name as defined in application
-     * description.
-     * @param docker the docker client.
-     * @return an initialized isntance of {@link CoreBroker CoreBroker} class.
+     * Creates and initializes the {@link BrokerInit Broker Initializer} that
+     * will handle interaction with containers.
+     * @return an initialized instance of {@link BrokerInit BrokerInit}.
      */
-    public CoreBroker initBroker(ZkConf zkConf, String defConName, DockerClient docker) {
-        // get data of the container 
-        byte[] data = zkConf.getContainers().get(defConName).getData();
-        // deserialize data
-        String zkPath = zkConf.getContainers().get(defConName).getPath();
-        Container con = deserializeContainer(zkPath, data);
-        CoreBroker cb = null;
-
-        if (con instanceof WebContainer) {
-            WebContainer webCon = (WebContainer) con;
-            cb = new CoreWebBroker(zkConf, webCon, docker, master);
-        } else if (con instanceof BusinessContainer) {
-            BusinessContainer businessCon = (BusinessContainer) con;
-            cb = new CoreBusinessBroker(zkConf, businessCon, docker, master);
-        } else if (con instanceof DataContainer) {
-            DataContainer dataCon = (DataContainer) con;
-            cb = new CoreDataBroker(zkConf, dataCon, docker, master);
-        }
-
-        if (cb == null) {
-            LOG.error("UNKNOWN Container type.");
-        }
-        return cb;
-    }
-
-    /**
-     * Deserializes a byte array to a {@link Container Container} instance.
-     *
-     * @param zkPath the zookeeper path of the container.
-     * @param data the container data.
-     * @return an instance of {@link Container Container} class initialized with
-     * data from application description.
-     */
-    private Container deserializeContainer(String zkPath, byte[] data) {
-        Container con = null;
-        // de-serialize the container according to the container type       
-        try {
-            if (zkPath.contains("WebContainer")) {
-                con = JsonSerializer.deserializeToWebContainer(data);
-            } else if (zkPath.contains("BusinessContainer")) {
-                con = JsonSerializer.deserializeToBusinessContainer(data);
-            } else if (zkPath.contains("DataContainer")) {
-                con = JsonSerializer.deserializeToDataContainer(data);
-            }
-
-            if (con == null) {
-                LOG.error("De-serialization of \'{}\' FAILED", zkPath);
-            }
-        } catch (IOException ex) {
-            LOG.error("De-serialization FAILED: " + ex);
-        }
-
-        return con;
+    private BrokerInit runBrokerInit() {
+        // create container handler
+        ContainerHandler handler = new ContainerHandler(zkConf.getWebApp().getContainers());
+        // create and initialize the Broker Initializer
+        return new BrokerInit(handler, zkConf, docker, master);
     }
 
     /**
@@ -238,130 +158,14 @@ public class RestartCmd extends Command {
     }
 
     /**
-     * Stops a web app that is running.
-     *
-     * @return true if web app stopped.
-     */
-    private boolean stop() {
-        // initiate STOP
-        boolean stopped = false;
-
-        // check if node with appID exists
-        boolean exists = master.nodeExists(zkConf.getRoot().getPath());
-        if (exists) {
-            // download application conf
-            downloadedZkConf = downloadZkConf();
-            // if conf was downloaded
-            if (downloadedZkConf) {
-                // register watch to services
-                List<String> services = master.watchServices();
-                // if no error
-                if (services != null) {
-                    // if no services
-                    if (!services.isEmpty()) {
-                        // create shutdown node
-                        master.createShutdownNode();
-                        // if shutdown node was created without errors
-                        if (!master.isMasterError()) {
-                            // wait services to stop
-                            stopped = master.waitServicesToStop(services);
-                            // confirm containers were stopped
-                            if (stopped) {
-                                // create docker client
-                                docker = initDockerClient(zkConf.getpConf().getDockerURI());
-                                // check for running containers
-                                Map<String, String> runningCons = getRunningCons(docker, zkConf.getDeplCons());
-                                // if containers still running force stop
-                                if (!runningCons.isEmpty()) {
-                                    stopRunningCons(docker, runningCons);
-                                }
-                                LOG.info("All containers stopped.");
-                            }
-                        }
-                    } else {
-                        // create docker client
-                        docker = initDockerClient(zkConf.getpConf().getDockerURI());
-                        // check for running containers
-                        Map<String, String> runningCons = getRunningCons(docker, zkConf.getDeplCons());
-                        // if containers still running force stop
-                        if (!runningCons.isEmpty()) {
-                            stopRunningCons(docker, runningCons);
-                        }
-                        stopped = true;
-                    }
-                }
-            }
-        } else {
-            LOG.error("Application \'%s\' does NOT exist.", appID);
-        }
-
-        return stopped;
-    }
-
-    /**
      * Initializes a docker client.
      *
      * @param dockerURI the uri of the docker host.
-     * @return a docker client instance.
      */
-    private DockerClient initDockerClient(String dockerURI) {
+    private void initDockerClient(String dockerURI) {
         // create a docker client 
         DockerInitializer appDocker = new DockerInitializer(dockerURI);
-        return appDocker.getDockerClient();
-    }
-
-    /**
-     * Stops the containers that are still in running state.
-     *
-     * @param docker the docker client.
-     * @param runningCons map of the defined-deployed container names of the
-     * containers that are running.
-     */
-    private void stopRunningCons(DockerClient docker, Map<String, String> runningCons) {
-        for (Map.Entry<String, String> entry : runningCons.entrySet()) {
-            String defName = entry.getKey();
-            String deplname = entry.getValue();
-            try {
-                LOG.warn("Container for service \'{}\' is still running. Forcing stop.", defName);
-                docker.stopContainerCmd(deplname).exec();
-            } catch (NotFoundException ex) {
-                LOG.error("Container for service \'{}\' does not exist.", defName);
-            }
-        }
-    }
-
-    /**
-     * Gets a map with the defined-deployed container names of the containers
-     * that are running.
-     *
-     * @param docker the docker client.
-     * @param deplCons map with the defined-deployed container names of the
-     * deployed containers.
-     * @return map of the defined-deployed container names of the containers at
-     * running state.
-     */
-    private Map<String, String> getRunningCons(DockerClient docker, Map<String, String> deplCons) {
-        // map with found running containers if any
-        Map<String, String> runningCons = new HashMap<>();
-        // iterate and check running state
-        LOG.info("Querying docker host.");
-
-        for (Map.Entry<String, String> entry : deplCons.entrySet()) {
-            String defName = entry.getKey();
-            String deplname = entry.getValue();
-            try {
-                InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
-                // if container running add to map
-                if (inspResp.getState().isRunning()) {
-                    runningCons.put(defName, deplname);
-                } else {
-                    LOG.info("Container for service \'{}\' has stopped.", defName);
-                }
-            } catch (NotFoundException ex) {
-                LOG.error("Container for service \'{}\' does not exist.", defName);
-            }
-        }
-        return runningCons;
+        docker = appDocker.getDockerClient();
     }
 
     /**

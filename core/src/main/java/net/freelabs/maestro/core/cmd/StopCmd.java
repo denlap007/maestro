@@ -17,13 +17,9 @@
 package net.freelabs.maestro.core.cmd;
 
 import com.github.dockerjava.api.DockerClient;
-import com.github.dockerjava.api.NotFoundException;
-import com.github.dockerjava.api.command.InspectContainerResponse;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import net.freelabs.maestro.core.boot.ProgramConf;
+import net.freelabs.maestro.core.broker.BrokerInit;
 import net.freelabs.maestro.core.docker.DockerInitializer;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
@@ -54,14 +50,10 @@ public final class StopCmd extends Command {
      */
     private DockerClient docker;
     /**
-     * Flag that indicates if application's configuration was successfully
-     * downloaded.
-     */
-    private boolean downloadedZkConf;
-    /**
      * Message used in exit message.
      */
     private String errMsg = "";
+
     /**
      * A Logger object.
      */
@@ -78,7 +70,7 @@ public final class StopCmd extends Command {
 
     @Override
     protected void exec(ProgramConf pConf, String... args) {
-        // flag indicating if stop command was successful
+        //flag indicating if stop command was successful
         boolean stopped = false;
         // initialize parameters
         init(pConf, args);
@@ -90,48 +82,13 @@ public final class StopCmd extends Command {
             boolean exists = master.nodeExists(zkConf.getRoot().getPath());
             if (exists) {
                 // download application conf
-                downloadedZkConf = downloadZkConf();
+                boolean downloadedZkConf = downloadZkConf();
                 // if conf was downloaded
                 if (downloadedZkConf) {
-                    // register watch to services
-                    List<String> services = master.watchServices();
-                    // if no error
-                    if (services != null) {
-                        // if no services
-                        if (!services.isEmpty()) {
-                            // create shutdown node
-                            master.createShutdownNode();
-                            // if shutdown node was created without errors
-                            if (!master.isMasterError()) {
-                                // wait services to stop
-                                stopped = master.waitServicesToStop(services);
-                                // confirm containers were stopped
-                                if (stopped) {
-                                    // create docker client
-                                    docker = initDockerClient(zkConf.getpConf().getDockerURI());
-                                    // check for running containers
-                                    Map<String, String> runningCons = getRunningCons(docker, zkConf.getDeplCons());
-                                    // if containers still running force stop
-                                    if (!runningCons.isEmpty()) {
-                                        stopRunningCons(docker, runningCons);
-                                    }
-                                    LOG.info("All containers stopped.");
-                                }
-                            }
-                        } else {
-                            // create docker client
-                            docker = initDockerClient(zkConf.getpConf().getDockerURI());
-                            // check for running containers
-                            Map<String, String> runningCons = getRunningCons(docker, zkConf.getDeplCons());
-                            // if containers still running force stop
-                            if (!runningCons.isEmpty()) {
-                                stopRunningCons(docker, runningCons);
-                                stopped = true;
-                            } else {
-                                errMsg = String.format("No Containers-Services running. App \'%s\' already stopped.", appID);
-                            }
-                        }
-                    }
+                    // initialize docker client
+                    initDockerClient(zkConf.getpConf().getDockerURI());
+                    // create and run Initializer to process stop command 
+                    stopped = runBrokerInit();
                 }
             } else {
                 errMsg = String.format("Application \'%s\' does NOT exist.", appID);
@@ -141,10 +98,10 @@ public final class StopCmd extends Command {
         master.shutdownMaster();
 
         if (stopped) {
-            LOG.info("App \'{}\' successfully STOPPED.", appID);
+            LOG.info("Application with id \'{}\' successfully STOPPED.", appID);
         } else {
             if (errMsg.isEmpty()) {
-                LOG.error("FAILED to stop App \'{}\'.", appID);
+                LOG.error("FAILED to stop Application with id \'{}\'.", appID);
             } else {
                 LOG.error(errMsg);
             }
@@ -153,69 +110,22 @@ public final class StopCmd extends Command {
         }
     }
 
-    /**
-     * Stops the containers that are still in running state.
-     *
-     * @param docker the docker client.
-     * @param runningCons map of the defined-deployed container names of the
-     * containers that are running.
-     */
-    private void stopRunningCons(DockerClient docker, Map<String, String> runningCons) {
-        for (Map.Entry<String, String> entry : runningCons.entrySet()) {
-            String defName = entry.getKey();
-            String deplname = entry.getValue();
-            try {
-                LOG.warn("Container for service \'{}\' is still running. Forcing stop.", defName);
-                docker.stopContainerCmd(deplname).exec();
-            } catch (NotFoundException ex) {
-                LOG.error("Container for service \'{}\' does not exist.", defName);
-            }
-        }
-    }
-
-    /**
-     * Gets a map with the defined-deployed container names of the containers
-     * that are running.
-     *
-     * @param docker the docker client.
-     * @param deplCons map with the defined-deployed container names of the
-     * deployed containers.
-     * @return map of the defined-deployed container names of the containers at
-     * running state.
-     */
-    private Map<String, String> getRunningCons(DockerClient docker, Map<String, String> deplCons) {
-        // map with found running containers if any
-        Map<String, String> runningCons = new HashMap<>();
-        // iterate and check running state
-        LOG.info("Querying docker host.");
-
-        for (Map.Entry<String, String> entry : deplCons.entrySet()) {
-            String defName = entry.getKey();
-            String deplname = entry.getValue();
-            try {
-                InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
-                // if container running add to map
-                if (inspResp.getState().isRunning()) {
-                    runningCons.put(defName, deplname);
-                } else {
-                    LOG.info("Container for service \'{}\' has stopped.", defName);
-                }
-            } catch (NotFoundException ex) {
-                LOG.error("Container for service \'{}\' does not exist.", defName);
-            }
-        }
-        return runningCons;
+    private boolean runBrokerInit() {
+        // create and initialize the Broker Initializer
+        BrokerInit brokerInit = new BrokerInit(null, zkConf, docker, master);
+        // run Initializer to act on contaienrs
+        return brokerInit.runStop();
     }
 
     /**
      * Initializes a docker client.
+     *
      * @param dockerURI the uri of the docker host.
-     * @return a docker client instance.
      */
-    private DockerClient initDockerClient(String dockerURI) {
+    private void initDockerClient(String dockerURI) {
         // create a docker client 
         DockerInitializer appDocker = new DockerInitializer(dockerURI);
-        return appDocker.getDockerClient();
+        docker = appDocker.getDockerClient();
     }
 
     /**

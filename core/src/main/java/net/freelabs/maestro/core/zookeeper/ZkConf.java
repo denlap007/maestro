@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import net.freelabs.maestro.core.boot.ProgramConf;
+import net.freelabs.maestro.core.generated.WebApp;
 
 /**
  *
@@ -58,6 +59,10 @@ public final class ZkConf {
      * application deployment to zookeeper service.
      */
     private ZkNode zkConf;
+    /**
+     * The application description.
+     */
+    private WebApp webApp;
     /**
      * The zkNodes holding info about the container types.
      */
@@ -231,7 +236,7 @@ public final class ZkConf {
             this.deplCons.put(defName, deplName);
         });
     }
-
+    
     // Getters 
     public String getStrId() {
         return strId;
@@ -283,5 +288,13 @@ public final class ZkConf {
 
     public void setpConf(ProgramConf pConf) {
         this.pConf = pConf;
+    }
+
+    public WebApp getWebApp() {
+        return webApp;
+    }
+
+    public void setWebApp(WebApp webApp) {
+        this.webApp = webApp;
     }
 }

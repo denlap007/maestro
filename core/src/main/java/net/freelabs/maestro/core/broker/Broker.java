@@ -16,7 +16,6 @@
  */
 package net.freelabs.maestro.core.broker;
 
-import net.freelabs.maestro.core.zookeeper.ZkExecutor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.dockerjava.api.ConflictException;
 import com.github.dockerjava.api.DockerClient;
@@ -28,16 +27,19 @@ import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.command.PullImageResultCallback;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
+import net.freelabs.maestro.core.zookeeper.ZkMaster;
 import net.freelabs.maestro.core.zookeeper.ZkNode;
 import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
-import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +52,7 @@ import org.slf4j.LoggerFactory;
  * For every container type, there is a subclass of this class that handles
  * initialization and bootstrapping of the container.
  */
-public abstract class CoreBroker implements Runnable, ContainerLifecycle {
+public abstract class Broker implements ContainerLifecycle {
 
     /**
      * The container associated with the broker.
@@ -67,7 +69,7 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
     /**
      * A Logger object.
      */
-    protected static final Logger LOG = LoggerFactory.getLogger(CoreBroker.class);
+    protected static final Logger LOG = LoggerFactory.getLogger(Broker.class);
     /**
      * The container id.
      */
@@ -80,7 +82,7 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
      * A CountDownLatch with a count of one, representing the number of events
      * that need to occur before it releases all	waiting threads.
      */
-    private final CountDownLatch shutdownSignal = new CountDownLatch(1);
+    private final CountDownLatch shutdownSignal;
     /**
      * Number of times to try and execute code passed to {@link
      * #runAndRetry(net.freelabs.maestro.core.broker.CoreBroker.RunCmd, int) runAndRetry}.
@@ -105,10 +107,13 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
     private String conBootEnv;
 
     /**
-     * An object implementing the {@link ZkExecutor ZkExecutor} interface. This
-     * object delegates zookeeper requests to a zk handle.
+     * Handles requests and interaction with zookeeper.
      */
-    private final ZkExecutor zkClient;
+    private final ZkMaster zkMaster;
+    /**
+     * Flag for errors from zookeeper operations.
+     */
+    private boolean zkError;
 
     /**
      * Handles errors.
@@ -121,22 +126,19 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
      * @param con the container which will be bound to the broker.
      * @param dockerClient a docker client to communicate with the docker
      * daemon.
-     * @param zkClient a zkClient that will make requests to zookeeper. //@param
-     * errHandler a handler to call in case of error.
+     * @param zkMaster handles interaction with zookeeper service.
      */
-    public CoreBroker(ZkConf zkConf, Container con, DockerClient dockerClient, ZkExecutor zkClient) {
+    public Broker(ZkConf zkConf, Container con, DockerClient dockerClient, ZkMaster zkMaster) {
         this.zkConf = zkConf;
         this.con = con;
         this.docker = dockerClient;
-        this.zkClient = zkClient;
-        //this.errHandler = errHandler;
-        zNode = zkConf.getContainers().get(con.getName());
-    }
-
-    @Override
-    public void run() {
-        // run Broker 
-        runStart();
+        this.zkMaster = zkMaster;
+        shutdownSignal = new CountDownLatch(1);
+        if (con != null){
+            zNode = zkConf.getContainers().get(con.getName());
+        }else{
+            zNode = null;
+        }
     }
 
     /**
@@ -144,8 +146,11 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
      * creates the container configuration, starts the container and runs the
      * postStart state where it updates the znode data for the container and
      * finally creates the configuration node to zookeeper.
+     *
+     * @return true if there were no errors during execution.
      */
-    public void runStart() {
+    public boolean onStart() {
+        boolean success = false;
         // create configration to initialize parameters
         createContainerEnv();
         // start the container
@@ -153,11 +158,12 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
         // check for errors
         if (cid != null) {
             // get container IP
-            runPostStart(cid);
+            success = onPostStart(cid);
         } else {
             LOG.error("Could NOT start container. Shutting down Broker.");
             shutdown();
         }
+        return success;
     }
 
     /**
@@ -167,7 +173,7 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
      * @param cid the container identifier, id or name.
      * @return true if operations completed without errors.
      */
-    public boolean runPostStart(String cid) {
+    public boolean onPostStart(String cid) {
         boolean success = false;
         String IP = getContainerIP(cid);
         // update container ip
@@ -179,25 +185,129 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
             // log the event
             LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), "IP", IP);
             // create zk configuration node
-            zkClient.zkExec((zk) -> {
-                createNode(zk, zNode.getConfNodePath(), zNode.getData());
-            });
+            createNode(zNode.getConfNodePath(), zNode.getData());
             // Sets the thread to wait until it's time to shutdown
             waitForShutdown();
-            success = true;
+            success = !zkError;
         } catch (JsonProcessingException ex) {
             LOG.error("FAILED to update container IP. ", ex);
         }
         return success;
     }
 
-    public boolean runRestart(String con) {
+    public boolean onRestart() {
         boolean success = false;
-        // restart the spedified container
-        boolean restarted = restartContainer(con);
+        // restart the container with the deployed name
+        String deplName = zkConf.getDeplCons().get(con.getName());
+        boolean restarted = restartContainer(deplName);
+        
         if (restarted) {
             // run post start state
-            success = runPostStart(con);
+            success = onPostStart(deplName);
+        }
+        return success;
+    }
+
+    public boolean onStop() {
+        boolean success = false;
+        // register watch to services
+        List<String> services = zkMaster.watchServices();
+        // if no error
+        if (services != null) {
+            // if no services
+            if (!services.isEmpty()) {
+                // create shutdown node
+                zkMaster.createShutdownNode();
+                // if shutdown node was created without errors
+                if (!zkMaster.isMasterError()) {
+                    // wait services to stop
+                    success = zkMaster.waitServicesToStop(services);
+                    // confirm containers were stopped
+                    if (success) {
+                        // check for running containers
+                        Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
+                        // if containers still running force stop
+                        if (!runningCons.isEmpty()) {
+                            success = stopRunningCons(runningCons);
+                            // check that running cons stopped successfully
+                            if (success) {
+                                LOG.info("All containers stopped.");
+                            }
+                        }
+                    }
+                }
+            } else {
+                LOG.info("No service running. Checking containers.");
+                // check for running containers even though services are not running
+                Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
+                // if there are containers still running force stop
+                if (!runningCons.isEmpty()) {
+                    success = stopRunningCons(runningCons);
+                    // check that running cons stopped successfully
+                    if (success) {
+                        LOG.info("All containers stopped.");
+                    }
+                } else {
+                    success = true;
+                    LOG.warn("No Containers-Services running. Application already stopped.");
+                }
+            }
+        }
+
+        return success;
+    }
+
+    /**
+     * Gets a map with the defined-deployed container names of the containers
+     * that are running.
+     *
+     * @param deplCons map with the defined-deployed container names of the
+     * deployed containers.
+     * @return map of the defined-deployed container names of the containers at
+     * running state.
+     */
+    private Map<String, String> getRunningCons(Map<String, String> deplCons) {
+        // map with found running containers if any
+        Map<String, String> runningCons = new HashMap<>();
+        // iterate and check running state
+        LOG.info("Querying docker host.");
+
+        for (Map.Entry<String, String> entry : deplCons.entrySet()) {
+            String defName = entry.getKey();
+            String deplname = entry.getValue();
+            try {
+                InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
+                // if container running add to map
+                if (inspResp.getState().isRunning()) {
+                    runningCons.put(defName, deplname);
+                } else {
+                    LOG.info("Container for service \'{}\' has stopped.", defName);
+                }
+            } catch (NotFoundException ex) {
+                LOG.error("Container for service \'{}\' does not exist.", defName);
+            }
+        }
+        return runningCons;
+    }
+
+    /**
+     * Stops the containers that are still in running state.
+     *
+     * @param runningCons map of the defined-deployed container names of the
+     * containers that are running.
+     */
+    private boolean stopRunningCons(Map<String, String> runningCons) {
+        boolean success = true;
+        for (Map.Entry<String, String> entry : runningCons.entrySet()) {
+            String defName = entry.getKey();
+            String deplname = entry.getValue();
+            try {
+                LOG.warn("Container for service \'{}\' is still running. Forcing stop.", defName);
+                success = stopContainer(deplname);
+            } catch (NotFoundException ex) {
+                LOG.error("Container for service \'{}\' does not exist.", defName);
+                success = false;
+            }
         }
         return success;
     }
@@ -227,12 +337,11 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
     /**
      * Creates a zNode.
      *
-     * @param zk a zookeeper handle.
      * @param path the path of the zNode.
      * @param data the data of the zNode.
      */
-    public void createNode(ZooKeeper zk, String path, byte[] data) {
-        zk.create(path, data, OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, createNodeCallback, data);
+    public void createNode(String path, byte[] data) {
+        zkMaster.createNodeAsync(path, data, OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, createNodeCallback, data);
     }
 
     /**
@@ -244,19 +353,19 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
         public void processResult(int rc, String path, Object ctx, String name) {
             switch (KeeperException.Code.get(rc)) {
                 case CONNECTIONLOSS:
-                    LOG.warn("Connection loss was detected");
-                    zkClient.zkExec((zk) -> {
-                        checkNode(zk, path, (byte[]) ctx);
-                    });
+                    LOG.warn("Connection loss was detected. Retrying...");
+                    checkNode(path, (byte[]) ctx);
                     break;
                 case NODEEXISTS:
                     LOG.error("Node already exists: " + path);
+                    zkError = true;
                     break;
                 case OK:
                     LOG.info("Created zNode: " + path);
                     shutdown();
                     break;
                 default:
+                    zkError = true;
                     LOG.error("Something went wrong: ",
                             KeeperException.create(KeeperException.Code.get(rc), path));
             }
@@ -266,12 +375,11 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
     /**
      * Checks if a zNode is created.
      *
-     * @param zk a zookeeper handle.
      * @param path the path of the zNode.
      * @param data the data of the zNode.
      */
-    public void checkNode(ZooKeeper zk, String path, byte[] data) {
-        zk.getData(path, false, checkNodeCallback, data);
+    public void checkNode(String path, byte[] data) {
+        zkMaster.getDataAsync(path, false, checkNodeCallback, data);
     }
 
     /**
@@ -283,15 +391,11 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
         public void processResult(int rc, String path, Object ctx, byte[] data, Stat stat) {
             switch (KeeperException.Code.get(rc)) {
                 case CONNECTIONLOSS:
-                    LOG.warn("Connection loss was detected");
-                    zkClient.zkExec((zk) -> {
-                        checkNode(zk, path, (byte[]) ctx);
-                    });
+                    LOG.warn("Connection loss was detected. Retrying...");
+                    checkNode(path, (byte[]) ctx);
                     break;
                 case NONODE:
-                    zkClient.zkExec((zk) -> {
-                        checkNode(zk, path, (byte[]) ctx);
-                    });
+                    createNode(path, (byte[]) ctx);
                     break;
                 case OK:
                     /* check if this node was created by this process. In order to
@@ -303,9 +407,11 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
                         shutdown();
                     } else {
                         LOG.error("ΖkNode exists but was NOT created by this client: " + path);
+                        zkError = true;
                     }
                     break;
                 default:
+                    zkError = true;
                     LOG.error("Something went wrong: ",
                             KeeperException.create(KeeperException.Code.get(rc), path));
             }
@@ -415,7 +521,7 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
 
         if (container != null) {
             // START CONTAINER
-            LOG.info("STARTING CONTAINER for service: " + con.getName());
+            LOG.info("Starting container for service: " + con.getName());
             String id = container.getId();
             boolean runSuccess = runAndRetry(() -> {
                 docker.startContainerCmd(id).exec();
@@ -430,7 +536,6 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
 
     @Override
     public boolean stopContainer(String con) {
-        LOG.info("Stopping: {}", con);
         docker.stopContainerCmd(con).exec();
         // confirm stop
         InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
@@ -445,6 +550,7 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
 
     @Override
     public boolean restartContainer(String con) {
+        boolean success = false;
         // get first start time
         InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
         String startTime1 = inspResp.getState().getStartedAt();
@@ -456,12 +562,11 @@ public abstract class CoreBroker implements Runnable, ContainerLifecycle {
         String startTime2 = inspResp2.getState().getStartedAt();
         // confirm restart
         if (!startTime1.equals(startTime2)) {
-            LOG.info("Restarted \'{}\'.", con);
-            return true;
+            success =  true;
         } else {
             LOG.error("FAILED to restart container: {}", con);
-            return false;
         }
+        return success;
     }
 
     /**

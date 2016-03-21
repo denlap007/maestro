@@ -38,7 +38,8 @@ import net.freelabs.maestro.core.utils.Utils;
 public class ContainerHandler {
 
     /**
-     * The object of class Containers that holds the container types Collections.
+     * The object of class Containers that holds the container types
+     * Collections.
      */
     private final Containers ct;
     /**
@@ -47,13 +48,17 @@ public class ContainerHandler {
     private final List<String> containerTypes;
     /**
      * The names of the containers.
-     */ 
+     */
     private final List<String> containerNames;
     /**
-     * The names-types of the containers. A 2-element array. 
-     * Element [0] -> name of container. Element [1] -> type of container.
+     * The names-types of the containers. A 2-element array. Element [0] -> name
+     * of container. Element [1] -> type of container.
      */
     private final List<NameType> conNameTypeList;
+    /**
+     * Number of containers declared.
+     */
+    private final int numOfCons;
 
     /**
      * Constructor.
@@ -65,31 +70,33 @@ public class ContainerHandler {
         containerTypes = listContainerTypes();
         containerNames = listContainerNames();
         conNameTypeList = listconNamesTypes();
+        numOfCons = containerNames.size();
     }
-    
+
     /**
      * This inner class defines a custom struct to hold container name-type.
      */
-     public static final class NameType{
+    public static final class NameType {
+
         String name;
         String type;
-        
-        public NameType(String name, String type){
+
+        public NameType(String name, String type) {
             this.name = name;
             this.type = type;
         }
-        
+
     }
 
     /**
      * Lists the names and types of containers.
-     * 
-     * @return a list with 2-element Strings. 
-     * Element [0] - name of container. Element [1] - type of container.
+     *
+     * @return a list with 2-element Strings. Element [0] - name of container.
+     * Element [1] - type of container.
      */
     public final List<NameType> listconNamesTypes() {
         List<Container> containersList = listContainers();
-        
+
         List<NameType> list = new ArrayList<>();
 
         // if there are containers
@@ -190,6 +197,53 @@ public class ContainerHandler {
         }
 
         return containerList;
+    }
+
+    /**
+     * Lists the available containers of {@link WebContainer WebContainer} type.
+     *
+     * @return the list with the available containers.
+     */
+    public List<WebContainer> listWebContainers() {
+        // create a new list to store webContainer because changes to returned list
+        // are reflected to original list
+        List<WebContainer> webCons = new ArrayList<>();
+        // add all elemenents to the new list 
+        webCons.addAll(ct.getWebContainer());
+
+        return webCons;
+    }
+
+    /**
+     * Lists the available containers of
+     * {@link BusinessContainer BusinessContainer} type.
+     *
+     * @return the list with the available containers.
+     */
+    public List<BusinessContainer> listBusinessContainers() {
+        // create a new list to store webContainer because changes to returned list
+        // are reflected to original list
+        List<BusinessContainer> busCons = new ArrayList<>();
+        // add all elemenents to the new list 
+        busCons.addAll(ct.getBusinessContainer());
+
+        return busCons;
+    }
+
+    /**
+     * Lists the available containers of {@link DataContainer DataContainer}
+     * type.
+     *
+     * @return the list with the available containers.
+     */
+    public List<DataContainer> listDataContainers() {
+        // create a new list to store webContainer because changes to returned list
+        // are reflected to original list
+        List<DataContainer> webCons = new ArrayList<>();
+        // add all elemenents to the new list 
+        webCons.addAll(ct.getDataContainer());
+
+        return webCons;
     }
 
     /**
@@ -359,4 +413,7 @@ public class ContainerHandler {
         return containerNames;
     }
 
+    public int getNumOfCons() {
+        return numOfCons;
+    }
 }

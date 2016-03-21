@@ -24,9 +24,9 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.CountDownLatch;
-import static net.freelabs.maestro.core.zookeeper.ErrorHandler.ACTION.SHUTDOWN;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
 import org.apache.zookeeper.AsyncCallback.StatCallback;
+import org.apache.zookeeper.AsyncCallback.StringCallback;
 import org.apache.zookeeper.CreateMode;
 import static org.apache.zookeeper.CreateMode.EPHEMERAL;
 import static org.apache.zookeeper.CreateMode.PERSISTENT;
@@ -41,6 +41,7 @@ import static org.apache.zookeeper.Watcher.Event.EventType.NodeChildrenChanged;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeDataChanged;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
+import org.apache.zookeeper.data.ACL;
 import org.apache.zookeeper.data.Stat;
 
 /**
@@ -49,7 +50,7 @@ import org.apache.zookeeper.data.Stat;
  * zookeeper, create hierarchical namespace and set configuration data to
  * zkNodes declared in the zookeeper configuration.
  */
-public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkExecutor, ErrorHandler {
+public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
 
     /**
      * Zookeeper configuration.
@@ -244,6 +245,32 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
             }
         }
         return false;
+    }
+
+    /**
+     * Creates a znode using the Async API.
+     *
+     * @param path the path of the node to the zk namespace.
+     * @param data the data of the node.
+     * @param acl the access control list.
+     * @param mode mode for creating the node, persistent, ephemeral etc.
+     * @param cb callback object to execute when call completes.
+     * @param ctx the context object.
+     */
+    public void createNodeAsync(String path, byte[] data, List<ACL> acl, CreateMode mode, StringCallback cb, Object ctx) {
+        zk.create(path, data, acl, mode, cb, ctx);
+    }
+
+    /**
+     * Gets data from a znode using the Async API.
+     *
+     * @param path the path of the znode to retrieve data.
+     * @param watch whether need to watch this node.
+     * @param cb callback object to execute when call completes.
+     * @param ctx context object to be used with callback.
+     */
+    public void getDataAsync(String path, boolean watch, DataCallback cb, Object ctx) {
+        zk.getData(path, false, cb, ctx);
     }
 
     /**
@@ -816,18 +843,6 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable, ZkE
             }
         } catch (KeeperException | InterruptedException ex) {
             LOG.error("Something went wrong: ", ex);
-        }
-    }
-
-    @Override
-    public void zkExec(ZkExecutable obj) {
-        obj.exec(zk);
-    }
-
-    @Override
-    public void error(ACTION action) {
-        if (action == SHUTDOWN) {
-
         }
     }
 

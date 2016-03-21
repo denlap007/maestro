@@ -18,21 +18,14 @@ package net.freelabs.maestro.core.cmd;
 
 import com.github.dockerjava.api.DockerClient;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import net.freelabs.maestro.core.broker.CoreBroker;
-import net.freelabs.maestro.core.broker.CoreBusinessBroker;
-import net.freelabs.maestro.core.broker.CoreDataBroker;
-import net.freelabs.maestro.core.broker.CoreWebBroker;
+import net.freelabs.maestro.core.broker.Broker;
 import net.freelabs.maestro.core.analyze.RestrictionAnalyzer;
 import net.freelabs.maestro.core.boot.ProgramConf;
+import net.freelabs.maestro.core.broker.BrokerInit;
 import net.freelabs.maestro.core.xml.XmlProcessor;
 import net.freelabs.maestro.core.docker.DockerInitializer;
-import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.generated.DataContainer;
 import net.freelabs.maestro.core.generated.WebApp;
-import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.handler.ContainerHandler;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.utils.Utils;
@@ -54,10 +47,6 @@ public final class StartCmd extends Command {
      * The thread running the master process
      */
     private Thread masterThread;
-    /**
-     * A list with all CoreBroker threads created from bootstrap process.
-     */
-    private final List<Thread> threadList = new ArrayList<>();
     /**
      * A Logger object.
      */
@@ -84,16 +73,16 @@ public final class StartCmd extends Command {
             // analyze restrictions and check if apply on schema
             analyzeRestrictions(handler);
             // create zk configuration
-            ZkConf zkConf = createZkConf(pConf.getZkHosts(), pConf.getZkSessionTimeout(), handler, webAppName, pConf);
+            ZkConf zkConf = createZkConf(webApp, pConf.getZkHosts(), pConf.getZkSessionTimeout(), handler, webAppName, pConf);
             // initialize zk and start master process
             initZk(zkConf);
             // create a docker client customized for the app
             DockerInitializer appDocker = new DockerInitializer(pConf.getDockerURI());
             DockerClient docker = appDocker.getDockerClient();
-            // launch the CoreBrokers to boot containers
+            // launch the CoreBrokers to boot containers, wait to finish
             launchBrokers(handler, zkConf, docker);
-            // wait until Brokers shutdown and shutdown master
-            waitBrokersShutdown();
+            // shutdown master
+            shutdownMaster();
         } catch (Exception ex) {
             exitProgram(ex);
         }
@@ -101,19 +90,11 @@ public final class StartCmd extends Command {
 
     /**
      * <p>
-     * Waits for all {@link CoreBroker CoreBrokers ) to finish execution. Then
-     * initiates master process shutdown.
+     * Initiates master process shutdown.
      * <p>
      * The method blocks.
      */
-    private void waitBrokersShutdown() {
-        threadList.stream().forEach((t) -> {
-            try {
-                t.join();
-            } catch (InterruptedException ex) {
-                LOG.warn("Thread interrupted. Stopping.");
-            }
-        });
+    private void shutdownMaster() {
         // shutdown 
         master.shutdownMaster();
         try {
@@ -121,6 +102,8 @@ public final class StartCmd extends Command {
             masterThread.join();
         } catch (InterruptedException ex) {
             LOG.warn("Thread interrupted. Stopping.");
+            // set the interrupt status
+            Thread.currentThread().interrupt();
         }
         // show the application's deployed name
         master.getDeployedID();
@@ -160,14 +143,14 @@ public final class StartCmd extends Command {
 
     /**
      * <p>
-     * Launches the {@link CoreBroker CoreBrokers} that boot the containers.
+     * Launches the {@link Broker CoreBrokers} that boot the containers.
      * <p>
      * A {@link Container Container} is obtained from the {@link ContainerHandler
-     * ContainerHandler}. A {@link CoreBroker CoreBroker} is created and then
-     * connects to zk and starts execution a new thread.
+     * ContainerHandler}. A {@link Broker Broker} is created and then connects
+     * to zk and starts execution a new thread.
      * <p>
      * The method gets all {@link Container Containers} exhaustively and starts
-     * all {@link CoreBroker CoreBrokers} necessary for the program.
+     * all {@link Broker CoreBrokers} necessary for the program.
      *
      * @param handler object to query for containers.
      * @param zkConf the zk configuration.
@@ -177,36 +160,12 @@ public final class StartCmd extends Command {
      */
     public void launchBrokers(ContainerHandler handler, ZkConf zkConf, DockerClient docker) throws IOException, InterruptedException {
         /*  Get a Container from the container handler. The Container can be of 
-            any type. Create the CoreBroker and initialize it. The Broker will 
+            any type. Create the Broker and initialize it. The Broker will 
             connect to zk and then start execution on a new thread.
          */
-        while (handler.hasContainers()) {
-            Container con = handler.getContainer();
-            CoreBroker cb = null;
-
-            if (con instanceof WebContainer) {
-                WebContainer webCon = (WebContainer) con;
-                cb = new CoreWebBroker(zkConf, webCon, docker, master);
-            } else if (con instanceof BusinessContainer) {
-                BusinessContainer businessCon = (BusinessContainer) con;
-                cb = new CoreBusinessBroker(zkConf, businessCon, docker, master);
-            } else if (con instanceof DataContainer) {
-                DataContainer dataCon = (DataContainer) con;
-                cb = new CoreDataBroker(zkConf, dataCon, docker, master);
-            }
-
-            if (cb != null) {
-                // create new Thread and start it
-                Thread cbThread = new Thread(cb, con.getName() + "-CB-" + "Thread");
-                // add to thread list
-                threadList.add(cbThread);
-                // start thread
-                LOG.info("Starting {} CoreBroker.", con.getName());
-                cbThread.start();
-            } else {
-                LOG.error("FAILED to start Broker.");
-            }
-        }
+        BrokerInit brokerInit = new BrokerInit(handler, zkConf, docker, master);
+        // run the Broker initializer that will initialize start and execute Brokers
+        brokerInit.runStart();
     }
 
     /**
@@ -256,16 +215,18 @@ public final class StartCmd extends Command {
      * to initialize the configuration. The Container Types are the parent nodes
      * of the zk namespace and Containers are the child nodes.
      *
+     * @param webApp the application description.
      * @param hosts the host:port zookeeper server list.
      * @param timeout the client session timeout.
      * @param handler a Container handler object to query for container
      * information.
      * @param webAppName the name of the WebApp
+     * @param pConf the program's configuration.
      * @return a {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConf} object
      * that holds all the configuration for zookeeper.
      * @throws IOException if serialization of Container object fails.
      */
-    public ZkConf createZkConf(String hosts, int timeout, ContainerHandler handler, String webAppName, ProgramConf pConf) throws IOException {
+    public ZkConf createZkConf(WebApp webApp, String hosts, int timeout, ContainerHandler handler, String webAppName, ProgramConf pConf) throws IOException {
         /*
          Create a zookeeper configuration object. This object holds all the
          necessary configuration information needed for zookeeper to boostrap-
@@ -277,6 +238,9 @@ public final class StartCmd extends Command {
          of parent nodes based on declared Containers e.t.c.
          */
         ZkConf zkConf = new ZkConf(webAppName, true, hosts, timeout);
+        
+        // save application description
+        zkConf.setWebApp(webApp);
 
         /* 
          Initialize zookeeper parent nodes. The zookeeper namespace has an 

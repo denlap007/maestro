@@ -16,21 +16,21 @@
  */
 package net.freelabs.maestro.core.broker;
 
-import net.freelabs.maestro.core.zookeeper.ZkExecutor;
 import com.github.dockerjava.api.DockerClient;
-import net.freelabs.maestro.core.generated.BusinessContainer;
+import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
+import net.freelabs.maestro.core.zookeeper.ZkMaster;
 
 /**
  * Class that provides methods to handle initialization and bootstrapping of a
- * Business container type.
+ * Web container type.
  */
-public class CoreBusinessBroker extends CoreBroker {
+public class WebBroker extends Broker {
 
     /**
      * The container description.
      */
-    private final BusinessContainer con;
+    private final WebContainer con;
 
     /**
      * Constructor.
@@ -38,10 +38,10 @@ public class CoreBusinessBroker extends CoreBroker {
      * @param zkConf the zookeeper configuration.
      * @param con the container object.
      * @param dockerClient an instance of a docker client.
-     * @param zkClient a zkClient that will make requests to zookeeper.
+     * @param master
      */
-    public CoreBusinessBroker(ZkConf zkConf, BusinessContainer con, DockerClient dockerClient, ZkExecutor zkClient) {
-        super(zkConf, con, dockerClient, zkClient);
+    public WebBroker(ZkConf zkConf, WebContainer con, DockerClient dockerClient, ZkMaster master) {
+        super(zkConf, con, dockerClient, master);
         this.con = con;
     }
 
