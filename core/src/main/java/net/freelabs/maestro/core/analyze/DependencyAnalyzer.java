@@ -65,13 +65,13 @@ public class DependencyAnalyzer {
 
         containers.stream().forEach((con) -> {
             String key = con.getName();
-            List<String> value = con.getConnectWith();
+            List<String> value = con.getRequires();
             conDepMap.put(key, value);
         });
         // iterate through containers
         for (Container con : containers) {
             // if container has no dependencies skip it
-            if (!con.getConnectWith().isEmpty()) {
+            if (!con.getRequires().isEmpty()) {
                 found = detectCircular(con.getName(), new ArrayList<>(), conDepMap);
                 if (found) {
                     break;

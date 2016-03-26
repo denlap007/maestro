@@ -89,8 +89,8 @@
     <xs:complexType name="container" abstract="true">
         <xs:sequence>
             <xs:element name="name" type="xs:token"/>
-            <xs:element name="connectWith" type="stringList"/>
-            <xs:element name="dockerImage" type="xs:string"/>
+            <xs:element name="requires" type="stringList" minOccurs="0"/>
+            <xs:element name="docker" type="docker"/>
             <xs:element name="start" type="startRes"/>
             <xs:element name="stop" type="stopRes" minOccurs="0"/>
             <xs:element name="tasks" type="tasks" minOccurs="0"/>
@@ -178,7 +178,6 @@
         <xs:complexType>
             <xs:sequence>
                 <xs:element name="containers" type="containers"/>
-                <xs:element name="webAppName" type="xs:string"/>
             </xs:sequence>
         </xs:complexType>
     </xs:element>

@@ -340,7 +340,7 @@ public abstract class Broker implements ContainerLifecycle {
      * @param path the path of the zNode.
      * @param data the data of the zNode.
      */
-    public void createNode(String path, byte[] data) {
+    private void createNode(String path, byte[] data) {
         zkMaster.createNodeAsync(path, data, OPEN_ACL_UNSAFE, CreateMode.PERSISTENT, createNodeCallback, data);
     }
 
@@ -378,7 +378,7 @@ public abstract class Broker implements ContainerLifecycle {
      * @param path the path of the zNode.
      * @param data the data of the zNode.
      */
-    public void checkNode(String path, byte[] data) {
+    private void checkNode(String path, byte[] data) {
         zkMaster.getDataAsync(path, false, checkNodeCallback, data);
     }
 
@@ -462,7 +462,7 @@ public abstract class Broker implements ContainerLifecycle {
         // initialize attributes
         // deployed name mapped to defined name
         String conName = zkConf.getDeplCons().get(con.getName());
-        String conImg = con.getDockerImage();
+        String conImg = con.getDocker().getImage();
         String[] conCmd = conBootCmd.split(" ");
         String conNetMode = "bridge";
 
@@ -487,14 +487,14 @@ public abstract class Broker implements ContainerLifecycle {
                         .exec();
             } catch (NotFoundException ex) {
                 // image not found locally
-                LOG.warn("Image \'{}\' does not exist locally. Pulling from docker hub.", con.getDockerImage());
+                LOG.warn("Image \'{}\' does not exist locally. Pulling from docker hub.", conImg);
                 // pull image from docker hub
                 boolean runSuccess = runAndRetry(() -> {
-                    pullContainerImg(con.getDockerImage());
+                    pullContainerImg(conImg);
                 }, PULL_ATTEMPTS);
                 // check if code executed successfully
                 if (runSuccess) {
-                    LOG.info("Image \'{}\' pulled successfully.", con.getDockerImage());
+                    LOG.info("Image \'{}\' pulled successfully.", conImg);
                 } else {
                     LOG.error("FAILED to pull image");
                     break;

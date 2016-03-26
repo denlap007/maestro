@@ -138,7 +138,7 @@ public final class StopCmd extends Command {
         // the application to restart
         appID = args[0];
         // initialize object to re-create application namespace
-        zkConf = new ZkConf(appID, false, pConf.getZkHosts(), pConf.getZkSessionTimeout());
+        zkConf = new ZkConf(appID, pConf.getZkHosts(), pConf.getZkSessionTimeout());
         // initialize master to connect to zookeeper
         master = new ZkMaster(zkConf);
     }
@@ -150,7 +150,7 @@ public final class StopCmd extends Command {
      *
      * @return true if zkConf node was successfully downloaded from zookeeper.
      */
-    public boolean downloadZkConf() {
+    private boolean downloadZkConf() {
         LOG.info("Getting application configuration.");
         boolean downloaded = false;
         byte[] data = master.nodeData(zkConf.getZkConf().getPath(), null);
@@ -173,7 +173,7 @@ public final class StopCmd extends Command {
     /**
      * Exit with error code (1).
      */
-    public void errExit() {
+    private void errExit() {
         System.exit(1);
     }
 }

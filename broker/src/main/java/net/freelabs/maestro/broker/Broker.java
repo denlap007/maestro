@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import net.freelabs.maestro.broker.process.*;
 import net.freelabs.maestro.broker.process.start.StartGroupHandler;
 import net.freelabs.maestro.broker.process.stop.StopResMapper;
@@ -429,7 +430,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         The dependencies are retrieved from the current cotnainer configuration,
         from "connectWith" field.        
          */
-        List<String> srvNames = container.getConnectWith();
+        List<String> srvNames = container.getRequires();
         Map<String, String> srvsNamePath = ns.getSrvsNamePath(srvNames);
         srvMngr = new ServiceManager(srvsNamePath);
         // set data to the container zNode 
@@ -751,14 +752,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     }
                 }
             } else // check if srvs are initialized
-            {
-                if (srvMngr.areSrvInitialized()) {
+             if (srvMngr.areSrvInitialized()) {
                     // start processes
                     executorService.execute(() -> {
                         start();
                     });
                 }
-            }
         } else {
             conInitialized = true;
             LOG.info("Container INITIALIZED!");
@@ -770,13 +769,16 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     }
 
     /**
-     * Initializes start-stops group processes, executes tasks and start group
+     * Creates the {@link ProcessManager ProcessManager}, creates the environment
+     * for processes, initializes start-stops group processes, executes tasks and start group
      * processes, in that order.
      */
     @Override
     public void start() {
         // create the process manager that will start processes
         procMngr = new ProcessManager();
+        // create the environment for the container processes
+        initProcsEnv();
         // initialization of process groups
         initProcGroups();
         // initialize tasks
@@ -816,8 +818,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // create the resource mapper to map schema declarations to resources
         StartRes res = container.getStart();
         StartResMapper rm = new StartResMapper(res.getPreMain(), res.getPostMain(), res.getMain());
-        // create the environment for the container processes
-        Map<String, String> env = initProcsEnv();
+        // get the environment for the container processes
+        Map<String, String> env = envHandler.getProcsEnv();
         // get handler for the interaction with the main process
         MainProcessHandler mainHandler = initMainProc(rm, env);
         // get handlers for the interaction with processes scheduled before main
@@ -848,7 +850,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         resources.addAll(rm.getPostMainRes());
         // init handlers
         List<ProcessHandler> handlers = initDefaultProcs(rm, resources, env);
-        // init proc manager for stop procs
+        // init proc handler for stop group
         procMngr.initStopHandler(handlers);
     }
 
@@ -1303,12 +1305,16 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             if (procMngr.isStopHandlerInit()) {
                 // run stop group procs
                 stop();
+            }else{
+                initProcsEnv();
+                initStopGroup();
+                stop();
             }
         }
-        // delete persistent zNode with container description in case of restart
+        // delete persistent zNode with container description to support restart
         deleteNode(conConfNode, -1);
-        // shut down the executorService to free resources
-        executorService.shutdownNow();
+        // shut down the executorService to stop any still running threads
+        shutdownExecutor();
         try {
             // close zk client session
             closeSession();
@@ -1328,9 +1334,26 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         shutdown(SHUTDOWN);
     }
 
+    private void shutdownExecutor() {
+        try {
+            executorService.shutdown();
+            executorService.awaitTermination(2, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            // log the event
+            LOG.warn("Tasks interrupted.");
+            // set the interrupt status
+            Thread.currentThread().interrupt();
+        } finally {
+            if (!executorService.isTerminated()) {
+                LOG.warn("Canceling non-finished tasks.");
+            }
+            executorService.shutdownNow();
+        }
+    }
+
     /**
      * Deletes the specified zNode. The zNode mustn't have any children. This
-     * method uses the synchronized zk API.
+     * method uses the synchronous zk API.
      *
      * @param path the zNode to delete.
      * @param version the data version of the zNode.

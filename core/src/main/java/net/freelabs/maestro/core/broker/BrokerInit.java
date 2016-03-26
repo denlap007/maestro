@@ -58,7 +58,9 @@ public final class BrokerInit {
      * The docker client that will communicate with the docker host.
      */
     protected final DockerClient docker;
-
+    /**
+     * The zookeeper master process.
+     */
     private final ZkMaster master;
     /**
      * The total time (minutes) a Broker may run a task, before operation times
@@ -82,8 +84,8 @@ public final class BrokerInit {
         // create as many threads as containers
         if (handler == null) {
             executor = null;
-        } else { 
-           executor = Executors.newFixedThreadPool(handler.getNumOfCons());
+        } else {
+            executor = Executors.newFixedThreadPool(handler.getNumOfCons());
         }
         execResults = new ArrayList<>();
     }
@@ -107,8 +109,13 @@ public final class BrokerInit {
             String logMsg = String.format("Starting %s-Broker.", con.getName());
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
+        // do not allow new tasks wait for running to finish
+        executor.shutdown();
         // await execution termination and return true if successful
-        return awaitExecution();
+        boolean success = awaitExecution();
+        // shutdown executor normally or force shutdown in case of error
+        shutdownExecutor();
+        return success;
     }
 
     private void runBroker(Broker cb, Predicate<Broker> pred, String logMsg, String conName) {
@@ -155,8 +162,12 @@ public final class BrokerInit {
                 Broker broker = new WebBroker(zkConf, con, docker, master);
                 runBroker(broker, Broker::onRestart, "", con.getName());
             });
+            // do not allow new tasks wait for running to finish
+            executor.shutdown();
             // await execution termination and return true if successful
-            return awaitExecution();
+            success = awaitExecution();
+            // shutdown executor normally or force shutdown in case of error
+            shutdownExecutor();
         }
 
         return success;
@@ -177,15 +188,12 @@ public final class BrokerInit {
      * competed without errors.
      */
     private boolean awaitExecution() {
-        // do not allow new tasks wait for running to finish
-        executor.shutdown();
-
         boolean success = true;
         for (Future<Boolean> future : execResults) {
             try {
                 boolean execRes = future.get(TASK_TIMEOUT, TimeUnit.MINUTES);
                 success = execRes && success;
-                // check resutl and exit if task failed
+                // check result and exit if task failed
                 if (!success) {
                     break;
                 }
@@ -207,8 +215,6 @@ public final class BrokerInit {
             }
         }
 
-        // shutdown executor normally or force shutdown in case of error
-        shutdownExecutor();
         return success;
     }
 

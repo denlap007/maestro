@@ -66,14 +66,12 @@ public final class StartCmd extends Command {
         try {
             // unmarshall xml file into a top-level object
             WebApp webApp = unmarshalXml(pConf.getXmlSchemaPath(), pConf.getXmlFilePath());
-            // get the name of the webApp
-            String webAppName = webApp.getWebAppName();
             // create a handler to query for container information
             ContainerHandler handler = createConHandler(webApp);
             // analyze restrictions and check if apply on schema
             analyzeRestrictions(handler);
             // create zk configuration
-            ZkConf zkConf = createZkConf(webApp, pConf.getZkHosts(), pConf.getZkSessionTimeout(), handler, webAppName, pConf);
+            ZkConf zkConf = createZkConf(webApp, pConf.getZkHosts(), pConf.getZkSessionTimeout(), handler, pConf);
             // initialize zk and start master process
             initZk(zkConf);
             // create a docker client customized for the app
@@ -220,13 +218,12 @@ public final class StartCmd extends Command {
      * @param timeout the client session timeout.
      * @param handler a Container handler object to query for container
      * information.
-     * @param webAppName the name of the WebApp
      * @param pConf the program's configuration.
      * @return a {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConf} object
      * that holds all the configuration for zookeeper.
      * @throws IOException if serialization of Container object fails.
      */
-    public ZkConf createZkConf(WebApp webApp, String hosts, int timeout, ContainerHandler handler, String webAppName, ProgramConf pConf) throws IOException {
+    public ZkConf createZkConf(WebApp webApp, String hosts, int timeout, ContainerHandler handler, ProgramConf pConf) throws IOException {
         /*
          Create a zookeeper configuration object. This object holds all the
          necessary configuration information needed for zookeeper to boostrap-
@@ -237,7 +234,7 @@ public final class StartCmd extends Command {
          paths and data of children zookeeper nodes that correspond to the children 
          of parent nodes based on declared Containers e.t.c.
          */
-        ZkConf zkConf = new ZkConf(webAppName, true, hosts, timeout);
+        ZkConf zkConf = new ZkConf("", hosts, timeout);
         
         // save application description
         zkConf.setWebApp(webApp);

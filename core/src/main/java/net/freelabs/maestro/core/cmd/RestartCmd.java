@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
  *
  * Class that defines a command to restart a web application.
  */
-public class RestartCmd extends Command {
+public final class RestartCmd extends Command {
 
     /**
      * The master zookeeper process.
@@ -122,7 +122,7 @@ public class RestartCmd extends Command {
      *
      * @return true if zkConf node was successfully downloaded from zookeeper.
      */
-    public boolean downloadZkConf() {
+    private boolean downloadZkConf() {
         LOG.info("Getting application configuration.");
         boolean downloaded = false;
         byte[] data = master.nodeData(zkConf.getZkConf().getPath(), null);
@@ -152,7 +152,7 @@ public class RestartCmd extends Command {
         // the application to restart
         appID = args[0];
         // initialize object to re-create application namespace
-        zkConf = new ZkConf(appID, false, pConf.getZkHosts(), pConf.getZkSessionTimeout());
+        zkConf = new ZkConf(appID, pConf.getZkHosts(), pConf.getZkSessionTimeout());
         // initialize master to connect to zookeeper
         master = new ZkMaster(zkConf);
     }
@@ -171,7 +171,7 @@ public class RestartCmd extends Command {
     /**
      * Exits program with error code (1), exit due to error.
      */
-    public void errExit() {
+    private void errExit() {
         LOG.error("Restart of \'{}\' FAILED. Exiting...", appID);
         System.exit(1);
     }

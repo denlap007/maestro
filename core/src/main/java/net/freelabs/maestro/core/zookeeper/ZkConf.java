@@ -91,70 +91,71 @@ public final class ZkConf {
     private ProgramConf pConf;
 
     /**
-     * An id used as data for nodes without data. Also, this is the suffic to
+     * An id used as data for nodes without data. Also, this is the suffix to
      * the zk root node for the application.
      */
-    private String strId;
+    private String suffix;
+    /**
+     * The prefix of the root zookeeper node name for the application namespace 
+     * hierarchy.
+     */
+    private static final String ROOT_PREFIX = "maestro-";
 
     /**
      * Constructor.
      *
-     * @param root the root application node to the zookeeper namespace.
+     * @param root the name of the root node for the application namespace in zookeeper.
      * @param hosts the list of zookeeper hosts. Must follow the format: 
      * <pre> HOST1_IP:PORT,HOST2_IP:PORT, ...</pre>
      *
      * @param timeout the time until session is closed if the client hasn't
      * contacted the server.
-     * @param suffixed determines weather to apply an 8-digit suffix to the
-     * application root zNode.
      */
-    public ZkConf(
-            String root,
-            boolean suffixed,
+    public ZkConf(String root,
             String hosts,
             int timeout) {
         // create namespace list
         zkAppNamespace = new ArrayList<>();
         // create root zkNode
         String name;
-        if (suffixed) {
-            // create ID for root node, an 8-digit positive zero padded number
-            strId = generateId();
-            name = root + "-" + strId;
+        if (root.isEmpty()) {
+            // create ID for root node, a 10-digit positive zero padded number
+            suffix = generateId();
+            name = ROOT_PREFIX + suffix;
         } else {
             name = root;
             String[] tokens = name.split("-");
             if (tokens != null) {
                 if (tokens.length == 2) {
-                    strId = tokens[1];
+                    suffix = tokens[1];
                 } else {
-                    strId = "0";
+                    suffix = "0";
                 }
             } else {
-                strId = "0";
+                suffix = "0";
             }
         }
         String rootPath = "/" + name;
-        this.root = new ZkNode(rootPath, strId.getBytes(), name, "");
+        this.root = new ZkNode(rootPath, suffix.getBytes(), name, "");
         zkAppNamespace.add(this.root);
         // create services zkNode
         String path = rootPath + "/services";
         name = "services";
-        services = new ZkNode(path, strId.getBytes(), name, "");
+        services = new ZkNode(path, suffix.getBytes(), name, "");
         zkAppNamespace.add(services);
         // create zknode for container descriptions
         path = rootPath + "/conf";
         name = "conf";
-        conDesc = new ZkNode(path, strId.getBytes(), name, "");
+        conDesc = new ZkNode(path, suffix.getBytes(), name, "");
         zkAppNamespace.add(conDesc);
         // create shutdown zkNode
         path = rootPath + "/shutdown";
         name = "shutdown";
-        shutdown = new ZkNode(path, strId.getBytes(), name, "");
+        shutdown = new ZkNode(path, suffix.getBytes(), name, "");
         // create zkNode for zookeeper configuration
         path = rootPath + "/zkConf";
         name = "zkConf";
-        zkConf = new ZkNode(path, strId.getBytes(), name, "");
+        zkConf = new ZkNode(path, suffix.getBytes(), name, "");
         zkAppNamespace.add(zkConf);
         // create Lists-Maps
         containerTypes = new ArrayList<>();
@@ -172,15 +173,15 @@ public final class ZkConf {
     }
 
     /**
-     * Generates a random 8-digit positive zero-padded id.
+     * Generates a random 10-digit positive zero-padded id.
      *
      * @return the 8-digit positive zero-padded id.
      */
     private String generateId() {
-        int min = 0;
-        int max = 99999999;
-        int numId = (new Random().nextInt(max - min));
-        String id = String.format("%08d", numId);
+        long min = 0;
+        long max = 9999999999L;
+        long numId = min + (long)(new Random().nextDouble()*(max - min));
+        String id = String.format("%10d", numId);
         return id;
     }
 
@@ -196,7 +197,7 @@ public final class ZkConf {
         // craete node's name
         String name = "/" + type;
         // create a new zk node object 
-        ZkNode zkNode = new ZkNode(path, strId.getBytes(), name, "");
+        ZkNode zkNode = new ZkNode(path, suffix.getBytes(), name, "");
         // add to list
         containerTypes.add(zkNode);
         zkAppNamespace.add(zkNode);
@@ -232,14 +233,14 @@ public final class ZkConf {
     public void initDeplCons(List<String> deplCons) {
         // init map
         deplCons.stream().forEach((defName) -> {
-            String deplName = defName + "-" + strId;
+            String deplName = defName + "-" + suffix;
             this.deplCons.put(defName, deplName);
         });
     }
     
     // Getters 
-    public String getStrId() {
-        return strId;
+    public String getSuffix() {
+        return suffix;
     }
 
     public ZkNode getRoot() {

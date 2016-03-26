@@ -1,3 +1,3 @@
 #!/bin/bash
 set -e
-cp /broker/testCases/crudApp/BusinessTier/tempate/glassfish-resources.xml /broker/testCases/crudApp/BusinessTier
+cp -v -f /broker/testCases/crudApp/BusinessTier/tempate/glassfish-resources.xml /broker/testCases/crudApp/BusinessTier/
