@@ -37,9 +37,4 @@ public class DataBroker extends Broker {
         super(zkConf, con, dockerClient, master);
         this.con = con;
     }
-
-    @Override
-    protected void updateIP(String IP) {
-        con.getEnvironment().setHost_IP(IP);
-    }
 }

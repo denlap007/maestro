@@ -43,7 +43,7 @@ public class DependencyAnalyzer {
     /**
      * Constructor.
      *
-     * @param containers list of containers declared on application schema.
+     * @param containers list of containers declared in application description.
      */
     public DependencyAnalyzer(List<Container> containers) {
         this.containers = containers;

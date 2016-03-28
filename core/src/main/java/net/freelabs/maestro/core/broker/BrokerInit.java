@@ -95,18 +95,24 @@ public final class BrokerInit {
         handler.listDataContainers().stream().forEach((con) -> {
             Broker broker = new DataBroker(zkConf, con, docker, master);
             String logMsg = String.format("Starting %s-Broker.", con.getName());
+            //LOG.info(logMsg);
+            //broker.onStart();
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // execute Brokers for business containers
         handler.listBusinessContainers().stream().forEach((con) -> {
             Broker broker = new BusinessBroker(zkConf, con, docker, master);
             String logMsg = String.format("Starting %s-Broker.", con.getName());
+            //LOG.info(logMsg);
+            //broker.onStart();
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // execute Brokers for web containers
         handler.listWebContainers().stream().forEach((con) -> {
             Broker broker = new WebBroker(zkConf, con, docker, master);
             String logMsg = String.format("Starting %s-Broker.", con.getName());
+            //LOG.info(logMsg);
+            //broker.onStart();
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // do not allow new tasks wait for running to finish
@@ -223,6 +229,14 @@ public final class BrokerInit {
      * canceled.
      */
     private void shutdownExecutor() {
+        try {
+            executor.awaitTermination(2, TimeUnit.MINUTES);
+        } catch (InterruptedException ex) {
+            // log the event
+            LOG.warn("Thread Interrupted. Stopping");
+            // set the interrupt status
+            Thread.currentThread().interrupt();
+        }
         if (!executor.isTerminated()) {
             LOG.warn("Canceling non-finished tasks.");
         }

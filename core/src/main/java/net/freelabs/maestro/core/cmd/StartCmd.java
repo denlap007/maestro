@@ -18,6 +18,7 @@ package net.freelabs.maestro.core.cmd;
 
 import com.github.dockerjava.api.DockerClient;
 import java.io.IOException;
+import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.broker.Broker;
 import net.freelabs.maestro.core.analyze.RestrictionAnalyzer;
 import net.freelabs.maestro.core.boot.ProgramConf;
@@ -27,7 +28,7 @@ import net.freelabs.maestro.core.docker.DockerInitializer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.WebApp;
 import net.freelabs.maestro.core.handler.ContainerHandler;
-import net.freelabs.maestro.core.serializer.JsonSerializer;
+import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.utils.Utils;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
@@ -223,7 +224,7 @@ public final class StartCmd extends Command {
      * that holds all the configuration for zookeeper.
      * @throws IOException if serialization of Container object fails.
      */
-    public ZkConf createZkConf(WebApp webApp, String hosts, int timeout, ContainerHandler handler, ProgramConf pConf) throws IOException {
+    public ZkConf createZkConf(WebApp webApp, String hosts, int timeout, ContainerHandler handler, ProgramConf pConf) throws IOException, JAXBException {
         /*
          Create a zookeeper configuration object. This object holds all the
          necessary configuration information needed for zookeeper to boostrap-
@@ -235,7 +236,7 @@ public final class StartCmd extends Command {
          of parent nodes based on declared Containers e.t.c.
          */
         ZkConf zkConf = new ZkConf("", hosts, timeout);
-        
+
         // save application description
         zkConf.setWebApp(webApp);
 
@@ -267,8 +268,8 @@ public final class StartCmd extends Command {
          */
         for (Container con : handler.listContainers()) {
             // generate JSON from container and return the generated JSON as a byte array
-            byte[] data = JsonSerializer.serialize(con);
-            LOG.info("Container converted to json: " + JsonSerializer.deserializeToString(data));
+            byte[] data = JAXBSerializer.serialize(con);
+            LOG.info("Container converted to xml: " + JAXBSerializer.deserializeToString(data));
             // get the name for the child node
             String name = con.getName();
             // get the container type
@@ -285,9 +286,9 @@ public final class StartCmd extends Command {
         zkConf.initDeplCons(handler.listContainerNames());
 
         // initialize zkConf node with data
-        byte[] data = JsonSerializer.serialize(zkConf);
+        byte[] data = JAXBSerializer.serialize(zkConf);
         zkConf.getZkConf().setData(data);
-        LOG.debug("Printing serialized zkConf: {}", JsonSerializer.deserializeToString(data));
+        LOG.debug("Printing serialized zkConf: {}", JAXBSerializer.deserializeToString(data));
 
         return zkConf;
     }

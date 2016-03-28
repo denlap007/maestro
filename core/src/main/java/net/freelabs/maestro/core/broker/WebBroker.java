@@ -45,8 +45,4 @@ public class WebBroker extends Broker {
         this.con = con;
     }
 
-    @Override
-    protected void updateIP(String IP) {
-        con.getEnvironment().setHost_IP(IP);
-    }
 }

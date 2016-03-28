@@ -16,11 +16,10 @@
  */
 package net.freelabs.maestro.broker;
 
-import java.io.IOException;
+import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.generated.ContainerEnvironment;
-import net.freelabs.maestro.core.serializer.JsonSerializer;
+import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,24 +44,14 @@ public class BusinessBroker extends Broker {
     public Container deserializeConType(byte[] data) {
         BusinessContainer con = null;
         try {
-            con = JsonSerializer.deserializeToBusinessContainer(data);
+            con = JAXBSerializer.deserializeToBusinessContainer(data);
             LOG.info("Configuration deserialized! Printing: \n {}",
-                    JsonSerializer.deserializeToString(data));
-        } catch (IOException ex) {
+                    JAXBSerializer.deserializeToString(data));
+        } catch (JAXBException ex) {
             LOG.error("De-serialization FAILED: " + ex);
         }
         // initialize instance
         conObj = con;
         return con;
-    }
-
-    @Override
-    protected ContainerEnvironment getEnvObj() {
-        return conObj.getEnvironment();
-    }
-
-    @Override
-    protected int getHostPort() {
-        return conObj.getEnvironment().getHost_Port();
     }
 }

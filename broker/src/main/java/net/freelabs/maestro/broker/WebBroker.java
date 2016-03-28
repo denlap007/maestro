@@ -16,11 +16,10 @@
  */
 package net.freelabs.maestro.broker;
 
-import java.io.IOException;
+import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.generated.ContainerEnvironment;
 import net.freelabs.maestro.core.generated.WebContainer;
-import net.freelabs.maestro.core.serializer.JsonSerializer;
+import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,10 +44,10 @@ public class WebBroker extends Broker {
     public Container deserializeConType(byte[] data) {
         WebContainer con = null;
         try {
-            con = JsonSerializer.deserializeToWebContainer(data);
+            con = JAXBSerializer.deserializeToWebContainer(data);
             LOG.info("Configuration deserialized! Printing: \n {}",
-                    JsonSerializer.deserializeToString(data));
-        } catch (IOException ex) {
+                    JAXBSerializer.deserializeToString(data));
+        } catch (JAXBException ex) {
             LOG.error("De-serialization FAILED: " + ex);
         }
         // initialize instance
@@ -56,13 +55,4 @@ public class WebBroker extends Broker {
         return con;
     }
 
-    @Override
-    protected ContainerEnvironment getEnvObj() {
-        return conObj.getEnvironment();
-    }
-
-    @Override
-    protected int getHostPort() {
-        return conObj.getEnvironment().getHost_Port();
-    }
 }

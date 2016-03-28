@@ -16,14 +16,10 @@
  */
 package net.freelabs.maestro.broker.env;
 
-import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.ContainerEnvironment;
-import net.freelabs.maestro.core.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,51 +59,29 @@ public class Environment {
     }
 
     /**
-     * Returns the environment of a ContainerEnvironment subtype via reflection.
+     * Returns the environment for a container, that is the environment
+     * variables key-value pairs as declared in container description.
      *
-     * @param prefix the prefix to be applied to all keys of the returned map.
-     * Usually, the container name, whose environment is returned, is provided.
-     * @return a map with all the declared fields and values.
+     * @param prefix a prefix to be applied to every environment variable name.
+     * @return the map with the environment variables key-value pairs.
      */
     public Map<String, String> getEnvMap(String prefix) {
-        // create a map that will hold the extracted environment
-        Map<String, String> env = new HashMap<>();
-        // get the Class object of the running object.
-        Class<? extends ContainerEnvironment> cls = conEnv.getClass();
-        // get all the declared fields of the Class object and its superclass
-        Collection<Field> fields = new ArrayList<>();
-        fields = Utils.getAllFields(fields, cls);
+        Map<String, String> envMap = new HashMap<>();
 
-        for (Field field : fields) {
-            // set field accessible to true in case it cannotbe accesed from this class
-            field.setAccessible(true);
-            // get the name of the field
-            String fieldName = field.getName();
-            // create the final name for the key, if prefix is empty do not use it
-            String key;
-            if (prefix.isEmpty()) {
-                key = (fieldName).toUpperCase();
+        for (Map.Entry<String, String> entry : conEnv.createEnvMap().entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            if (!prefix.isEmpty()) {
+                key = (prefix + "_" + key).toUpperCase();
             } else {
-                key = (prefix + "_" + fieldName).toUpperCase();
+                key = key.toUpperCase();
             }
-
-            Object fieldValue;
-            try {
-                // get the value of the field and convert it to String
-                fieldValue = field.get(conEnv);
-                if (fieldValue != null) {
-                    String fieldValueStr = String.valueOf(fieldValue);
-                    // put to map
-                    env.put(key, fieldValueStr);
-                    //System.out.println("Field: " + fieldName + ", Value: " + fieldValueStr); // for testing
-                }
-            } catch (IllegalArgumentException | IllegalAccessException ex) {
-                LOG.error("Somethng went wrong: " + ex);
-            }
+            // add entry for new key to map 
+            envMap.put(key, value);
         }
-        return env;
+        return envMap;
     }
-
+    
     // Getters
     public ContainerEnvironment getConEnv() {
         return conEnv;

@@ -16,7 +16,6 @@
  */
 package net.freelabs.maestro.core.broker;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.github.dockerjava.api.ConflictException;
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.NotFoundException;
@@ -31,8 +30,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.serializer.JsonSerializer;
+import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
 import net.freelabs.maestro.core.zookeeper.ZkNode;
@@ -181,15 +181,16 @@ public abstract class Broker implements ContainerLifecycle {
 
         try {
             // update zNode configuration
-            zNode.setData(JsonSerializer.serialize(con));
+            zNode.setData(JAXBSerializer.serialize(con));
             // log the event
             LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), "IP", IP);
+            LOG.info(JAXBSerializer.deserializeToString(zNode.getData()));
             // create zk configuration node
             createNode(zNode.getConfNodePath(), zNode.getData());
             // Sets the thread to wait until it's time to shutdown
             waitForShutdown();
             success = !zkError;
-        } catch (JsonProcessingException ex) {
+        } catch (JAXBException ex) {
             LOG.error("FAILED to update container IP. ", ex);
         }
         return success;
@@ -317,7 +318,9 @@ public abstract class Broker implements ContainerLifecycle {
      *
      * @param IP the container IP.
      */
-    protected abstract void updateIP(String IP);
+    private void updateIP(String IP) {
+        con.getEnv().setHost_IP(IP);
+    }
 
     /**
      * Gets the IP of the container with this container ID.

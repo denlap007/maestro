@@ -21,7 +21,6 @@ import net.freelabs.maestro.broker.process.start.MainProcessData;
 import net.freelabs.maestro.broker.process.start.StartResMapper;
 import net.freelabs.maestro.broker.env.EnvironmentMapper;
 import net.freelabs.maestro.broker.env.EnvironmentHandler;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,6 +31,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.broker.process.*;
 import net.freelabs.maestro.broker.process.start.StartGroupHandler;
 import net.freelabs.maestro.broker.process.stop.StopResMapper;
@@ -49,6 +49,7 @@ import net.freelabs.maestro.core.generated.StartRes;
 import net.freelabs.maestro.core.generated.StopRes;
 import net.freelabs.maestro.core.generated.Tasks;
 import net.freelabs.maestro.core.generated.WebContainer;
+import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConnectionWatcher;
 import net.freelabs.maestro.core.zookeeper.ZkNamingService;
@@ -752,12 +753,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     }
                 }
             } else // check if srvs are initialized
-             if (srvMngr.areSrvInitialized()) {
+            {
+                if (srvMngr.areSrvInitialized()) {
                     // start processes
                     executorService.execute(() -> {
                         start();
                     });
                 }
+            }
         } else {
             conInitialized = true;
             LOG.info("Container INITIALIZED!");
@@ -769,9 +772,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     }
 
     /**
-     * Creates the {@link ProcessManager ProcessManager}, creates the environment
-     * for processes, initializes start-stops group processes, executes tasks and start group
-     * processes, in that order.
+     * Creates the {@link ProcessManager ProcessManager}, creates the
+     * environment for processes, initializes start-stops group processes,
+     * executes tasks and start group processes, in that order.
      */
     @Override
     public void start() {
@@ -878,7 +881,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     private Map<String, String> initProcsEnv() {
         // get the environment obj of the container obj associated with Broker
-        ContainerEnvironment conEnv = getEnvObj();
+        ContainerEnvironment conEnv = container.getEnv();
         // create map of container names and environment objs for dependencies
         Map<String, ContainerEnvironment> depConEnvMap = new HashMap<>();
         // get container objs from dependencies
@@ -886,7 +889,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             // get container name
             String name = con.getName();
             // get the environment obj according to the container type
-            ContainerEnvironment env = getDepEnvObj(con);
+            ContainerEnvironment env = con.getEnv();
             // add to map
             depConEnvMap.put(name, env);
         });
@@ -1001,26 +1004,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     }
 
     /**
-     * Returns the object holding the environment of a dependency.
-     *
-     * @param con the container object of a dependency.
-     * @return the environment object of the dependency.
-     */
-    private ContainerEnvironment getDepEnvObj(Container con) {
-        ContainerEnvironment conEnv = null;
-
-        if (con instanceof WebContainer) {
-            conEnv = ((WebContainer) con).getEnvironment();
-        } else if (con instanceof BusinessContainer) {
-            conEnv = ((BusinessContainer) con).getEnvironment();
-        } else if (con instanceof DataContainer) {
-            conEnv = ((DataContainer) con).getEnvironment();
-        }
-
-        return conEnv;
-    }
-
-    /**
      * Monitors the running service and updates the zk service node status
      * accordingly in case it stops.
      *
@@ -1042,17 +1025,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     }
 
     /**
-     * Gets the container environments.
-     *
-     * @return a map with the container environment.
-     */
-    protected abstract ContainerEnvironment getEnvObj();
-
-    /**
      *
      * @return the port at which the main process runs.
      */
-    protected abstract int getHostPort();
+    private int getHostPort() {
+        return container.getEnv().getHost_Port();
+    }
 
     /**
      * Updates the service state status of a {@link ZkNamingServiceNode
@@ -1241,23 +1219,23 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // de-serialize the container according to the container type       
         try {
             if (type.equalsIgnoreCase("WebContainer")) {
-                WebContainer webCon = JsonSerializer.deserializeToWebContainer(data);
+                WebContainer webCon = JAXBSerializer.deserializeToWebContainer(data);
                 con = webCon;
             } else if (type.equalsIgnoreCase("BusinessContainer")) {
-                BusinessContainer businessCon = JsonSerializer.deserializeToBusinessContainer(data);
+                BusinessContainer businessCon = JAXBSerializer.deserializeToBusinessContainer(data);
                 con = businessCon;
             } else if (type.equalsIgnoreCase("DataContainer")) {
-                DataContainer dataCon = JsonSerializer.deserializeToDataContainer(data);
+                DataContainer dataCon = JAXBSerializer.deserializeToDataContainer(data);
                 con = dataCon;
             }
 
             if (con != null) {
                 LOG.info("De-serialized dependency: {}. Printing: \n {}", resolveConPath(path),
-                        JsonSerializer.deserializeToString(data));
+                        JAXBSerializer.deserializeToString(data));
             } else {
                 LOG.error("De-serialization of dependency {} FAILED", path);
             }
-        } catch (IOException ex) {
+        } catch (JAXBException ex) {
             LOG.error("De-serialization of dependency FAILED: " + ex);
         }
 
@@ -1273,9 +1251,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private byte[] serializeConf(Container con) {
         byte[] data = null;
         try {
-            data = JsonSerializer.serialize(con);
+            data = JAXBSerializer.serialize(con);
             LOG.info("Configuration serialized SUCCESSFULLY!");
-        } catch (JsonProcessingException ex) {
+        } catch (JAXBException ex) {
             LOG.error("Serialization FAILED: " + ex);
         }
         return data;
@@ -1305,7 +1283,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             if (procMngr.isStopHandlerInit()) {
                 // run stop group procs
                 stop();
-            }else{
+            } else {
                 initProcsEnv();
                 initStopGroup();
                 stop();

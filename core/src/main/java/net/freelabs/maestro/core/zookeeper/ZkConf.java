@@ -23,6 +23,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
+import javax.xml.bind.annotation.XmlTransient;
 import net.freelabs.maestro.core.boot.ProgramConf;
 import net.freelabs.maestro.core.generated.WebApp;
 
@@ -34,6 +37,7 @@ import net.freelabs.maestro.core.generated.WebApp;
  * The zookeeper namespace of the app is defined along with data for the nodes.
  */
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
+@XmlAccessorType(XmlAccessType.FIELD)
 public final class ZkConf {
 
     /**
@@ -75,11 +79,13 @@ public final class ZkConf {
      * The namespace of the application to the zookeeper service.
      */
     @JsonIgnore
+    @XmlTransient 
     private List<ZkNode> zkAppNamespace;
     /**
      * The client configuration that connects to the zookeeper service.
      */
     @JsonIgnore
+    @XmlTransient 
     private ZkSrvConf zkSrvConf;
     /**
      * Map of the defined container names to the deployed container names.
@@ -166,7 +172,7 @@ public final class ZkConf {
     }
 
     /**
-     * Default Constructor FOR JACKSON COMPATIBILITY.
+     * Default Constructor FOR JACKSON /JAXB COMPATIBILITY. 
      */
     public ZkConf() {
 
@@ -181,7 +187,7 @@ public final class ZkConf {
         long min = 0;
         long max = 9999999999L;
         long numId = min + (long)(new Random().nextDouble()*(max - min));
-        String id = String.format("%10d", numId);
+        String id = String.format("%010d", numId);
         return id;
     }
 

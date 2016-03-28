@@ -16,10 +16,14 @@
  */
 package net.freelabs.maestro.core.zookeeper;
 
+import javax.xml.bind.annotation.XmlAccessType;
+import javax.xml.bind.annotation.XmlAccessorType;
+
 /**
  *
  * Class that describes a node for the naming service.
  */
+@XmlAccessorType(XmlAccessType.FIELD)
 public class ZkNamingServiceNode {
 
     /**
