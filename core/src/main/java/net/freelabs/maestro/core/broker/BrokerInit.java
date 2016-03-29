@@ -95,24 +95,18 @@ public final class BrokerInit {
         handler.listDataContainers().stream().forEach((con) -> {
             Broker broker = new DataBroker(zkConf, con, docker, master);
             String logMsg = String.format("Starting %s-Broker.", con.getName());
-            //LOG.info(logMsg);
-            //broker.onStart();
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // execute Brokers for business containers
         handler.listBusinessContainers().stream().forEach((con) -> {
             Broker broker = new BusinessBroker(zkConf, con, docker, master);
             String logMsg = String.format("Starting %s-Broker.", con.getName());
-            //LOG.info(logMsg);
-            //broker.onStart();
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // execute Brokers for web containers
         handler.listWebContainers().stream().forEach((con) -> {
             Broker broker = new WebBroker(zkConf, con, docker, master);
             String logMsg = String.format("Starting %s-Broker.", con.getName());
-            //LOG.info(logMsg);
-            //broker.onStart();
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // do not allow new tasks wait for running to finish
@@ -211,7 +205,7 @@ public final class BrokerInit {
                 success = false;
                 break;
             } catch (ExecutionException ex) {
-                LOG.error("Something went wrong: {}", ex.getMessage());
+                LOG.error("Something went wrong: {}", ex);
                 success = false;
                 break;
             } catch (TimeoutException ex) {

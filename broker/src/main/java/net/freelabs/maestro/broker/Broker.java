@@ -50,7 +50,6 @@ import net.freelabs.maestro.core.generated.StopRes;
 import net.freelabs.maestro.core.generated.Tasks;
 import net.freelabs.maestro.core.generated.WebContainer;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
-import net.freelabs.maestro.core.serializer.JsonSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConnectionWatcher;
 import net.freelabs.maestro.core.zookeeper.ZkNamingService;
 import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode;
@@ -1185,10 +1184,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         File newFile = new File(path);
         // save data to file
         try {
-            JsonSerializer.saveToFile(newFile, con);
+            JAXBSerializer.saveToFile(newFile, con);
             // log event
             LOG.info("Created configuration file: {}", path);
-        } catch (IOException ex) {
+        } catch (JAXBException | IOException ex) {
             LOG.error("FAILED to create configuration file: " + ex);
         }
     }

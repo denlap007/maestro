@@ -16,13 +16,12 @@
  */
 package net.freelabs.maestro.core.zookeeper;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import net.freelabs.maestro.core.serializer.JsonSerializer;
+import javax.xml.bind.JAXBException;
+import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,9 +86,9 @@ public class ZkNamingService {
     public byte[] serializeZkSrvNode(String path, ZkNamingServiceNode node) {
         byte[] data = null;
         try {
-            data = JsonSerializer.serializeServiceNode(node);
+            data = JAXBSerializer.serialize(node);
             LOG.info("Serialized service node: {}", path);
-        } catch (JsonProcessingException ex) {
+        } catch (JAXBException ex) {
             LOG.error("Service node Serialization FAILED: " + ex);
         }
         return data;
@@ -107,9 +106,9 @@ public class ZkNamingService {
     public ZkNamingServiceNode deserializeZkSrvNode(String path, byte[] data) {
         ZkNamingServiceNode node = null;
         try {
-            node = JsonSerializer.deserializeServiceNode(data);
+            node = JAXBSerializer.deserializeToServiceNode(data);
             LOG.info("De-serialized service node: {}", path);
-        } catch (IOException ex) {
+        } catch (JAXBException ex) {
             LOG.error("Service node de-serialization FAILED! " + ex);
         }
         return node;

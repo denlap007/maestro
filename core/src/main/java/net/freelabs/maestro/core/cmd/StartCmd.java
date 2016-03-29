@@ -289,7 +289,6 @@ public final class StartCmd extends Command {
         byte[] data = JAXBSerializer.serialize(zkConf);
         zkConf.getZkConf().setData(data);
         LOG.debug("Printing serialized zkConf: {}", JAXBSerializer.deserializeToString(data));
-
         return zkConf;
     }
 

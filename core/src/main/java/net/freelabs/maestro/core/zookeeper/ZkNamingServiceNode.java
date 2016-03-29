@@ -53,7 +53,7 @@ public class ZkNamingServiceNode {
     }
 
     /**
-     * Default constructor, necessary for de-serialization with Jackson.
+     * Default constructor, necessary for de-serialization with Jackson/JAXB.
      */
     public ZkNamingServiceNode() {
 
