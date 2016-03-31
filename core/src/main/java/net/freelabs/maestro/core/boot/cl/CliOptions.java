@@ -179,14 +179,14 @@ public class CliOptions {
         }
     }
 
-    // clean command
-    @Parameters(commandDescription = "Clean zookeeper namespace and remove containers for undeployed application.")
-    public class CleanCmdOpt {
+    // delete command
+    @Parameters(commandDescription = "Delete zookeeper namespace and containers for application.")
+    public class DeleteCmdOpt {
 
         @Parameter(names = {"-h", "--help"}, description = "Help for this command", help = true)
         private boolean help;
 
-        @Parameter(description = "<name> Name of the undeployed application to perfom cleaning.", required = true)
+        @Parameter(description = "<appID> The ID of the application to delete.", required = true)
         private List<String> args;
 
         @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path of .properties file with program's configuration.", required = false)

@@ -32,6 +32,7 @@ import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode;
  *
  * Serializes and de-serializes object to byte arrays
  */
+@Deprecated
 public class JsonSerializer {
 
     // set the default encoding to be used

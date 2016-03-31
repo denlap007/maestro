@@ -622,6 +622,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 LOG.warn("Interrupted. Stopping");
                 // set interupt flag
                 Thread.currentThread().interrupt();
+                masterError = true;
                 break;
             } catch (ConnectionLossException ex) {
                 LOG.warn("Connection loss was detected! Retrying...");
@@ -630,6 +631,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 break;
             } catch (KeeperException ex) {
                 LOG.error("Something went wrong", ex);
+                masterError = true;
                 break;
             }
         }
@@ -638,12 +640,14 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
             if (!children.isEmpty()) {
                 for (String child : children) {
                     List<String> tmpList = getAllNodes(node + "/" + child);
-                    allNodes.addAll(tmpList);
+                    if (tmpList != null) {
+                        allNodes.addAll(tmpList);
+                    } 
                 }
             }
             // add the node with wich the method was called to the list
             allNodes.add(node);
-        }
+        } 
         return allNodes;
     }
 
@@ -651,8 +655,9 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * Cleans the zookeeper namespace from all the nodes created by the
      * application.
      *
+     * @return true if operation completed without errors.
      */
-    public void cleanZkNamespace() {
+    public boolean cleanZkNamespace() {
         LOG.info("Cleaning zookeeper namespace.");
 
         List<String> nodesToDelete = getAllNodes(zkConf.getRoot().getPath());
@@ -664,6 +669,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
             // delete the node, don't check for version
             deleteNode(node, -1);
         }
+        return !masterError;
     }
 
     /**
@@ -683,6 +689,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 LOG.warn("Interrupted. Stopping.");
                 // set interupt flag
                 Thread.currentThread().interrupt();
+                masterError = true;
                 break;
             } catch (ConnectionLossException ex) {
                 LOG.warn("Connection loss was detected. Retrying...");
@@ -691,6 +698,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 break;
             } catch (KeeperException ex) {
                 LOG.error("Something went wrong", ex);
+                masterError = true;
                 break;
             }
         }
@@ -829,9 +837,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * namespace.
      */
     public String getDeployedID() {
-        String id = zkConf.getRoot().getName();
-        LOG.info("*** APPLICATION DEPLOYED WITH ID: " + id + " ***");
-        return id;
+        return zkConf.getRoot().getName();
     }
 
     public void display() {

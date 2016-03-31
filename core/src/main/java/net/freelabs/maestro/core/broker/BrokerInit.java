@@ -19,6 +19,7 @@ package net.freelabs.maestro.core.broker;
 import com.github.dockerjava.api.DockerClient;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -175,6 +176,26 @@ public final class BrokerInit {
 
     public void runUpdate() {
 
+    }
+
+    public boolean runDelete() {
+        boolean success = false;
+        // create a broker of any type
+        Broker broker = new DataBroker(zkConf, null, docker, master);
+        // delete containers
+        LOG.info("Removing containers.");
+        Map<String, String> deplCons = zkConf.getDeplCons();
+        for (Map.Entry<String, String> entry : deplCons.entrySet()) {
+            String defName = entry.getKey();
+            String deplname = entry.getValue();
+            // delete
+            success = broker.deleteContainer(deplname, defName);
+            if (!success) {
+                break;
+            }
+        }
+
+        return success;
     }
 
     /**

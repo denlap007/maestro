@@ -44,9 +44,9 @@ public final class CommandHandler implements Commandable {
      */
     private final RestartCmd restartCmd;
     /**
-     * Clean command.
+     * Delete command.
      */
-    private final CleanCmd cleanCmd;
+    private final DeleteCmd deleteCmd;
     /**
      * List with names of the supported commands.
      */
@@ -63,7 +63,7 @@ public final class CommandHandler implements Commandable {
         startCmd = new StartCmd("start");
         stopCmd = new StopCmd("stop");
         restartCmd = new RestartCmd("restart");
-        cleanCmd = new CleanCmd("clean");
+        deleteCmd = new DeleteCmd("delete");
 
         // create list
         cmdNames = new ArrayList<>();
@@ -71,7 +71,7 @@ public final class CommandHandler implements Commandable {
         cmdNames.add(startCmd.getCmdName());
         cmdNames.add(stopCmd.getCmdName());
         cmdNames.add(restartCmd.getCmdName());
-        cmdNames.add(cleanCmd.getCmdName());
+        cmdNames.add(deleteCmd.getCmdName());
 
     }
 
@@ -91,8 +91,8 @@ public final class CommandHandler implements Commandable {
     }
 
     @Override
-    public void exec_clean(String... args) {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    public void exec_delete(String... args) {
+        deleteCmd.exec(pConf, args);
     }
 
     /**
@@ -131,7 +131,7 @@ public final class CommandHandler implements Commandable {
      *
      * @return the clean Command object.
      */
-    public CleanCmd getCleanCmd() {
-        return cleanCmd;
+    public DeleteCmd getDeleteCmd() {
+        return deleteCmd;
     }
 }

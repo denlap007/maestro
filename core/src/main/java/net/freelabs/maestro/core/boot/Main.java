@@ -63,17 +63,17 @@ public class Main {
         CliOptions.StartCmdOpt startCmdOpt = opts.new StartCmdOpt();
         CliOptions.StopCmdOpt stopCmdOpt = opts.new StopCmdOpt();
         CliOptions.RestartCmdOpt restartCmdOpt = opts.new RestartCmdOpt();
-        CliOptions.CleanCmdOpt cleanCmdOpt = opts.new CleanCmdOpt();
+        CliOptions.DeleteCmdOpt deleteCmdOpt = opts.new DeleteCmdOpt();
         // get command names
         String start = cmdExec.getStartCmd().getCmdName();
         String stop = cmdExec.getStopCmd().getCmdName();
         String restart = cmdExec.getRestartCmd().getCmdName();
-        String clean = cmdExec.getCleanCmd().getCmdName();
+        String delete = cmdExec.getDeleteCmd().getCmdName();
         // add commands defined to parser
         cl.addCommand(start, startCmdOpt);
         cl.addCommand(stop, stopCmdOpt);
         cl.addCommand(restart, restartCmdOpt);
-        cl.addCommand(clean, cleanCmdOpt);
+        cl.addCommand(delete, deleteCmdOpt);
 
         // parse arguments
         try {
@@ -180,11 +180,31 @@ public class Main {
                 }
             }
 
-        } else if (parsedCmd.equals(clean)) {
-            // clean command
-            if (cleanCmdOpt.isHelp()) {
-                cl.usage(clean);
+        } else if (parsedCmd.equals(delete)) {
+            // delete command
+            if (deleteCmdOpt.isHelp()) {
+                cl.usage(delete);
                 System.exit(0);
+            } else {
+                // check configuration
+                pConf.setZkHosts(restartCmdOpt.getzHosts());
+                pConf.setZkSessionTimeout(restartCmdOpt.getzTimeout());
+                // init unset (if any) conf parameters with file input (if any)
+                // check for external properties file
+                if (deleteCmdOpt.getConf() != null) {
+                    // if found load parameters to pConf
+                    pConf.loadFromFileUnset(deleteCmdOpt.getConf());
+                } else {
+                    // check for properties file to the running path
+                    pConf.loadFromFileUnset("");
+                }
+                // check if program's configuration is complete
+                if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0) {
+                    // execute DELETE command
+                    cmdExec.exec_delete(deleteCmdOpt.getArgs().get(0));
+                } else {
+                    LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                }
             }
         }
     }

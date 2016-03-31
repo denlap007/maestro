@@ -79,9 +79,7 @@ public final class StartCmd extends Command {
             DockerInitializer appDocker = new DockerInitializer(pConf.getDockerURI());
             DockerClient docker = appDocker.getDockerClient();
             // launch the CoreBrokers to boot containers, wait to finish
-            launchBrokers(handler, zkConf, docker);
-            // shutdown master
-            shutdownMaster();
+            runBrokerInit(handler, zkConf, docker);
         } catch (Exception ex) {
             exitProgram(ex);
         }
@@ -104,8 +102,6 @@ public final class StartCmd extends Command {
             // set the interrupt status
             Thread.currentThread().interrupt();
         }
-        // show the application's deployed name
-        master.getDeployedID();
     }
 
     /**
@@ -142,7 +138,7 @@ public final class StartCmd extends Command {
 
     /**
      * <p>
-     * Launches the {@link Broker CoreBrokers} that boot the containers.
+     * Launches the {@link Broker Brokers} that boot the containers.
      * <p>
      * A {@link Container Container} is obtained from the {@link ContainerHandler
      * ContainerHandler}. A {@link Broker Broker} is created and then connects
@@ -157,14 +153,27 @@ public final class StartCmd extends Command {
      * @throws IOException if connection to zk cannot be established.
      * @throws InterruptedException if thread is interrupted.
      */
-    public void launchBrokers(ContainerHandler handler, ZkConf zkConf, DockerClient docker) throws IOException, InterruptedException {
+    public void runBrokerInit(ContainerHandler handler, ZkConf zkConf, DockerClient docker) throws IOException, InterruptedException {
         /*  Get a Container from the container handler. The Container can be of 
             any type. Create the Broker and initialize it. The Broker will 
             connect to zk and then start execution on a new thread.
          */
         BrokerInit brokerInit = new BrokerInit(handler, zkConf, docker, master);
         // run the Broker initializer that will initialize start and execute Brokers
-        brokerInit.runStart();
+        boolean success = brokerInit.runStart();
+        // check if operation was successful 
+        if (!success) {
+            // error occurred so stop any runnin services and containers
+            brokerInit.runStop();
+            // shutdown master
+            shutdownMaster();
+            // log 
+            LOG.error("Application deployment FAILED.");
+        } else {
+            // shutdown master
+            shutdownMaster();
+            LOG.info("---> APPLICATION DEPLOYED WITH ID: {}.", master.getDeployedID());
+        }
     }
 
     /**
@@ -222,9 +231,10 @@ public final class StartCmd extends Command {
      * @param pConf the program's configuration.
      * @return a {@link net.freelabs.maestro.zookeeper.ZkConfig ZkConf} object
      * that holds all the configuration for zookeeper.
-     * @throws IOException if serialization of Container object fails.
+     * @throws javax.xml.bind.JAXBException if serialization of Container object
+     * fails.
      */
-    public ZkConf createZkConf(WebApp webApp, String hosts, int timeout, ContainerHandler handler, ProgramConf pConf) throws IOException, JAXBException {
+    public ZkConf createZkConf(WebApp webApp, String hosts, int timeout, ContainerHandler handler, ProgramConf pConf) throws JAXBException {
         /*
          Create a zookeeper configuration object. This object holds all the
          necessary configuration information needed for zookeeper to boostrap-
@@ -253,7 +263,7 @@ public final class StartCmd extends Command {
          Parent nodes are Persistent zNodes.
          */
         for (String type : handler.getContainerTypes()) {
-            LOG.info("Container type: " + type);
+            LOG.info("Container type: {}", type);
             zkConf.initZkContainerType(type);
         }
 
@@ -269,13 +279,13 @@ public final class StartCmd extends Command {
         for (Container con : handler.listContainers()) {
             // generate JSON from container and return the generated JSON as a byte array
             byte[] data = JAXBSerializer.serialize(con);
-            LOG.info("Container converted to xml: " + JAXBSerializer.deserializeToString(data));
+            LOG.info("Container description to xml: {}", JAXBSerializer.deserializeToString(data));
             // get the name for the child node
             String name = con.getName();
             // get the container type
             String type = Utils.getType(con);
             // initialize child node
-            LOG.info("Container name:type: " + name + ":" + type + ". Data size: " + data.length);
+            LOG.info("Type: {}, data size: {}", type, data.length);
             zkConf.initZkContainer(name, type, data);
         }
 
@@ -289,7 +299,8 @@ public final class StartCmd extends Command {
         byte[] data = JAXBSerializer.serialize(zkConf);
         zkConf.getZkConf().setData(data);
         LOG.debug("Printing serialized zkConf: {}", JAXBSerializer.deserializeToString(data));
-        return zkConf;
+
+        return zkConf; 
     }
 
     /**
@@ -338,7 +349,8 @@ public final class StartCmd extends Command {
     /**
      * Terminates the program due to some error.
      */
-    private void errExit() {
+    @Override
+    protected void errExit() {
         LOG.error("The program will exit!");
 
         System.exit(1);

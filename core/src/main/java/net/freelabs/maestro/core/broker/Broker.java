@@ -134,9 +134,9 @@ public abstract class Broker implements ContainerLifecycle {
         this.docker = dockerClient;
         this.zkMaster = zkMaster;
         shutdownSignal = new CountDownLatch(1);
-        if (con != null){
+        if (con != null) {
             zNode = zkConf.getContainers().get(con.getName());
-        }else{
+        } else {
             zNode = null;
         }
     }
@@ -153,14 +153,16 @@ public abstract class Broker implements ContainerLifecycle {
         boolean success = false;
         // create configration to initialize parameters
         createContainerEnv();
-        // start the container
-        cid = startContainer();
+        // create container instance
+        CreateContainerResponse container = createContainer();
+        // start the created container instance
+        cid = startContainer(container, con.getName());
         // check for errors
         if (cid != null) {
             // get container IP
             success = onPostStart(cid);
         } else {
-            LOG.error("Could NOT start container. Shutting down Broker.");
+            LOG.error("FAILED to start container. Shutting down Broker.");
             shutdown();
         }
         return success;
@@ -184,7 +186,7 @@ public abstract class Broker implements ContainerLifecycle {
             zNode.setData(JAXBSerializer.serialize(con));
             // log the event
             LOG.info("Updated configuration of: {}, {}:{}", zNode.getName(), "IP", IP);
-            LOG.info(JAXBSerializer.deserializeToString(zNode.getData()));
+            LOG.debug(JAXBSerializer.deserializeToString(zNode.getData()));
             // create zk configuration node
             createNode(zNode.getConfNodePath(), zNode.getData());
             // Sets the thread to wait until it's time to shutdown
@@ -200,8 +202,8 @@ public abstract class Broker implements ContainerLifecycle {
         boolean success = false;
         // restart the container with the deployed name
         String deplName = zkConf.getDeplCons().get(con.getName());
-        boolean restarted = restartContainer(deplName);
-        
+        boolean restarted = restartContainer(deplName, con.getName());
+
         if (restarted) {
             // run post start state
             success = onPostStart(deplName);
@@ -304,7 +306,7 @@ public abstract class Broker implements ContainerLifecycle {
             String deplname = entry.getValue();
             try {
                 LOG.warn("Container for service \'{}\' is still running. Forcing stop.", defName);
-                success = stopContainer(deplname);
+                success = stopContainer(deplname, defName);
             } catch (NotFoundException ex) {
                 LOG.error("Container for service \'{}\' does not exist.", defName);
                 success = false;
@@ -429,12 +431,12 @@ public abstract class Broker implements ContainerLifecycle {
             LOG.warn("Thread Interrupted. Stopping");
             // set the interrupt status
             Thread.currentThread().interrupt();
-            LOG.info("Initiating Core Broker shutdown.");
+            LOG.info("Initiating Broker shutdown.");
         }
     }
 
     public void shutdown() {
-        LOG.info("Initiating Core Broker shutdown.");
+        LOG.info("Initiating Broker shutdown.");
         // release latch to finish execution
         shutdownSignal.countDown();
     }
@@ -519,12 +521,10 @@ public abstract class Broker implements ContainerLifecycle {
     }
 
     @Override
-    public String startContainer() {
-        CreateContainerResponse container = createContainer();
-
+    public String startContainer(CreateContainerResponse container, String srv) {
         if (container != null) {
             // START CONTAINER
-            LOG.info("Starting container for service: " + con.getName());
+            LOG.info("Starting container for service: {}", srv);
             String id = container.getId();
             boolean runSuccess = runAndRetry(() -> {
                 docker.startContainerCmd(id).exec();
@@ -538,37 +538,63 @@ public abstract class Broker implements ContainerLifecycle {
     }
 
     @Override
-    public boolean stopContainer(String con) {
-        docker.stopContainerCmd(con).exec();
+    public boolean stopContainer(String con, String srv) {
+        try {
+            docker.stopContainerCmd(con).exec();
+        } catch (NotFoundException e) {
+            LOG.error("FAILED to stop container for service: {}. Container does NOT exist.", srv);
+        }
         // confirm stop
         InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
         if (inspResp.getState().isRunning()) {
-            LOG.error("FAILED to stop container: {}", con);
+            LOG.error("FAILED to stop container for service: {}", srv);
             return false;
         } else {
-            LOG.info("Stopped \'{}\'.", con);
+            LOG.info("Stopped container for service \'{}\'.", srv);
             return true;
         }
     }
 
     @Override
-    public boolean restartContainer(String con) {
+    public boolean restartContainer(String con, String srv) {
         boolean success = false;
         // get first start time
         InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
         String startTime1 = inspResp.getState().getStartedAt();
         // restart
-        LOG.info("Restarting: {}", con);
-        docker.restartContainerCmd(con).exec();
+        LOG.info("Restarting container for service: {}", srv);
+        try {
+            docker.restartContainerCmd(con).exec();
+        } catch (NotFoundException e) {
+            LOG.error("FAILED to restart container for service: {}. Container does NOT exist.", srv);
+        }
         // get second start time of the container
         InspectContainerResponse inspResp2 = docker.inspectContainerCmd(con).exec();
         String startTime2 = inspResp2.getState().getStartedAt();
         // confirm restart
         if (!startTime1.equals(startTime2)) {
-            success =  true;
+            success = true;
         } else {
-            LOG.error("FAILED to restart container: {}", con);
+            LOG.error("FAILED to restart container for service: {}", srv);
         }
+        return success;
+    }
+
+    @Override
+    public boolean deleteContainer(String con, String srv) {
+        boolean success = false;
+        LOG.info("Deleting container for service: {}", srv);
+        try {
+            docker.removeContainerCmd(con).withForce(true).exec();
+            success = true;
+            // confirm deletion
+            docker.inspectContainerCmd(con).exec();
+        } catch (NotFoundException e) {
+            if (!success){
+                 LOG.error("FAILED to delete container for service: {}. Container does NOT exist.", srv);
+            }
+        }
+
         return success;
     }
 

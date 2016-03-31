@@ -30,9 +30,9 @@ import org.slf4j.LoggerFactory;
 
 /**
  *
- * Class that defines a command to restart a web application.
+ * @author Dionysis Lappas <dio@freelabs.net>
  */
-public final class RestartCmd extends Command {
+public final class DeleteCmd extends Command {
 
     /**
      * The master zookeeper process.
@@ -53,14 +53,14 @@ public final class RestartCmd extends Command {
     /**
      * A Logger object.
      */
-    private static final Logger LOG = LoggerFactory.getLogger(RestartCmd.class);
+    private static final Logger LOG = LoggerFactory.getLogger(DeleteCmd.class);
 
     /**
      * Constructor.
      *
      * @param cmdName the name of the command.
      */
-    public RestartCmd(String cmdName) {
+    public DeleteCmd(String cmdName) {
         super(cmdName);
     }
 
@@ -84,28 +84,28 @@ public final class RestartCmd extends Command {
                     initDockerClient(zkConf.getpConf().getDockerURI());
                     // create and initialize Broker initializer to act on containers
                     BrokerInit brokerInit = runBrokerInit();
-                    // restart application
-                    success = brokerInit.runRestart();
-                    // check if operation succeeded
-                    if (!success) {
-                        // error occurred so stop any runnin services and containers
-                        brokerInit.runStop();
-                    }
+                    // delete application namespace
+                    success = master.cleanZkNamespace();
+                    if (success) {
+                        // remove containers
+                        success = brokerInit.runDelete();
+
+                    } 
                 }
             } else {
                 LOG.error("Application with id \'{}\' does NOT exist.", appID);
             }
-
         }
 
         master.shutdownMaster();
 
         if (success) {
             master.shutdownMaster();
-            LOG.info("---> Application with id \'{}\' restarted.", appID);
+            LOG.info("---> Application with id \'{}\' deleted.", appID);
         } else {
             errExit();
         }
+
     }
 
     /**
@@ -179,7 +179,7 @@ public final class RestartCmd extends Command {
      */
     @Override
     protected void errExit() {
-        LOG.error("Restart of \'{}\' FAILED. Exiting...", appID);
+        LOG.error("Deletion of application with id \'{}\' FAILED. Exiting...", appID);
         System.exit(1);
     }
 

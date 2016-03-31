@@ -1290,6 +1290,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         }
         // delete persistent zNode with container description to support restart
         deleteNode(conConfNode, -1);
+        // notify for shutdown objects implementing shutdown interface
+        notifier.shutDown();
         // shut down the executorService to stop any still running threads
         shutdownExecutor();
         try {
@@ -1303,7 +1305,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         }
         // log event
         LOG.info("Initiating Broker shutdown " + zkContainerPath);
-        notifier.shutDown();
     }
 
     @Override

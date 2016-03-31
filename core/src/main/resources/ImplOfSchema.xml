@@ -1,62 +1,70 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <webApp>
-    <containers>
+    <containers> 
         <webContainer>
             <name>web</name>
-            <connectWith>business</connectWith>
-            <dockerImage>dio/nginx_jre:v1</dockerImage>
+            <requires>business</requires>
+            <docker>
+            	<image>dio/nginx_jre:v1</image>
+            </docker>
             <start>
                 <preMain abortOnFail="true">cp /broker/testCases/crudApp/webTier/nginx.conf /etc/nginx/nginx.conf</preMain>
                 <main>nginx -g "daemon off;"</main>
             </start>
             <stop>
                 <main>nginx -s quit</main>
+                <postMain>/broker/testCases/crudApp/webTier/restore_template.sh</postMain>
             </stop>
             <tasks>
                 <substEnv>/broker/testCases/crudApp/webTier/nginx.conf</substEnv>
             </tasks>
-            <environment>
+            <env>
                 <host_port>80</host_port>
-            </environment>
+            </env>
         </webContainer>
         <businessContainer>
-            <name>business</name>
-            <connectWith>data</connectWith>
-            <dockerImage>glassfish</dockerImage>
+            <name>business</name> 
+            <requires>data</requires>
+            <docker>
+            	<image>glassfish</image>
+            </docker>
             <start>
                 <main>/broker/testCases/crudApp/BusinessTier/business-entrypoint.sh</main>
                 <postMain abortOnFail="true">asadmin add-resources /broker/testCases/crudApp/BusinessTier/glassfish-resources.xml</postMain>
                 <postMain abortOnFail="true">asadmin deploy /broker/testCases/crudApp/BusinessTier/ConsultingAgency.war</postMain>
             </start>
             <stop>
+                <preMain>asadmin undeploy ConsultingAgency</preMain>
+                <preMain>/broker/testCases/crudApp/BusinessTier/delete_resources.sh</preMain>
                 <main>asadmin stop-domain domain1</main>
+                <postMain>/broker/testCases/crudApp/BusinessTier/restore_template.sh</postMain>
             </stop>
             <tasks>
                 <substEnv>/broker/testCases/crudApp/BusinessTier/glassfish-resources.xml</substEnv>
             </tasks>
-            <environment>
+            <env>
                 <host_port>8080</host_port>
                 <app_name>ConsultingAgency</app_name>
-            </environment>
+            </env>
         </businessContainer>
         <dataContainer>
             <name>data</name>
-            <connectWith></connectWith>
-            <dockerImage>dio/mysql_jre:v2</dockerImage>
+            <docker>
+            	<image>dio/mysql_jre:v2</image>
+            </docker>
             <start>
                 <main>/broker/testCases/crudApp/dataTier/data-entrypoint.sh mysqld</main>
             </start>
             <stop>
                 <main>service mysql stop</main>
             </stop>
-            <environment>
-                <db_port>3306</db_port>
+            <env>
+                <host_port>3306</host_port>
                 <db_user>root</db_user>
                 <db_pass>root</db_pass>
                 <db_name>consult</db_name>
                 <db_driver/>
-            </environment>
+            </env>
         </dataContainer>
     </containers>
-    <webAppName>WebApp</webAppName>
 </webApp>

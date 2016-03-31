@@ -44,6 +44,6 @@ public interface Commandable {
     
     public void exec_restart(String... args);
 
-    public void exec_clean(String... args);
+    public void exec_delete(String... args);
     
 }

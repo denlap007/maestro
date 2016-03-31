@@ -41,26 +41,37 @@ public interface ContainerLifecycle {
     /**
      * Starts a container.
      *
+     * @param conRes object that will be used to start a created container.
+     * @param srv the name of the service offered by the container.
      * @return the id of the started container. Null if the container failed to
      * start.
      */
-    public String startContainer();
+    public String startContainer(CreateContainerResponse conRes, String srv);
 
     /**
      * Stops a running container.
      *
-     * @param con the name or if of the container to stop.
+     * @param con the name or id of the container to stop.
+     * @param srv the name of the service offered by the container.
      * @return true if the container stopped.
-     */
-    public boolean stopContainer(String con);
+     */ 
+    public boolean stopContainer(String con, String srv);
 
     /**
      * Restarts a container.
      *
-     * @param con the name of id of the container to restart.
+     * @param con the name or id of the container to restart.
+     * @param srv the name of the service offered by the container.
      * @return true if the container restarted successfully.
      */
-    public boolean restartContainer(String con);
+    public boolean restartContainer(String con, String srv);
+    /**
+     * Deletes a container.
+     * @param con the name or id of the container to restart.
+     * @param srv the name of the service offered by the container.
+     * @return true if the container was deleted successfully.
+     */
+    public boolean deleteContainer(String con , String srv);
 
     /**
      * Pulls container image from docker hub.

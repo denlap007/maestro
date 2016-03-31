@@ -17,11 +17,11 @@
 package net.freelabs.maestro.core.cmd;
 
 import com.github.dockerjava.api.DockerClient;
-import java.io.IOException;
+import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.boot.ProgramConf;
 import net.freelabs.maestro.core.broker.BrokerInit;
 import net.freelabs.maestro.core.docker.DockerInitializer;
-import net.freelabs.maestro.core.serializer.JsonSerializer;
+import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
 import org.slf4j.Logger;
@@ -98,7 +98,7 @@ public final class StopCmd extends Command {
         master.shutdownMaster();
 
         if (stopped) {
-            LOG.info("Application with id \'{}\' successfully STOPPED.", appID);
+            LOG.info("---> Application with id \'{}STOPPED.", appID);
         } else {
             if (errMsg.isEmpty()) {
                 LOG.error("FAILED to stop Application with id \'{}\'.", appID);
@@ -157,11 +157,11 @@ public final class StopCmd extends Command {
         // check for errors
         if (data != null) {
             try {
-                zkConf = JsonSerializer.deserializeZkConf(data);
-                String dataStr = JsonSerializer.deserializeToString(data);
+                zkConf = JAXBSerializer.deserializeToZkConf(data);
+                String dataStr = JAXBSerializer.deserializeToString(data);
                 LOG.debug("Downloaded application configuration. Printing. {}", dataStr);
                 downloaded = true;
-            } catch (IOException ex) {
+            } catch (JAXBException ex) {
                 LOG.error("Something went wrong: ", ex);
             }
         } else {
@@ -173,7 +173,8 @@ public final class StopCmd extends Command {
     /**
      * Exit with error code (1).
      */
-    private void errExit() {
+    @Override
+    protected void errExit() {
         System.exit(1);
     }
 }
