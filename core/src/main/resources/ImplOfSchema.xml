@@ -6,6 +6,13 @@
             <requires>business</requires>
             <docker>
             	<image>dio/nginx_jre:v1</image>
+            	<mntBindVols>
+	            	<mntBindVol accessMode="rw">
+	            		<srcPath>/home/dio/THESIS/maestro/core/src/main/resources</srcPath>
+	            		<dstPath>/broker</dstPath>
+	            	</mntBindVol>
+            	</mntBindVols>
+            	<privileged>true</privileged>
             </docker>
             <start>
                 <preMain abortOnFail="true">cp /broker/testCases/crudApp/webTier/nginx.conf /etc/nginx/nginx.conf</preMain>
@@ -27,6 +34,20 @@
             <requires>data</requires>
             <docker>
             	<image>glassfish</image>
+            	<mntBindVols>
+	            	<mntBindVol>
+	            		<srcPath>/home/dio/THESIS/maestro/core/src/main/resources</srcPath>
+	            		<dstPath>/broker</dstPath>
+	            	</mntBindVol>
+            	</mntBindVols>
+            	<publishPorts>
+            		<publishPort protocol="tcp">
+            			<ip>127.0.0.1</ip>
+            			<hostPort>8080</hostPort>
+	            		<containerPort>8080</containerPort>
+	            	</publishPort>
+            	</publishPorts>
+            	<privileged>true</privileged>
             </docker>
             <start>
                 <main>/broker/testCases/crudApp/BusinessTier/business-entrypoint.sh</main>
@@ -51,6 +72,13 @@
             <name>data</name>
             <docker>
             	<image>dio/mysql_jre:v2</image>
+            	<mntBindVols>
+	            	<mntBindVol>
+	            		<srcPath>/home/dio/THESIS/maestro/core/src/main/resources</srcPath>
+	            		<dstPath>/broker</dstPath>
+	            	</mntBindVol>
+            	</mntBindVols>
+            	<privileged>true</privileged>
             </docker>
             <start>
                 <main>/broker/testCases/crudApp/dataTier/data-entrypoint.sh mysqld</main>

@@ -84,7 +84,7 @@ public class Main {
             // print usage
             cl.usage();
             // exit
-            System.exit(1);
+            errExit();
         }
         // get the command, if any, entered by the user
         String parsedCmd = cl.getParsedCommand();
@@ -92,16 +92,13 @@ public class Main {
         if (opts.isHelp()) {
             // program help
             cl.usage();
-            System.exit(1);
         } else if (opts.isVersion()) {
             // program version
             LOG.info("Maestro  v" + ProgramConf.getVERSION());
-            System.exit(1);
         } else if (parsedCmd.equals(start)) {
             // start command
             if (startCmdOpt.isHelp()) {
                 cl.usage(start);
-                System.exit(0);
             } else {
                 pConf.setZkHosts(startCmdOpt.getzHosts());
                 pConf.setZkSessionTimeout(startCmdOpt.getzTimeout());
@@ -123,14 +120,13 @@ public class Main {
                     // execute START command
                     cmdExec.exec_start();
                 } else {
-                    System.exit(1);
+                    errExit();
                 }
             }
         } else if (parsedCmd.equals(stop)) {
             // stop command
             if (stopCmdOpt.isHelp()) {
                 cl.usage(stop);
-                System.exit(0);
             } else {
                 // check configuration
                 pConf.setZkHosts(stopCmdOpt.getzHosts());
@@ -150,6 +146,7 @@ public class Main {
                     cmdExec.exec_stop(stopCmdOpt.getArgs().get(0));
                 } else {
                     LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                    errExit();
                 }
             }
 
@@ -157,7 +154,6 @@ public class Main {
             // restart command
             if (restartCmdOpt.isHelp()) {
                 cl.usage(restart);
-                System.exit(0);
             } else {
                 // check configuration
                 pConf.setZkHosts(restartCmdOpt.getzHosts());
@@ -177,6 +173,7 @@ public class Main {
                     cmdExec.exec_restart(restartCmdOpt.getArgs().get(0));
                 } else {
                     LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                    errExit();
                 }
             }
 
@@ -184,7 +181,6 @@ public class Main {
             // delete command
             if (deleteCmdOpt.isHelp()) {
                 cl.usage(delete);
-                System.exit(0);
             } else {
                 // check configuration
                 pConf.setZkHosts(restartCmdOpt.getzHosts());
@@ -204,8 +200,22 @@ public class Main {
                     cmdExec.exec_delete(deleteCmdOpt.getArgs().get(0));
                 } else {
                     LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                    errExit();
                 }
             }
         }
+    }
+
+    /**
+     * Exits program due to error using an error code.
+     */
+    public static void errExit() {
+        System.exit(1);
+    }
+    /**
+     * Exits program normally with no error code.
+     */
+    public static void exit(){
+        System.exit(0);
     }
 }

@@ -23,8 +23,11 @@ import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.model.AccessMode;
 import com.github.dockerjava.api.model.Bind;
+import com.github.dockerjava.api.model.ExposedPort;
+import com.github.dockerjava.api.model.Ports;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.core.command.PullImageResultCallback;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +35,10 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.generated.ExposePort;
+import net.freelabs.maestro.core.generated.MntBindVol;
+import net.freelabs.maestro.core.generated.Protocol;
+import net.freelabs.maestro.core.generated.PublishPort;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
@@ -470,20 +477,75 @@ public abstract class Broker implements ContainerLifecycle {
         String conImg = con.getDocker().getImage();
         String[] conCmd = conBootCmd.split(" ");
         String conNetMode = "bridge";
+        boolean privileged = con.getDocker().isPrivileged();
 
         String[] conEnvArr = conBootEnv.split(",");
-
-        boolean privileged = true;
-
-        Volume volume1 = new Volume("/broker");
-
+        
+        // process volumes
+        List<String> volPathList = con.getDocker().getVolumes().getVol();
+        List<Volume> volList =  new ArrayList<>();
+        for (String volPath : volPathList){
+            Volume vol = new Volume(volPath);
+            volList.add(vol);
+        }
+        
+        // process mount bind volumes
+        List<MntBindVol> mntBindVolList = con.getDocker().getMntBindVols().getMntBindVol();
+        List<Bind> bindList = new ArrayList<>();
+        for (MntBindVol mntBindVol : mntBindVolList){
+            // create a new volume
+            Volume vol = new Volume(mntBindVol.getDstPath());
+            // create a new Bind
+            AccessMode am = mntBindVol.getAccessMode().equals(net.freelabs.maestro.core.generated.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
+            Bind bind = new Bind(mntBindVol.getSrcPath(), vol, am);
+            // add to list
+            bindList.add(bind);
+        }
+        
+        // process exposed ports
+        List<ExposePort> defExpPortList = con.getDocker().getExposePorts().getExposePort();
+        List<ExposedPort> expPortList = new ArrayList<>();
+        for (ExposePort defPort : defExpPortList){
+            // create new exposed port
+            ExposedPort expPort;
+            if (defPort.getProtocol() == Protocol.TCP){
+                expPort = ExposedPort.tcp(defPort.getContainerPort());
+            }else{
+                expPort = ExposedPort.udp(defPort.getContainerPort());
+            }
+            // add to list
+            expPortList.add(expPort);
+        }
+        
+        // process published ports
+        List<PublishPort> defPubPortList = con.getDocker().getPublishPorts().getPublishPort();
+        Ports portBindings = new Ports();
+        
+        for(PublishPort defPubPort : defPubPortList){
+            // create exposed container port
+            ExposedPort expPort;
+            if (defPubPort.getProtocol() == Protocol.TCP){
+                expPort = ExposedPort.tcp(defPubPort.getContainerPort());
+            }else{
+                expPort = ExposedPort.udp(defPubPort.getContainerPort());
+            }
+            // create port binding
+            portBindings.bind(expPort, Ports.Binding(defPubPort.getIp(), defPubPort.getHostPort()));
+        }
+        
+        // process publishAllPorts
+        boolean publishAllPorts = con.getDocker().isPublishAllPorts();
+        
         // set container configuration
         CreateContainerResponse container = null;
         while (container == null) {
             try {
                 container = docker.createContainerCmd(conImg)
-                        .withVolumes(volume1).withBinds()
-                        .withBinds(new Bind("/home/dio/THESIS/maestro/core/src/main/resources", volume1, AccessMode.rw))
+                        .withVolumes(volList.toArray(new Volume[0]))
+                        .withBinds(bindList.toArray(new Bind[0]))
+                        .withExposedPorts(expPortList.toArray(new ExposedPort[0]))
+                        .withPortBindings(portBindings)
+                        .withPublishAllPorts(publishAllPorts)
                         .withName(conName)
                         .withCmd(conCmd)
                         .withNetworkMode(conNetMode)

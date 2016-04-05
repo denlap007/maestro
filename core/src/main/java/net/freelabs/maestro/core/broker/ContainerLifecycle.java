@@ -67,7 +67,7 @@ public interface ContainerLifecycle {
     public boolean restartContainer(String con, String srv);
     /**
      * Deletes a container.
-     * @param con the name or id of the container to restart.
+     * @param con the name or id of the container to delete.
      * @param srv the name of the service offered by the container.
      * @return true if the container was deleted successfully.
      */

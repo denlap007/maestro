@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns:mo="http://freelabs.net.maestro"
     xmlns:jxb="http://java.sun.com/xml/ns/jaxb"
     jxb:version="2.0">
  
@@ -26,10 +27,40 @@
         <xs:list itemType="port"/>
     </xs:simpleType>
 
+    <xs:simpleType name="accessMode">
+        <xs:restriction base="xs:token">
+            <xs:enumeration value="rw"/>
+            <xs:enumeration value="ro"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="protocol">
+        <xs:restriction base="xs:token">
+            <xs:enumeration value="tcp"/>
+            <xs:enumeration value="udp"/>
+        </xs:restriction>
+    </xs:simpleType>
+
     <!-- definition of attributes -->
 
     <!-- definition of complex types -->
-    <xs:complexType name="resources">
+    <xs:complexType name="startElem">
+        <xs:simpleContent>
+            <xs:extension base="xs:string">
+                <xs:attribute name="abortOnFail" type="xs:boolean" default="true"></xs:attribute>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
+
+    <xs:complexType name="startRes">
+        <xs:sequence> 
+            <xs:element name="preMain" type="startElem" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="main" type="xs:string"/>
+            <xs:element name="postMain" type="startElem" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="stopRes">
         <xs:sequence> 
             <xs:element name="preMain" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
             <xs:element name="main" type="xs:string"/>
@@ -37,10 +68,66 @@
         </xs:sequence>
     </xs:complexType>
 
+    <xs:complexType name="mntBindVol">
+        <xs:annotation>
+            <xs:documentation>Represents a host path being bind mounted as a Volume in a Docker container. The Bind can be in read only or read write access mode.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="srcPath" type="xs:string"/>
+            <xs:element name="dstPath" type="xs:string"/>
+        </xs:sequence>
+        <xs:attribute name="accessMode" type="accessMode" default="rw"/>
+    </xs:complexType>
+
+    <xs:complexType name="mntBindVols">
+        <xs:sequence>
+            <xs:element name="mntBindVol" type="mntBindVol" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+      <xs:complexType name="publishPort">
+        <xs:sequence>
+            <xs:element name="ip" type="xs:string" minOccurs="0"/>
+            <xs:element name="hostPort" type="port" minOccurs="0"/>
+            <xs:element name="containerPort" type="port"/>
+        </xs:sequence>
+        <xs:attribute name="protocol" type="protocol" default="tcp"/>
+    </xs:complexType>
+
+    <xs:complexType name="publishPorts">
+        <xs:sequence>
+            <xs:element name="publishPort" type="publishPort" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+   <xs:complexType name="exposePort">
+        <xs:sequence>
+            <xs:element name="containerPort" type="port"/>
+        </xs:sequence>
+        <xs:attribute name="protocol" type="protocol" default="tcp"/>
+    </xs:complexType>
+
+   <xs:complexType name="exposePorts">
+        <xs:sequence>
+            <xs:element name="exposePort" type="exposePort" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="volumes">
+        <xs:sequence>
+            <xs:element name="vol" type="xs:string" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
     <xs:complexType name="docker">
         <xs:sequence>
-            <xs:element name="name" type="xs:token"/>
-            <xs:element name="image" type="xs:string" />
+            <xs:element name="image" type="xs:string"/>
+            <xs:element name="volumes" type="volumes" minOccurs="0"/>
+            <xs:element name="mntBindVols" type="mntBindVols" minOccurs="0"/>
+            <xs:element name="exposePorts" type="exposePorts" minOccurs="0"/>
+            <xs:element name="publishPorts" type="publishPorts" minOccurs="0"/>
+            <xs:element name="publishAllPorts" type="xs:boolean" minOccurs="0"/>
+            <xs:element name="privileged" type="xs:boolean" minOccurs="0"/>
         </xs:sequence>
     </xs:complexType>
 
@@ -52,86 +139,50 @@
 
 
     <!-- CONTAINER -->
-    <xs:complexType name="containerEnvironment" abstract="true">
+     <xs:complexType name="containerEnvironment">
         <xs:sequence>
-            <xs:element name="hostName" type="xs:token" minOccurs="0"/>
+            <xs:element name="host_port" type="port"/>
+            <xs:any minOccurs="0" maxOccurs="unbounded" processContents="skip"/>
         </xs:sequence>
     </xs:complexType>
-    
 
     <xs:complexType name="container" abstract="true">
         <xs:sequence>
             <xs:element name="name" type="xs:token"/>
-            <xs:element name="connectWith" type="stringList"/>
-            <xs:element name="dockerImage" type="xs:string"/>
-            <xs:element name="run" type="resources"/>
+            <xs:element name="requires" type="stringList" minOccurs="0"/>
+            <xs:element name="docker" type="docker"/>
+            <xs:element name="start" type="startRes"/>
+            <xs:element name="stop" type="stopRes" minOccurs="0"/>
             <xs:element name="tasks" type="tasks" minOccurs="0"/>
+            <xs:element name="env" type="containerEnvironment"/>
         </xs:sequence>
     </xs:complexType>
 
     <!-- DATA CONTAINER -->
-    <xs:complexType name="dataEnvironment">
-        <xs:complexContent>
-            <xs:extension base="containerEnvironment">
-                <xs:sequence>
-                    <xs:element name="db_port" type="port"/>
-                    <xs:element name="db_user" type="xs:string"/>
-                    <xs:element name="db_pass" type="xs:string"/>
-                    <xs:element name="db_name" type="xs:string"/>
-                    <xs:element name="db_driver" type="xs:string"/>
-                </xs:sequence> 
-            </xs:extension>
-        </xs:complexContent>
-    </xs:complexType>
-
     <xs:complexType name="dataContainer">
         <xs:complexContent>
             <xs:extension base="container">
                 <xs:sequence>
-                    <xs:element name="environment" type="dataEnvironment"/>
                 </xs:sequence>
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
 
     <!-- WEB CONTAINER -->
-    <xs:complexType name="webEnvironment">
-        <xs:complexContent>
-            <xs:extension base="containerEnvironment">
-                <xs:sequence>
-                    <xs:element name="host_port" type="port"/>
-                </xs:sequence>
-            </xs:extension>
-        </xs:complexContent>
-    </xs:complexType>
-
     <xs:complexType name="webContainer">
         <xs:complexContent>
             <xs:extension base="container">
                 <xs:sequence>
-                    <xs:element name="environment" type="webEnvironment"/>
                 </xs:sequence>
             </xs:extension>
         </xs:complexContent>
     </xs:complexType>
 
     <!-- BUSINESS CONTAINER -->
-    <xs:complexType name="businessEnvironment">
-        <xs:complexContent>
-            <xs:extension base="containerEnvironment">
-                <xs:sequence>
-                    <xs:element name="host_port" type="port"/>
-                    <xs:element name="app_name" type="xs:token" minOccurs="0"/>
-                </xs:sequence>
-            </xs:extension>
-        </xs:complexContent>
-    </xs:complexType>
-
     <xs:complexType name="businessContainer">
         <xs:complexContent>
             <xs:extension base="container">
                 <xs:sequence>
-                    <xs:element name="environment" type="businessEnvironment"/>
                 </xs:sequence>
             </xs:extension>
         </xs:complexContent>
@@ -150,7 +201,6 @@
         <xs:complexType>
             <xs:sequence>
                 <xs:element name="containers" type="containers"/>
-                <xs:element name="webAppName" type="xs:string"/>
             </xs:sequence>
         </xs:complexType>
     </xs:element>
