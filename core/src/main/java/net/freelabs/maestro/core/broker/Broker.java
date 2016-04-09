@@ -26,6 +26,7 @@ import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.ExposedPort;
 import com.github.dockerjava.api.model.Ports;
 import com.github.dockerjava.api.model.Volume;
+import com.github.dockerjava.api.model.VolumesFrom;
 import com.github.dockerjava.core.command.PullImageResultCallback;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -34,9 +35,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import javax.xml.bind.JAXBException;
+import net.freelabs.maestro.core.generated.BindMnt;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.ExposePort;
-import net.freelabs.maestro.core.generated.MntBindVol;
 import net.freelabs.maestro.core.generated.Protocol;
 import net.freelabs.maestro.core.generated.PublishPort;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
@@ -121,6 +122,10 @@ public abstract class Broker implements ContainerLifecycle {
      * Flag for errors from zookeeper operations.
      */
     private boolean zkError;
+    /**
+     * The path of the .jar file to execute the Broker in the container.
+     */
+    private static final String BROKER_JAR_IN_CONTAINER = "/home/maestro/bin/broker.jar";
 
     /**
      * Handles errors.
@@ -466,7 +471,7 @@ public abstract class Broker implements ContainerLifecycle {
         conBootArgs = String.format("%s %s %s %s %s %s", ZK_HOSTS, ZK_SESSION_TIMEOUT,
                 ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
         // create the boot command
-        conBootCmd = "java -jar /broker/broker.jar " + conBootArgs;
+        conBootCmd = "java -jar " + BROKER_JAR_IN_CONTAINER + " " + conBootArgs;
     }
 
     @Override
@@ -480,68 +485,77 @@ public abstract class Broker implements ContainerLifecycle {
         boolean privileged = con.getDocker().isPrivileged();
 
         String[] conEnvArr = conBootEnv.split(",");
-        
+
         // process volumes
-        List<String> volPathList = con.getDocker().getVolumes().getVol();
-        List<Volume> volList =  new ArrayList<>();
-        for (String volPath : volPathList){
+        List<String> volPathList = con.getDocker().getVolumes();
+        List<Volume> volList = new ArrayList<>();
+        for (String volPath : volPathList) {
             Volume vol = new Volume(volPath);
             volList.add(vol);
         }
-        
+
+        // process volumes from
+        List<String> defVolsFromList = con.getDocker().getVolumesFrom();
+        List<VolumesFrom> volsFromList = new ArrayList<>();
+        for (String container : defVolsFromList) {
+            VolumesFrom volFrom = new VolumesFrom(container);
+            volsFromList.add(volFrom);
+        }
+
         // process mount bind volumes
-        List<MntBindVol> mntBindVolList = con.getDocker().getMntBindVols().getMntBindVol();
+        List<BindMnt> defBindMntList = con.getDocker().getBindMnts().getBindMnt();
         List<Bind> bindList = new ArrayList<>();
-        for (MntBindVol mntBindVol : mntBindVolList){
+        for (BindMnt bindMnt : defBindMntList) {
             // create a new volume
-            Volume vol = new Volume(mntBindVol.getDstPath());
+            Volume vol = new Volume(bindMnt.getContainerPath());
             // create a new Bind
-            AccessMode am = mntBindVol.getAccessMode().equals(net.freelabs.maestro.core.generated.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
-            Bind bind = new Bind(mntBindVol.getSrcPath(), vol, am);
+            AccessMode am = bindMnt.getAccessMode().equals(net.freelabs.maestro.core.generated.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
+            Bind bind = new Bind(bindMnt.getHostPath(), vol, am);
             // add to list
             bindList.add(bind);
         }
-        
+
         // process exposed ports
         List<ExposePort> defExpPortList = con.getDocker().getExposePorts().getExposePort();
         List<ExposedPort> expPortList = new ArrayList<>();
-        for (ExposePort defPort : defExpPortList){
+        for (ExposePort defPort : defExpPortList) {
             // create new exposed port
             ExposedPort expPort;
-            if (defPort.getProtocol() == Protocol.TCP){
+            if (defPort.getProtocol() == Protocol.TCP) {
                 expPort = ExposedPort.tcp(defPort.getContainerPort());
-            }else{
+            } else {
                 expPort = ExposedPort.udp(defPort.getContainerPort());
             }
             // add to list
             expPortList.add(expPort);
         }
-        
+
         // process published ports
         List<PublishPort> defPubPortList = con.getDocker().getPublishPorts().getPublishPort();
         Ports portBindings = new Ports();
-        
-        for(PublishPort defPubPort : defPubPortList){
+
+        for (PublishPort defPubPort : defPubPortList) {
             // create exposed container port
             ExposedPort expPort;
-            if (defPubPort.getProtocol() == Protocol.TCP){
+            if (defPubPort.getProtocol() == Protocol.TCP) {
                 expPort = ExposedPort.tcp(defPubPort.getContainerPort());
-            }else{
+            } else {
                 expPort = ExposedPort.udp(defPubPort.getContainerPort());
             }
             // create port binding
             portBindings.bind(expPort, Ports.Binding(defPubPort.getIp(), defPubPort.getHostPort()));
         }
-        
+
         // process publishAllPorts
         boolean publishAllPorts = con.getDocker().isPublishAllPorts();
-        
+
         // set container configuration
         CreateContainerResponse container = null;
         while (container == null) {
             try {
                 container = docker.createContainerCmd(conImg)
                         .withVolumes(volList.toArray(new Volume[0]))
+                        .withVolumesFrom(volsFromList.toArray(new VolumesFrom[0]))
                         .withBinds(bindList.toArray(new Bind[0]))
                         .withExposedPorts(expPortList.toArray(new ExposedPort[0]))
                         .withPortBindings(portBindings)
@@ -652,8 +666,8 @@ public abstract class Broker implements ContainerLifecycle {
             // confirm deletion
             docker.inspectContainerCmd(con).exec();
         } catch (NotFoundException e) {
-            if (!success){
-                 LOG.error("FAILED to delete container for service: {}. Container does NOT exist.", srv);
+            if (!success) {
+                LOG.error("FAILED to delete container for service: {}. Container does NOT exist.", srv);
             }
         }
 

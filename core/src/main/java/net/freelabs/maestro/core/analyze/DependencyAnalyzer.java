@@ -108,7 +108,9 @@ public class DependencyAnalyzer {
             // get dependency list of dependency and recurse
             for (String dep : dependencies) {
                 // recurse
-                found = detectCircular(dep, depChain, conDepMap);
+                List<String> depChainCopy = new ArrayList<>();
+                depChainCopy.addAll(depChain);
+                found = detectCircular(dep, depChainCopy, conDepMap);
                 // if found circular dependency stop
                 if (found) {
                     break;

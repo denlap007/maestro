@@ -54,7 +54,7 @@
                                     <version>${project.version}</version>
                                     <type>${project.packaging}</type>
                                     <overWrite>true</overWrite>
-                                    <outputDirectory>/home/dio/THESIS/maestro/core/src/main/resources/</outputDirectory>
+                                    <outputDirectory>/home/dio/THESIS/maestro/core/src/main/resources/maestro/bin/</outputDirectory>
                                     <destFileName>broker.jar</destFileName>
                                 </artifactItem>
                             </artifactItems>
@@ -93,7 +93,7 @@
                             <goal>copy-resources</goal>
                         </goals>
                         <configuration>
-                            <outputDirectory>/home/dio/THESIS/maestro/core/src/main/resources/dependency-jars</outputDirectory>
+                            <outputDirectory>/home/dio/THESIS/maestro/core/src/main/resources/maestro/bin/dependency-jars</outputDirectory>
                             <resources>          
                                 <resource>
                                     <directory>${project.build.directory}/dependency-jars</directory>

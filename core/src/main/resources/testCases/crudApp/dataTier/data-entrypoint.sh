@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-cp /broker/testCases/crudApp/dataTier/create-db-insert-data.sql /docker-entrypoint-initdb.d
+cp /home/testCases/crudApp/dataTier/create-db-insert-data.sql /docker-entrypoint-initdb.d
 
 # if command starts with an option, prepend mysqld
 if [ "${1:0:1}" = '-' ]; then

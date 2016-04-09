@@ -104,10 +104,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     private String containerName;
     /**
-     * The work dir of the Broker, where created files will be stored.
-     */
-    private final String BROKER_WORK_DIR_PATH;
-    /**
      * The container associated with the broker. Holds the configuration.
      */
     private Container container;
@@ -144,6 +140,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * Blocks/Un-blocks execution for shutdown.
      */
     public static final ShutdownNotifier SHUTDOWN = new ShutdownNotifier();
+    /**
+     * Configuration for the program.
+     */
+    private final BrokerConf brokerConf;
 
     /**
      * Constructor
@@ -163,7 +163,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         this.shutdownNode = shutdownNode;
         this.conConfNode = conConfNode;
         containerName = resolveConPath(zkContainerPath);
-        BROKER_WORK_DIR_PATH = BrokerConf.BROKER_BASE_DIR_PATH + File.separator + containerName + "-broker";
+        brokerConf = new BrokerConf();
+        brokerConf.broker_dir = BrokerConf.SERVICES_DIR + File.separator + containerName + "-service";
         // create a new naming service node
         conZkSrvNode = new ZkNamingServiceNode(zkContainerPath);
         // initialize the naming service object
@@ -1170,16 +1171,16 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * <p>
      * Data to be written must be in json format.
      * <p>
-     * The file is created to the BROKER_WORK_DIR directory. The full path of
-     * the file is derived from the BROKER_WORK_DIR followed by the name of the
-     * container.
+ The file is created to the BROKER_DIR directory. The full path of
+ the file is derived from the BROKER_DIR followed by the name of the
+ container.
      *
      * @param data the data to be written.
      * @param fileName the name of the file to hold the data.
      */
     private void createConfFile(Container con, String fileName) {
         // create the final file path
-        String path = BROKER_WORK_DIR_PATH + File.separator + fileName;
+        String path = brokerConf.broker_dir + File.separator + fileName;
         // create new file
         File newFile = new File(path);
         // save data to file

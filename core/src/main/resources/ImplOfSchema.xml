@@ -6,24 +6,24 @@
             <requires>business</requires>
             <docker>
             	<image>dio/nginx_jre:v1</image>
-            	<mntBindVols>
-	            	<mntBindVol accessMode="rw">
-	            		<srcPath>/home/dio/THESIS/maestro/core/src/main/resources</srcPath>
-	            		<dstPath>/broker</dstPath>
-	            	</mntBindVol>
-            	</mntBindVols>
+            	<bindMnts>
+	            	<bindMnt accessMode="rw">
+	            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
+	            		<containerPath>/home</containerPath>
+	            	</bindMnt>
+            	</bindMnts>
             	<privileged>true</privileged>
             </docker>
             <start>
-                <preMain abortOnFail="true">cp /broker/testCases/crudApp/webTier/nginx.conf /etc/nginx/nginx.conf</preMain>
+                <preMain abortOnFail="true">cp /home/testCases/crudApp/webTier/nginx.conf /etc/nginx/nginx.conf</preMain>
                 <main>nginx -g "daemon off;"</main>
             </start>
             <stop>
                 <main>nginx -s quit</main>
-                <postMain>/broker/testCases/crudApp/webTier/restore_template.sh</postMain>
+                <postMain>/home/testCases/crudApp/webTier/restore_template.sh</postMain>
             </stop>
             <tasks>
-                <substEnv>/broker/testCases/crudApp/webTier/nginx.conf</substEnv>
+                <substEnv>/home/testCases/crudApp/webTier/nginx.conf</substEnv>
             </tasks>
             <env>
                 <host_port>80</host_port>
@@ -34,12 +34,12 @@
             <requires>data</requires>
             <docker>
             	<image>glassfish</image>
-            	<mntBindVols>
-	            	<mntBindVol>
-	            		<srcPath>/home/dio/THESIS/maestro/core/src/main/resources</srcPath>
-	            		<dstPath>/broker</dstPath>
-	            	</mntBindVol>
-            	</mntBindVols>
+            	<bindMnts>
+	            	<bindMnt>
+	            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
+	            		<containerPath>/home</containerPath>
+	            	</bindMnt>
+            	</bindMnts>
             	<publishPorts>
             		<publishPort protocol="tcp">
             			<ip>127.0.0.1</ip>
@@ -50,18 +50,18 @@
             	<privileged>true</privileged>
             </docker>
             <start>
-                <main>/broker/testCases/crudApp/BusinessTier/business-entrypoint.sh</main>
-                <postMain abortOnFail="true">asadmin add-resources /broker/testCases/crudApp/BusinessTier/glassfish-resources.xml</postMain>
-                <postMain abortOnFail="true">asadmin deploy /broker/testCases/crudApp/BusinessTier/ConsultingAgency.war</postMain>
+                <main>/home/testCases/crudApp/BusinessTier/business-entrypoint.sh</main>
+                <postMain abortOnFail="true">asadmin add-resources /home/testCases/crudApp/BusinessTier/glassfish-resources.xml</postMain>
+                <postMain abortOnFail="true">asadmin deploy /home/testCases/crudApp/BusinessTier/ConsultingAgency.war</postMain>
             </start>
             <stop>
                 <preMain>asadmin undeploy ConsultingAgency</preMain>
-                <preMain>/broker/testCases/crudApp/BusinessTier/delete_resources.sh</preMain>
+                <preMain>/home/testCases/crudApp/BusinessTier/delete_resources.sh</preMain>
                 <main>asadmin stop-domain domain1</main>
-                <postMain>/broker/testCases/crudApp/BusinessTier/restore_template.sh</postMain>
+                <postMain>/home/testCases/crudApp/BusinessTier/restore_template.sh</postMain>
             </stop>
             <tasks>
-                <substEnv>/broker/testCases/crudApp/BusinessTier/glassfish-resources.xml</substEnv>
+                <substEnv>/home/testCases/crudApp/BusinessTier/glassfish-resources.xml</substEnv>
             </tasks>
             <env>
                 <host_port>8080</host_port>
@@ -72,16 +72,16 @@
             <name>data</name>
             <docker>
             	<image>dio/mysql_jre:v2</image>
-            	<mntBindVols>
-	            	<mntBindVol>
-	            		<srcPath>/home/dio/THESIS/maestro/core/src/main/resources</srcPath>
-	            		<dstPath>/broker</dstPath>
-	            	</mntBindVol>
-            	</mntBindVols>
+            	<bindMnts>
+	            	<bindMnt>
+	            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
+	            		<containerPath>/home</containerPath>
+	            	</bindMnt>
+            	</bindMnts>
             	<privileged>true</privileged>
             </docker>
             <start>
-                <main>/broker/testCases/crudApp/dataTier/data-entrypoint.sh mysqld</main>
+                <main>/home/testCases/crudApp/dataTier/data-entrypoint.sh mysqld</main>
             </start>
             <stop>
                 <main>service mysql stop</main>

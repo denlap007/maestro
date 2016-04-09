@@ -98,7 +98,7 @@ public final class StopCmd extends Command {
         master.shutdownMaster();
 
         if (stopped) {
-            LOG.info("---> Application with id \'{}STOPPED.", appID);
+            LOG.info("---> Application with id \'{} STOPPED.", appID);
         } else {
             if (errMsg.isEmpty()) {
                 LOG.error("FAILED to stop Application with id \'{}\'.", appID);

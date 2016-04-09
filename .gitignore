@@ -13,6 +13,7 @@ docker-cleanup-volumes.sh
 /broker/target/
 /broker/nbproject/
 
+/core/src/main/resources/maestro/
 /core/src/main/resources/data-broker/
 /core/src/main/resources/web-broker/
 /core/src/main/resources/business-broker

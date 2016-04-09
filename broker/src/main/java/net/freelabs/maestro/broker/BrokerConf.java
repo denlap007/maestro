@@ -16,16 +16,14 @@
  */
 package net.freelabs.maestro.broker;
 
-import java.io.File;
-
 /**
  *
  * Class that provides configuration for {@link Broker Broker} class.
  */
-public class BrokerConf {
-    public static final String BROKER_WORK_DIR_NAME = "broker";
-    public static final String CONTAINER_CONF_FILE_NAME = "conf.json";
-    public static final String BROKER_BASE_DIR_PATH = File.separator + BROKER_WORK_DIR_NAME;
-    public static final String CONTAINER_CONF_FILE_PATH = BROKER_BASE_DIR_PATH + File.separator + CONTAINER_CONF_FILE_NAME;
+public final class BrokerConf {
+    public static final String PROGRAM_DIR = "/home/maestro";
+    public static final String RESTORE_DIR = PROGRAM_DIR + "/restore";
+    public static final String SERVICES_DIR = PROGRAM_DIR + "/servicesConf";
+    public String broker_dir;
     
 }
