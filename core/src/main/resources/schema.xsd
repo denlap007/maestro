@@ -79,12 +79,6 @@
         <xs:attribute name="accessMode" type="accessMode" default="rw"/>
     </xs:complexType>
 
-    <xs:complexType name="bindMnts">
-        <xs:sequence>
-            <xs:element name="bindMnt" type="bindMnt" maxOccurs="unbounded"/>
-        </xs:sequence>
-    </xs:complexType>
-
       <xs:complexType name="publishPort">
         <xs:sequence>
             <xs:element name="ip" type="xs:string" minOccurs="0"/>
@@ -94,22 +88,17 @@
         <xs:attribute name="protocol" type="protocol" default="tcp"/>
     </xs:complexType>
 
-    <xs:complexType name="publishPorts">
-        <xs:sequence>
-            <xs:element name="publishPort" type="publishPort" maxOccurs="unbounded"/>
-        </xs:sequence>
+    <xs:complexType name="exposePort">
+        <xs:simpleContent>
+            <xs:extension base="port">
+                <xs:attribute name="protocol" type="protocol" default="tcp"/>
+            </xs:extension>
+        </xs:simpleContent>
     </xs:complexType>
 
-   <xs:complexType name="exposePort">
+     <xs:complexType name="exposePorts">
         <xs:sequence>
-            <xs:element name="containerPort" type="port"/>
-        </xs:sequence>
-        <xs:attribute name="protocol" type="protocol" default="tcp"/>
-    </xs:complexType>
-
-   <xs:complexType name="exposePorts">
-        <xs:sequence>
-            <xs:element name="exposePort" type="exposePort" maxOccurs="unbounded"/>
+            <xs:element name="port" type="exposePort" minOccurs="0" maxOccurs="unbounded"/>
         </xs:sequence>
     </xs:complexType>
 
@@ -118,9 +107,9 @@
             <xs:element name="image" type="xs:string"/>
             <xs:element name="volumes" type="stringList" minOccurs="0"/>
             <xs:element name="volumesFrom" type="stringList" minOccurs="0"/>
-            <xs:element name="bindMnts" type="bindMnts" minOccurs="0"/>
+            <xs:element name="bindMnt" type="bindMnt" minOccurs="0" maxOccurs="unbounded"/>
             <xs:element name="exposePorts" type="exposePorts" minOccurs="0"/>
-            <xs:element name="publishPorts" type="publishPorts" minOccurs="0"/>
+            <xs:element name="publishPort" type="publishPort" minOccurs="0" maxOccurs="unbounded"/>
             <xs:element name="publishAllPorts" type="xs:boolean" minOccurs="0"/>
             <xs:element name="privileged" type="xs:boolean" minOccurs="0"/>
         </xs:sequence>
@@ -128,10 +117,23 @@
 
     <xs:complexType name="tasks">
         <xs:sequence>
-            <xs:element name="substEnv" type="xs:anyURI" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:element name="substEnv" type="substEnv"/>
         </xs:sequence>
     </xs:complexType>
 
+    <xs:complexType name="substEnv">
+        <xs:sequence>
+            <xs:element name="filePath" type="substEnvElem" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="substEnvElem">
+        <xs:simpleContent>
+            <xs:extension base="xs:anyURI">
+                <xs:attribute name="restoreOnExit" type="xs:boolean" default="true"/>
+            </xs:extension>
+        </xs:simpleContent>
+    </xs:complexType>
 
     <!-- CONTAINER -->
      <xs:complexType name="containerEnvironment">

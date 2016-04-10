@@ -23,23 +23,30 @@ import net.freelabs.maestro.core.generated.Tasks;
 /**
  *
  * <p>
- * Template class whose instances may create tasks.
- * <p>
+ Template class whose instances may create preStartTasks.
+ <p>
  * For every task a create method must be defined. The implementation of the
  * create method should be done in sub-class instances of this class.
  * <p>
  * The
  * {@link #createTasks(net.freelabs.maestro.core.generated.Tasks) createTasks}
- * method executes all methods that create tasks. Every added create method for
- * a new task must be executed inside this method and the new Task instance must
- * be added to the Task list, that holds all the Task objects.
+ method executes all methods that create preStartTasks. Every added create method for
+ a new task must be executed inside this method and the new Task instance must
+ be added to the Task list, that holds all the Task objects.
  */
 public abstract class TaskCreator {
 
     /**
-     * List of tasks (objects of type {@link Task Task})to be executed.
+     * List of preStartTasks (objects of type {@link Task Task})to be executed before
+     * program start section.
      */
-    protected List<Task> tasks;
+    protected List<Task> preStartTasks;
+
+    /**
+     * List of postStopTasks (objects of type {@link Task Task})to be executed after 
+     * program stop section.
+     */
+    protected List<Task> postStopTasks;
 
     /**
      * Creates all the tasks.
@@ -48,16 +55,19 @@ public abstract class TaskCreator {
      * application description.
      */
     protected final void createTasks(Tasks taskRes) {
-        // create list for tasks
-        this.tasks = new ArrayList<>();
+        // create list for preStartTasks
+        preStartTasks = new ArrayList<>();
+        postStopTasks = new ArrayList<>();
 
         // ALL CREATE METHODS MUST BE CALLED HERE
         // create substEnv task
         Task substEnv = createSubstEnvTask();
+        Task restoreFiles = createRestoreTask();
 
         // ALL CREATED TASKS MUST BE ADDED TO THE LIST OF TASKS
-        // add task to list
-        this.tasks.add(substEnv);
+        preStartTasks.add(substEnv);
+        
+        postStopTasks.add(restoreFiles);
     }
 
     /**
@@ -67,5 +77,10 @@ public abstract class TaskCreator {
      * @return a task for execution.
      */
     protected abstract Task createSubstEnvTask();
+    /**
+     * Restores the original files where environment substitution has been applied.
+     * @return a task for execution.
+     */
+    protected abstract Task createRestoreTask();
 
 }

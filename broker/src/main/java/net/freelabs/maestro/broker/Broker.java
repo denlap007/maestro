@@ -164,7 +164,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         this.conConfNode = conConfNode;
         containerName = resolveConPath(zkContainerPath);
         brokerConf = new BrokerConf();
-        brokerConf.broker_dir = BrokerConf.SERVICES_DIR + File.separator + containerName + "-service";
+        brokerConf.brokerDir = BrokerConf.SERVICES_DIR + File.separator + containerName + "-service";
         // create a new naming service node
         conZkSrvNode = new ZkNamingServiceNode(zkContainerPath);
         // initialize the naming service object
@@ -753,14 +753,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     }
                 }
             } else // check if srvs are initialized
-            {
-                if (srvMngr.areSrvInitialized()) {
+             if (srvMngr.areSrvInitialized()) {
                     // start processes
                     executorService.execute(() -> {
                         start();
                     });
                 }
-            }
         } else {
             conInitialized = true;
             LOG.info("Container INITIALIZED!");
@@ -785,9 +783,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // initialization of process groups
         initProcGroups();
         // initialize tasks
-        taskHandler = initTaskHandler(container.getTasks(), envHandler.getProcsEnv());
+        taskHandler = initTaskHandler();
         // execute tasks
-        taskHandler.execTasks();
+        LOG.info("Executing pre-start tasks.");
+        taskHandler.execPreStartTasks();
         // execute START processes
         procMngr.exec_start();
     }
@@ -865,6 +864,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         LOG.info("Executing stop group processes.");
         // execute stop processes
         procMngr.exec_stop();
+        // execute tasks
+        LOG.info("Executing post-stop tasks.");
+        taskHandler.execPostStopTasks();
     }
 
     /**
@@ -907,18 +909,24 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * <p>
      * A task is a function of some type for the application.
      *
-     * @param tasks the Tasks object defined in schema.
-     * @param env the environment of the processes.
      * @return an object that will handle task execution.
      */
-    private TaskHandler initTaskHandler(Tasks tasks, Map<String, String> env) {
+    private TaskHandler initTaskHandler() {
+        Tasks tasks = container.getTasks();
+        Map<String, String> env;
         TaskHandler th;
         // if there are tasks defined
         if (tasks != null) {
             // create Task Mapper
+            if (envHandler != null) {
+                env = envHandler.getProcsEnv();
+            }else{
+                LOG.debug("Environment Handler NOT initialized");
+                env = new HashMap<>();
+            }
             TaskMapper tm = new TaskMapper(tasks, env);
             // init Task Handler
-            th = new TaskHandler(tm.getTasks());
+            th = new TaskHandler(tm.getPreStartTasks(), tm.getPostStopTasks());
         } else {
             th = new TaskHandler();
         }
@@ -1171,16 +1179,16 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * <p>
      * Data to be written must be in json format.
      * <p>
- The file is created to the BROKER_DIR directory. The full path of
- the file is derived from the BROKER_DIR followed by the name of the
- container.
+     * The file is created to the BROKER_DIR directory. The full path of the
+     * file is derived from the BROKER_DIR followed by the name of the
+     * container.
      *
      * @param data the data to be written.
      * @param fileName the name of the file to hold the data.
      */
     private void createConfFile(Container con, String fileName) {
         // create the final file path
-        String path = brokerConf.broker_dir + File.separator + fileName;
+        String path = brokerConf.brokerDir + File.separator + fileName;
         // create new file
         File newFile = new File(path);
         // save data to file
@@ -1281,11 +1289,17 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // excute stop commands if initialized
         if (procMngr != null) {
             if (procMngr.isStopHandlerInit()) {
-                // run stop group procs
-                stop();
+                if (taskHandler != null) {
+                    // run stop group procs
+                    stop();
+                } else {
+                    taskHandler = initTaskHandler();
+                    stop();
+                }
             } else {
                 initProcsEnv();
                 initStopGroup();
+                taskHandler = initTaskHandler();
                 stop();
             }
         }

@@ -503,7 +503,7 @@ public abstract class Broker implements ContainerLifecycle {
         }
 
         // process mount bind volumes
-        List<BindMnt> defBindMntList = con.getDocker().getBindMnts().getBindMnt();
+        List<BindMnt> defBindMntList = con.getDocker().getBindMnt();
         List<Bind> bindList = new ArrayList<>();
         for (BindMnt bindMnt : defBindMntList) {
             // create a new volume
@@ -516,22 +516,22 @@ public abstract class Broker implements ContainerLifecycle {
         }
 
         // process exposed ports
-        List<ExposePort> defExpPortList = con.getDocker().getExposePorts().getExposePort();
+        List<ExposePort> defExpPortList = con.getDocker().getExposePorts().getPort();
         List<ExposedPort> expPortList = new ArrayList<>();
         for (ExposePort defPort : defExpPortList) {
             // create new exposed port
             ExposedPort expPort;
             if (defPort.getProtocol() == Protocol.TCP) {
-                expPort = ExposedPort.tcp(defPort.getContainerPort());
+                expPort = ExposedPort.tcp(defPort.getValue());
             } else {
-                expPort = ExposedPort.udp(defPort.getContainerPort());
+                expPort = ExposedPort.udp(defPort.getValue());
             }
             // add to list
             expPortList.add(expPort);
         }
 
         // process published ports
-        List<PublishPort> defPubPortList = con.getDocker().getPublishPorts().getPublishPort();
+        List<PublishPort> defPubPortList = con.getDocker().getPublishPort();
         Ports portBindings = new Ports();
 
         for (PublishPort defPubPort : defPubPortList) {

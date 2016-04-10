@@ -6,12 +6,10 @@
             <requires>business</requires>
             <docker>
             	<image>dio/nginx_jre:v1</image>
-            	<bindMnts>
-	            	<bindMnt accessMode="rw">
-	            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
-	            		<containerPath>/home</containerPath>
-	            	</bindMnt>
-            	</bindMnts>
+            	<bindMnt accessMode="rw">
+            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
+            		<containerPath>/home</containerPath>
+            	</bindMnt>
             	<privileged>true</privileged>
             </docker>
             <start>
@@ -20,10 +18,11 @@
             </start>
             <stop>
                 <main>nginx -s quit</main>
-                <postMain>/home/testCases/crudApp/webTier/restore_template.sh</postMain>
             </stop>
             <tasks>
-                <substEnv>/home/testCases/crudApp/webTier/nginx.conf</substEnv>
+                <substEnv>
+                	<filePath restoreOnExit="true">/home/testCases/crudApp/webTier/nginx.conf</filePath>
+                </substEnv>
             </tasks>
             <env>
                 <host_port>80</host_port>
@@ -34,19 +33,15 @@
             <requires>data</requires>
             <docker>
             	<image>glassfish</image>
-            	<bindMnts>
-	            	<bindMnt>
-	            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
-	            		<containerPath>/home</containerPath>
-	            	</bindMnt>
-            	</bindMnts>
-            	<publishPorts>
-            		<publishPort protocol="tcp">
-            			<ip>127.0.0.1</ip>
-            			<hostPort>8080</hostPort>
-	            		<containerPort>8080</containerPort>
-	            	</publishPort>
-            	</publishPorts>
+            	<bindMnt>
+            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
+            		<containerPath>/home</containerPath>
+            	</bindMnt>
+        		<publishPort protocol="tcp">
+        			<ip>127.0.0.1</ip>
+        			<hostPort>8080</hostPort>
+            		<containerPort>8080</containerPort>
+            	</publishPort>
             	<privileged>true</privileged>
             </docker>
             <start>
@@ -58,10 +53,11 @@
                 <preMain>asadmin undeploy ConsultingAgency</preMain>
                 <preMain>/home/testCases/crudApp/BusinessTier/delete_resources.sh</preMain>
                 <main>asadmin stop-domain domain1</main>
-                <postMain>/home/testCases/crudApp/BusinessTier/restore_template.sh</postMain>
             </stop>
             <tasks>
-                <substEnv>/home/testCases/crudApp/BusinessTier/glassfish-resources.xml</substEnv>
+                <substEnv>
+                	<filePath restoreOnExit="true">/home/testCases/crudApp/BusinessTier/glassfish-resources.xml</filePath>
+                </substEnv>
             </tasks>
             <env>
                 <host_port>8080</host_port>
@@ -72,12 +68,10 @@
             <name>data</name>
             <docker>
             	<image>dio/mysql_jre:v2</image>
-            	<bindMnts>
-	            	<bindMnt>
-	            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
-	            		<containerPath>/home</containerPath>
-	            	</bindMnt>
-            	</bindMnts>
+            	<bindMnt>
+            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
+            		<containerPath>/home</containerPath>
+            	</bindMnt>
             	<privileged>true</privileged>
             </docker>
             <start>

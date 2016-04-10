@@ -11,20 +11,21 @@ package net.freelabs.maestro.core.generated;
 import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlAttribute;
+import javax.xml.bind.annotation.XmlSchemaType;
 import javax.xml.bind.annotation.XmlType;
 import javax.xml.bind.annotation.XmlValue;
 
 
 /**
- * <p>Java class for exposePort complex type.
+ * <p>Java class for substEnvElem complex type.
  * 
  * <p>The following schema fragment specifies the expected content contained within this class.
  * 
  * <pre>
- * &lt;complexType name="exposePort">
+ * &lt;complexType name="substEnvElem">
  *   &lt;simpleContent>
- *     &lt;extension base="&lt;>port">
- *       &lt;attribute name="protocol" type="{}protocol" default="tcp" />
+ *     &lt;extension base="&lt;http://www.w3.org/2001/XMLSchema>anyURI">
+ *       &lt;attribute name="restoreOnExit" type="{http://www.w3.org/2001/XMLSchema}boolean" default="true" />
  *     &lt;/extension>
  *   &lt;/simpleContent>
  * &lt;/complexType>
@@ -33,58 +34,67 @@ import javax.xml.bind.annotation.XmlValue;
  * 
  */
 @XmlAccessorType(XmlAccessType.FIELD)
-@XmlType(name = "exposePort", propOrder = {
+@XmlType(name = "substEnvElem", propOrder = {
     "value"
 })
-public class ExposePort {
+public class SubstEnvElem {
 
     @XmlValue
-    protected int value;
-    @XmlAttribute(name = "protocol")
-    protected Protocol protocol;
+    @XmlSchemaType(name = "anyURI")
+    protected String value;
+    @XmlAttribute(name = "restoreOnExit")
+    protected Boolean restoreOnExit;
 
     /**
      * Gets the value of the value property.
      * 
+     * @return
+     *     possible object is
+     *     {@link String }
+     *     
      */
-    public int getValue() {
+    public String getValue() {
         return value;
     }
 
     /**
      * Sets the value of the value property.
      * 
+     * @param value
+     *     allowed object is
+     *     {@link String }
+     *     
      */
-    public void setValue(int value) {
+    public void setValue(String value) {
         this.value = value;
     }
 
     /**
-     * Gets the value of the protocol property.
+     * Gets the value of the restoreOnExit property.
      * 
      * @return
      *     possible object is
-     *     {@link Protocol }
+     *     {@link Boolean }
      *     
      */
-    public Protocol getProtocol() {
-        if (protocol == null) {
-            return Protocol.TCP;
+    public boolean isRestoreOnExit() {
+        if (restoreOnExit == null) {
+            return true;
         } else {
-            return protocol;
+            return restoreOnExit;
         }
     }
 
     /**
-     * Sets the value of the protocol property.
+     * Sets the value of the restoreOnExit property.
      * 
      * @param value
      *     allowed object is
-     *     {@link Protocol }
+     *     {@link Boolean }
      *     
      */
-    public void setProtocol(Protocol value) {
-        this.protocol = value;
+    public void setRestoreOnExit(Boolean value) {
+        this.restoreOnExit = value;
     }
 
 }

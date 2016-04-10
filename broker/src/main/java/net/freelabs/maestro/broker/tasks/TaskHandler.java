@@ -24,37 +24,69 @@ import java.util.List;
  * Class that defines an executor for Tasks.
  */
 public final class TaskHandler {
+
     /**
-     * List of tasks to execute.
+     * List of preStartTasks to execute.
      */
-    private final List<Task> tasks;
+    private final List<Task> preStartTasks;
+    /**
+     * List of postStopTasks to execute.
+     */
+    private final List<Task> postStopTasks;
+
     /**
      * Constructor.
-     * @param tasks tasks to execute.
+     *
+     * @param preStartTasks pre start Tasks to execute.
+     * @param postStopTasks post stop Tasks to execute.
      */
-    public TaskHandler(List<Task> tasks){
-        this.tasks = tasks;
+    public TaskHandler(List<Task> preStartTasks, List<Task> postStopTasks) {
+        this.preStartTasks = preStartTasks;
+        this.postStopTasks = postStopTasks;
     }
+
     /**
      * Constructor.
      */
-    public TaskHandler(){
-        this.tasks = new ArrayList<>();
+    public TaskHandler() {
+        preStartTasks = new ArrayList<>();
+        postStopTasks = new ArrayList<>();
     }
+
     /**
-     * Adds a task to the task list.
+     * Adds a task to the preStart task list.
+     *
      * @param task a task to execute.
      */
-    public void addTask(Task task){
-            tasks.add(task);
+    public void addPreStartTask(Task task) {
+        preStartTasks.add(task);
     }
+
     /**
-     * Executes defines tasks.
+     * Adds a task to the postStop task list.
+     *
+     * @param task a task to execute.
      */
-    public void execTasks(){
-        tasks.stream().forEach((task) -> {
+    public void addPostStopTask(Task task) {
+        postStopTasks.add(task);
+    }
+
+    /**
+     * Executes defined preStartTasks.
+     */
+    public void execPreStartTasks() {
+        preStartTasks.stream().forEach((task) -> {
             task.run();
         });
     }
-    
+
+    /**
+     * Executes defined postStopTasks.
+     */
+    public void execPostStopTasks() {
+        postStopTasks.stream().forEach((task) -> {
+            task.run();
+        });
+    }
+
 }

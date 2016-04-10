@@ -46,21 +46,33 @@ public final class TaskMapper extends TaskCreator {
     public TaskMapper(Tasks taskRes, Map<String, String> env) {
         this.env = env;
         this.taskResources = taskRes;
-        // create tasks for execution
+        // create preStartTasks for execution
         createTasks(taskRes);
     }
 
     @Override
     protected Task createSubstEnvTask() {
-        Task substEnv = new SubstEnv(taskResources.getSubstEnv(), env);
-        return substEnv;
+        return  (new SubstEnvTask(taskResources.getSubstEnv(), env));
     }
 
     /**
      *
-     * @return the list with the tasks to be executed.
+     * @return the list with the preStartTasks to be executed.
      */
-    public List<Task> getTasks() {
-        return tasks;
+    public List<Task> getPreStartTasks() {
+        return preStartTasks;
+    }
+    
+        /**
+     *
+     * @return the list with the preStartTasks to be executed.
+     */
+    public List<Task> getPostStopTasks() {
+        return postStopTasks;
+    }
+
+    @Override
+    protected Task createRestoreTask() {
+        return  (new RestoreFilesTask(taskResources.getSubstEnv()));
     }
 }
