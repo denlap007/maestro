@@ -34,7 +34,7 @@ import net.freelabs.maestro.core.generated.WebApp;
  * Class that provides methods to access configuration information of a web
  * application regarding its interaction with zookeeper service.
  * <p>
- * The zookeeper namespace of the app is defined along with data for the nodes.
+ The zookeeper namespace of the app is defined along with upData for the nodes.
  */
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @XmlAccessorType(XmlAccessType.FIELD)
@@ -44,6 +44,10 @@ public final class ZkConf {
      * The root zkNode for the application.
      */
     private ZkNode root;
+    /**
+     * The zkNode where upData will be stored for upload/download if necessary.
+     */
+    private ZkNode upData;
     /**
      * The naming service zkNode for the application.
      */
@@ -76,16 +80,21 @@ public final class ZkConf {
      */
     private Map<String, ZkNode> containers;
     /**
+     * Map of zkNodes paths holding upload/download upData about containers. The map 
+ key is the name of the container and the value is the zpath to the upData node.
+     */
+    private Map<String, String> conUpDataNodes;
+    /**
      * The namespace of the application to the zookeeper service.
      */
     @JsonIgnore
-    @XmlTransient 
+    @XmlTransient
     private List<ZkNode> zkAppNamespace;
     /**
      * The client configuration that connects to the zookeeper service.
      */
     @JsonIgnore
-    @XmlTransient 
+    @XmlTransient
     private ZkSrvConf zkSrvConf;
     /**
      * Map of the defined container names to the deployed container names.
@@ -97,12 +106,12 @@ public final class ZkConf {
     private ProgramConf pConf;
 
     /**
-     * An id used as data for nodes without data. Also, this is the suffix to
+     * An id used as upData for nodes without upData. Also, this is the suffix to
      * the zk root node for the application.
      */
     private String suffix;
     /**
-     * The prefix of the root zookeeper node name for the application namespace 
+     * The prefix of the root zookeeper node name for the application namespace
      * hierarchy.
      */
     private static final String ROOT_PREFIX = "maestro-";
@@ -110,7 +119,8 @@ public final class ZkConf {
     /**
      * Constructor.
      *
-     * @param root the name of the root node for the application namespace in zookeeper.
+     * @param root the name of the root node for the application namespace in
+     * zookeeper.
      * @param hosts the list of zookeeper hosts. Must follow the format: 
      * <pre> HOST1_IP:PORT,HOST2_IP:PORT, ...</pre>
      *
@@ -120,8 +130,9 @@ public final class ZkConf {
     public ZkConf(String root,
             String hosts,
             int timeout) {
-        // create namespace list
+        // create namespace list and uploadNodes map
         zkAppNamespace = new ArrayList<>();
+        conUpDataNodes = new HashMap<>();
         // create root zkNode
         String name;
         if (root.isEmpty()) {
@@ -144,8 +155,13 @@ public final class ZkConf {
         String rootPath = "/" + name;
         this.root = new ZkNode(rootPath, suffix.getBytes(), name, "");
         zkAppNamespace.add(this.root);
+        // create upData zknode
+        String path = rootPath + "/upData";
+        name = "upData";
+        upData = new ZkNode(path, suffix.getBytes(), name, "");
+        zkAppNamespace.add(upData);
         // create services zkNode
-        String path = rootPath + "/services";
+        path = rootPath + "/services";
         name = "services";
         services = new ZkNode(path, suffix.getBytes(), name, "");
         zkAppNamespace.add(services);
@@ -172,7 +188,7 @@ public final class ZkConf {
     }
 
     /**
-     * Default Constructor FOR JACKSON /JAXB COMPATIBILITY. 
+     * Default Constructor FOR JACKSON /JAXB COMPATIBILITY.
      */
     public ZkConf() {
 
@@ -186,7 +202,7 @@ public final class ZkConf {
     private String generateId() {
         long min = 0;
         long max = 9999999999L;
-        long numId = min + (long)(new Random().nextDouble()*(max - min));
+        long numId = min + (long) (new Random().nextDouble() * (max - min));
         String id = String.format("%010d", numId);
         return id;
     }
@@ -216,7 +232,7 @@ public final class ZkConf {
      *
      * @param name the name of a container.
      * @param type the type of a container.
-     * @param data the data of the zkNode.
+     * @param data the upData of the zkNode.
      */
     public void initZkContainer(String name, String type, byte[] data) {
         // create node's path
@@ -229,6 +245,12 @@ public final class ZkConf {
         ZkNode zkNode = new ZkNode(nodePath, data, nodeName, conConfPath);
         // add to list
         containers.put(name, zkNode);
+        // init upData node for container
+        nodePath = this.upData.getPath() + "/" + name;
+        conUpDataNodes.put(name, nodePath);
+        // add to namespace to be created 
+        ZkNode zkDataNode = new ZkNode(nodePath, suffix.getBytes(), name, "");
+        zkAppNamespace.add(zkDataNode);
     }
 
     /**
@@ -243,7 +265,7 @@ public final class ZkConf {
             this.deplCons.put(defName, deplName);
         });
     }
-    
+
     // Getters 
     public String getSuffix() {
         return suffix;
@@ -303,5 +325,13 @@ public final class ZkConf {
 
     public void setWebApp(WebApp webApp) {
         this.webApp = webApp;
+    }
+
+    public ZkNode getUpData() {
+        return upData;
+    }
+
+    public Map<String, String> getConUpDataNodes() {
+        return conUpDataNodes;
     }
 }

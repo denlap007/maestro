@@ -76,7 +76,7 @@ public final class StartCmd extends Command {
             // initialize zk and start master process
             initZk(zkConf);
             // create a docker client customized for the app
-            DockerInitializer appDocker = new DockerInitializer(pConf.getDockerURI());
+            DockerInitializer appDocker = new DockerInitializer(pConf.getDockerHost());
             DockerClient docker = appDocker.getDockerClient();
             // launch the CoreBrokers to boot containers, wait to finish
             runBrokerInit(handler, zkConf, docker);

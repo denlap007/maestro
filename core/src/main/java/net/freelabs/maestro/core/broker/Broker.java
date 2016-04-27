@@ -28,6 +28,7 @@ import com.github.dockerjava.api.model.Ports;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.api.model.VolumesFrom;
 import com.github.dockerjava.core.command.PullImageResultCallback;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -35,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import javax.xml.bind.JAXBException;
+import net.freelabs.maestro.core.data.ZkDataStore;
 import net.freelabs.maestro.core.generated.BindMnt;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.ExposePort;
@@ -48,6 +50,7 @@ import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
+import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -123,6 +126,10 @@ public abstract class Broker implements ContainerLifecycle {
      */
     private boolean zkError;
     /**
+     * Data upload with download paths in case of data transfer.
+     */
+    private final Map<String, String> upDownPaths;
+    /**
      * The path of the .jar file to execute the Broker in the container.
      */
     private static final String BROKER_JAR_IN_CONTAINER = "/home/maestro/bin/broker.jar";
@@ -146,6 +153,7 @@ public abstract class Broker implements ContainerLifecycle {
         this.docker = dockerClient;
         this.zkMaster = zkMaster;
         shutdownSignal = new CountDownLatch(1);
+        upDownPaths = new HashMap<>();
         if (con != null) {
             zNode = zkConf.getContainers().get(con.getName());
         } else {
@@ -167,15 +175,41 @@ public abstract class Broker implements ContainerLifecycle {
         createContainerEnv();
         // create container instance
         CreateContainerResponse container = createContainer();
-        // start the created container instance
-        cid = startContainer(container, con.getName());
-        // check for errors
-        if (cid != null) {
-            // get container IP
-            success = onPostStart(cid);
-        } else {
-            LOG.error("FAILED to start container. Shutting down Broker.");
-            shutdown();
+        // upload data to zookeeper if necessary
+        success = uploadData(zkMaster.getZk(), con.getName());
+
+        if (success) {
+            // start the created container instance
+            cid = startContainer(container, con.getName());
+            // check for errors
+            if (cid != null) {
+                // get container IP
+                success = onPostStart(cid);
+            } else {
+                LOG.error("FAILED to start container. Shutting down Broker.");
+                shutdown();
+            }
+        }
+
+        return success;
+    }
+
+    private boolean uploadData(ZooKeeper zk, String srvName) {
+        boolean success = true;
+        // create zkDataStore to handle upload process
+        ZkDataStore zds = new ZkDataStore(zk);
+        // iterate through declared upload files 
+        for (Map.Entry<String, String> entry : upDownPaths.entrySet()) {
+            String upFile = entry.getKey();
+            String downDir = entry.getValue();
+            File file = new File(upFile);
+            // create path for upload
+            String zkUpPath = zkConf.getConUpDataNodes().get(srvName) + "/" + file.getName();
+            // upload data
+            success = zds.uploadData(upFile, zkUpPath, downDir);
+            if (!success) {
+                break;
+            }
         }
         return success;
     }
@@ -376,6 +410,7 @@ public abstract class Broker implements ContainerLifecycle {
                 case NODEEXISTS:
                     LOG.error("Node already exists: " + path);
                     zkError = true;
+                    shutdown();
                     break;
                 case OK:
                     LOG.info("Created zNode: " + path);
@@ -385,6 +420,7 @@ public abstract class Broker implements ContainerLifecycle {
                     zkError = true;
                     LOG.error("Something went wrong: ",
                             KeeperException.create(KeeperException.Code.get(rc), path));
+                    shutdown();
             }
         }
     };
@@ -425,12 +461,14 @@ public abstract class Broker implements ContainerLifecycle {
                     } else {
                         LOG.error("ΖkNode exists but was NOT created by this client: " + path);
                         zkError = true;
+                        shutdown();
                     }
                     break;
                 default:
                     zkError = true;
                     LOG.error("Something went wrong: ",
                             KeeperException.create(KeeperException.Code.get(rc), path));
+                    shutdown();
             }
         }
     };
@@ -462,14 +500,16 @@ public abstract class Broker implements ContainerLifecycle {
         String ZK_NAMING_SERVICE = zkConf.getServices().getPath();
         String SHUTDOWN_NODE = zkConf.getShutdown().getPath();
         String CONF_NODE = zNode.getConfNodePath();
+        String DATA_NODE = zkConf.getConUpDataNodes().get(zNode.getName());
         // create a string with all the key-value pairs
-        conBootEnv = String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
+        conBootEnv = "";
+        /* String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
                 + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
-                + "CONF_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
-                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
+                + "CONF_NODE=%s,DATA_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
+                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE, DATA_NODE); */
         // set the arguments for the container boot command
-        conBootArgs = String.format("%s %s %s %s %s %s", ZK_HOSTS, ZK_SESSION_TIMEOUT,
-                ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
+        conBootArgs = String.format("%s %s %s %s %s %s %s", ZK_HOSTS, ZK_SESSION_TIMEOUT,
+                ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE, DATA_NODE);
         // create the boot command
         conBootCmd = "java -jar " + BROKER_JAR_IN_CONTAINER + " " + conBootArgs;
     }
@@ -505,14 +545,29 @@ public abstract class Broker implements ContainerLifecycle {
         // process mount bind volumes
         List<BindMnt> defBindMntList = con.getDocker().getBindMnt();
         List<Bind> bindList = new ArrayList<>();
-        for (BindMnt bindMnt : defBindMntList) {
-            // create a new volume
-            Volume vol = new Volume(bindMnt.getContainerPath());
-            // create a new Bind
-            AccessMode am = bindMnt.getAccessMode().equals(net.freelabs.maestro.core.generated.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
-            Bind bind = new Bind(bindMnt.getHostPath(), vol, am);
-            // add to list
-            bindList.add(bind);
+
+        if (zkConf.getpConf().getDockerRemote()) {
+            // save upload and download paths to map for later use
+            for (BindMnt bindMnt : defBindMntList) {
+                upDownPaths.put(bindMnt.getHostPath(), bindMnt.getContainerPath());
+                // create a new volume
+                Volume vol = new Volume("/home/maestro");
+                // create a new Bind
+                AccessMode am = AccessMode.rw;
+                Bind bind = new Bind("/home/dio/THESIS/maestro/core/src/main/resources/maestro", vol, am);
+                // add to list
+                bindList.add(bind);
+            }
+        } else {
+            for (BindMnt bindMnt : defBindMntList) {
+                // create a new volume
+                Volume vol = new Volume(bindMnt.getContainerPath());
+                // create a new Bind
+                AccessMode am = bindMnt.getAccessMode().equals(net.freelabs.maestro.core.generated.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
+                Bind bind = new Bind(bindMnt.getHostPath(), vol, am);
+                // add to list
+                bindList.add(bind);
+            }
         }
 
         // process exposed ports

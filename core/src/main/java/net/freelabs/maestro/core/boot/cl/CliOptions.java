@@ -52,8 +52,11 @@ public class CliOptions {
         @Parameter(names = {"-s", "--schema"}, description = "<schema file> Path of schema file.", required = false)
         private String schema;
 
-        @Parameter(names = {"-d", "--docker"}, description = "<docker uri> Docker daemon uri.", required = false)
+        @Parameter(names = {"-d", "--docker"}, description = "<docker uri> Docker host uri.", required = false)
         private String docker;
+
+        @Parameter(names = {"-r", "--dockerRemote"}, description = "Flag if docker host is a remote host.", required = false)
+        private Boolean dockerRemote;
 
         @Parameter(names = {"-x", "--xml"}, description = "<app xml> Path of application description xml file.", required = false)
         private String xml;
@@ -94,6 +97,10 @@ public class CliOptions {
 
         public String getzHosts() {
             return zHosts;
+        }
+
+        public Boolean isDockerRemote() {
+            return dockerRemote;
         }
     }
 

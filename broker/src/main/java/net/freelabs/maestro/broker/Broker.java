@@ -41,6 +41,7 @@ import net.freelabs.maestro.broker.shutdown.Shutdown;
 import net.freelabs.maestro.broker.shutdown.ShutdownNotifier;
 import net.freelabs.maestro.broker.tasks.TaskHandler;
 import net.freelabs.maestro.broker.tasks.TaskMapper;
+import net.freelabs.maestro.core.data.ZkDataStore;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.ContainerEnvironment;
@@ -95,6 +96,11 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * container.
      */
     private final String conConfNode;
+    /**
+     * The path of the zNode that holds data uploaded to be used by the
+     * container.
+     */
+    private final String conDataNode;
     /**
      * An object to handle execution of operations on another thread.
      */
@@ -156,12 +162,15 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * namespace.
      * @param shutdownNode the node the signals the shutdown.
      * @param conConfNode the node with the initial container configuration.
+     * @param conDataNode the node with data uploaded to be used be the
+     * container.
      */
-    public Broker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String conConfNode) {
+    public Broker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String conConfNode, String conDataNode) {
         super(zkHosts, zkSessionTimeout);
         this.zkContainerPath = zkContainerPath;
         this.shutdownNode = shutdownNode;
         this.conConfNode = conConfNode;
+        this.conDataNode = conDataNode;
         containerName = resolveConPath(zkContainerPath);
         brokerConf = new BrokerConf();
         brokerConf.brokerDir = BrokerConf.SERVICES_DIR + File.separator + containerName + "-service";
@@ -225,10 +234,29 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         setShutDownWatch();
         // create container zNode
         createZkNodeEphemeral(zkContainerPath, BROKER_ID.getBytes());
-        // set watch for the container description
-        waitForConDescription();
-        // wait for shutdown
-        waitForShutdown(SHUTDOWN);
+        // download any uploaded data
+        boolean downloaded = downloadData();
+        
+        if (downloaded) {
+            // set watch for the container description
+            waitForConDescription();
+            // wait for shutdown
+            waitForShutdown(SHUTDOWN);
+        }else{
+            shutdown();
+        }
+    }
+    
+    /**
+     * <p>Downloads data that were uploaded to zk in case of docker remote host used.
+     * <p>Method blocks.
+     * @return true if operation completed successfully.
+     */
+    private boolean downloadData() {
+        // create new zkDataStore to handle download process
+        ZkDataStore zds = new ZkDataStore(this.zk);
+        //zds.downloadData(zkConf.);
+        return zds.downloadData(conDataNode);
     }
 
     /**
@@ -753,12 +781,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     }
                 }
             } else // check if srvs are initialized
-             if (srvMngr.areSrvInitialized()) {
+            {
+                if (srvMngr.areSrvInitialized()) {
                     // start processes
                     executorService.execute(() -> {
                         start();
                     });
                 }
+            }
         } else {
             conInitialized = true;
             LOG.info("Container INITIALIZED!");
@@ -920,7 +950,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             // create Task Mapper
             if (envHandler != null) {
                 env = envHandler.getProcsEnv();
-            }else{
+            } else {
                 LOG.debug("Environment Handler NOT initialized");
                 env = new HashMap<>();
             }

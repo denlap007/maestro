@@ -41,7 +41,8 @@ public final class ProgramConf {
     private int zkSessionTimeout;
     private String xmlSchemaPath;
     private String xmlFilePath;
-    private String dockerURI;
+    private String dockerHost;
+    private Boolean dockerRemote;
     private static final String PROPERTIES_FILE_NAME = "maestro.properties";
     private static final String PROGRAM_NAME = "maestro";
     private static final String VERSION = "0.1.0";
@@ -80,8 +81,11 @@ public final class ProgramConf {
             if (xmlFilePath == null) {
                 xmlFilePath = prop.getProperty("xmlFilePath");
             }
-            if (dockerURI == null) {
-                dockerURI = prop.getProperty("docker.io.url");
+            if (dockerHost == null) {
+                dockerHost = prop.getProperty("dockerHost");
+            }
+            if (dockerRemote == null){
+                dockerRemote = Boolean.parseBoolean(prop.getProperty("dockerRemote"));
             }
         } catch (IOException ex) {
             loaded = false;
@@ -117,7 +121,8 @@ public final class ProgramConf {
             zkSessionTimeout = Integer.parseInt(prop.getProperty("zkSessionTimeout"));
             xmlSchemaPath = prop.getProperty("xmlSchemaPath");
             xmlFilePath = prop.getProperty("xmlFilePath");
-            dockerURI = prop.getProperty("docker.io.url");
+            dockerHost = prop.getProperty("dockerHost");
+            dockerRemote = Boolean.getBoolean(prop.getProperty("dockerRemote"));
         } catch (IOException ex) {
             loaded = false;
         }
@@ -130,14 +135,15 @@ public final class ProgramConf {
      * @return true if all necessary configuration fields where initialized.
      */
     public boolean isConfInit() {
-        boolean init = zkHosts != null && zkSessionTimeout != 0 && xmlSchemaPath != null && xmlFilePath != null && dockerURI != null;
+        boolean init = zkHosts != null && zkSessionTimeout != 0 && xmlSchemaPath != null && xmlFilePath != null && dockerHost != null;
         if (init) {
-            LOG.info("Loaded configuration:");
-            LOG.info("zkHosts: " + zkHosts);
-            LOG.info("zkSessionTimeout: " + zkSessionTimeout);
-            LOG.info("xmlSchemaPath: " + xmlSchemaPath);
-            LOG.info("xmlFilePath: " + xmlFilePath);
-            LOG.info("docker.io.url: " + dockerURI);
+            LOG.info("Loaded configuration parameters:");
+            LOG.info("zkHosts: {}", zkHosts);
+            LOG.info("zkSessionTimeout: {}", zkSessionTimeout);
+            LOG.info("xmlSchemaPath: {}", xmlSchemaPath);
+            LOG.info("xmlFilePath: {}", xmlFilePath);
+            LOG.info("dockerHost: {}", dockerHost);
+            LOG.info("dockerRemote: {}", dockerRemote);
         } else {
             LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
         }
@@ -184,10 +190,10 @@ public final class ProgramConf {
     /**
      * Sets the docker daemon uri.
      *
-     * @param dockerURI the docker daemon uri.
+     * @param dockerHost the docker daemon uri.
      */
-    public void setDockerURI(String dockerURI) {
-        this.dockerURI = dockerURI;
+    public void setDockerHost(String dockerHost) {
+        this.dockerHost = dockerHost;
     }
 
     /**
@@ -219,12 +225,23 @@ public final class ProgramConf {
     }
 
     /**
-     * @return the dockerURI
+     * @return the dockerHost
      */
-    public String getDockerURI() {
-        return dockerURI;
+    public String getDockerHost() {
+        return dockerHost;
     }
 
+    public Boolean getDockerRemote() {
+        if (dockerRemote == null){
+            dockerRemote = false;
+        }
+        return dockerRemote;
+    }
+
+    public void setDockerRemote(Boolean dockerRemote) {
+        this.dockerRemote = dockerRemote;
+    }
+    
     /**
      *
      * @return the program version.

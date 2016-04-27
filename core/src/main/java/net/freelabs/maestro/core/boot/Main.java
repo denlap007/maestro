@@ -102,7 +102,8 @@ public class Main {
             } else {
                 pConf.setZkHosts(startCmdOpt.getzHosts());
                 pConf.setZkSessionTimeout(startCmdOpt.getzTimeout());
-                pConf.setDockerURI(startCmdOpt.getDocker());
+                pConf.setDockerHost(startCmdOpt.getDocker());
+                pConf.setDockerRemote(startCmdOpt.isDockerRemote());
                 pConf.setXmlSchemaPath(startCmdOpt.getSchema());
                 pConf.setXmlFilePath(startCmdOpt.getXml());
                 // init unset (if any) conf parameters with file input (if any)

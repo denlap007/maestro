@@ -41,6 +41,7 @@ import static org.apache.zookeeper.Watcher.Event.EventType.NodeChildrenChanged;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeDataChanged;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
+import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.ACL;
 import org.apache.zookeeper.data.Stat;
 
@@ -854,5 +855,9 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
 
     public boolean isMasterError() {
         return masterError;
+    }
+    
+    public ZooKeeper getZk(){
+        return this.zk;
     }
 }

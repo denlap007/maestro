@@ -10,7 +10,8 @@
             		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
             		<containerPath>/home</containerPath>
             	</bindMnt>
-            	<privileged>true</privileged>
+            	<publishAllPorts>false</publishAllPorts>
+            	<privileged>false</privileged>
             </docker>
             <start>
                 <preMain abortOnFail="true">cp /home/testCases/crudApp/webTier/nginx.conf /etc/nginx/nginx.conf</preMain>
@@ -42,7 +43,7 @@
         			<hostPort>8080</hostPort>
             		<containerPort>8080</containerPort>
             	</publishPort>
-            	<privileged>true</privileged>
+            	<privileged>false</privileged>
             </docker>
             <start>
                 <main>/home/testCases/crudApp/BusinessTier/business-entrypoint.sh</main>
@@ -72,7 +73,7 @@
             		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
             		<containerPath>/home</containerPath>
             	</bindMnt>
-            	<privileged>true</privileged>
+            	<privileged>false</privileged>
             </docker>
             <start>
                 <main>/home/testCases/crudApp/dataTier/data-entrypoint.sh mysqld</main>

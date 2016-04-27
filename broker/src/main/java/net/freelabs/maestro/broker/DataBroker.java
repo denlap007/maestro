@@ -47,9 +47,10 @@ public class DataBroker extends Broker {
      * namespace.
      * @param shutdownNode the node the signals the shutdown.
      * @param userConfNode the node with the initial container configuration.
+     * @param conDataNode the node with data uploaded to be used by the container.
      */
-    public DataBroker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String userConfNode) {
-        super(zkHosts, zkSessionTimeout, zkContainerPath, zkNamingService, shutdownNode, userConfNode);
+    public DataBroker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String userConfNode, String conDataNode) {
+        super(zkHosts, zkSessionTimeout, zkContainerPath, zkNamingService, shutdownNode, userConfNode, conDataNode);
     }
 
     @Override

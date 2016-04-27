@@ -81,7 +81,7 @@ public final class DeleteCmd extends Command {
                 // if conf was downloaded
                 if (downloadedZkConf) {
                     // initialize docker client
-                    initDockerClient(zkConf.getpConf().getDockerURI());
+                    initDockerClient(zkConf.getpConf().getDockerHost());
                     // create and initialize Broker initializer to act on containers
                     BrokerInit brokerInit = runBrokerInit();
                     // delete application namespace
