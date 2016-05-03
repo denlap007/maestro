@@ -161,6 +161,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * Creates the zookeeper hierarchical namespace defined for the application.
      */
     private void createZkNamespace() {
+        LOG.info("Creating zookeeper application namespace");
         for (ZkNode node : zkConf.getZkAppNamespace()) {
             if (!masterError) {
                 createNode(node.getPath(), node.getData(), PERSISTENT);
@@ -179,7 +180,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
         while (!masterError) {
             try {
                 nodePath = zk.create(zkPath, data, OPEN_ACL_UNSAFE, mode);
-                LOG.info("Created zNode: " + nodePath);
+                LOG.debug("Created zNode: " + nodePath);
                 break;
             } catch (NodeExistsException e) {
                 // node exists while shoudln't
@@ -683,7 +684,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
         while (true) {
             try {
                 zk.delete(path, version);
-                LOG.info("Deleted node: {}", path);
+                LOG.debug("Deleted node: {}", path);
                 break;
             } catch (InterruptedException ex) {
                 // log event
@@ -737,7 +738,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     private final StatCallback setChildDataCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 setContainerData(path, (byte[]) ctx);
                 break;
             case NONODE:
@@ -772,7 +773,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * Initiates shutdown.
      */
     public void shutdown() {
-        LOG.warn("Initiating master shutdown.");
+        LOG.info("Initiating master shutdown.");
         // delete nanespace
         cleanZkNamespace();
         try {
@@ -830,6 +831,22 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      */
     public void createShutdownNode() {
         createNode(zkConf.getShutdown().getPath(), zkConf.getShutdown().getData(), EPHEMERAL);
+    }
+    
+        /**
+     * Deletes a zookeeper node to the application namespace that indicates to
+     * the application components to initiate shutdown.
+     */
+    public void deleteShutdownNode() {
+        deleteNode(zkConf.getShutdown().getPath(), -1);
+    }
+    
+    /**
+     * Signals the application components to initiate shutdown process.
+     */
+    public void signalAppShutdown(){
+        createShutdownNode();
+        deleteShutdownNode();
     }
 
     /**

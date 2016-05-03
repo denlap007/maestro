@@ -13,6 +13,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
@@ -39,7 +40,7 @@ public class ZkDataStore {
      * Name of the zip file generated after archiving. Also, the name of the
      * created zip file after merging.
      */
-    private static final String ARCHIVE_NAME = "archivedFiles.zip";
+    private static final String ARCHIVE_NAME = "_archive.zip";
     /**
      * Merges byte chunks into file and splits file into byte chunks.
      */
@@ -381,11 +382,24 @@ public class ZkDataStore {
             // create file path for generated .zip
             File file = new File(inputFile);
             String parent = file.getParent();
-            String archivePath = parent + File.separator + ARCHIVE_NAME;
+            String archivePath = parent + File.separator + generateId() + ARCHIVE_NAME;
             // apply archiving
             archiver.zip(inputFile, archivePath);
             // return zip path
             return archivePath;
+        }
+
+        /**
+         * Generates a random 10-digit positive zero-padded id.
+         *
+         * @return the 8-digit positive zero-padded id.
+         */
+        private String generateId() {
+            int min = 0;
+            int max = 99999;
+            int numId = min + (new Random().nextInt(max - min));
+            String id = String.format("%05d", numId);
+            return id;
         }
 
         /**

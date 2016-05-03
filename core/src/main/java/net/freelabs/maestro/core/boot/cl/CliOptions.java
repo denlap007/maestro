@@ -49,25 +49,25 @@ public class CliOptions {
         @Parameter(names = {"-h", "--help"}, description = "Help for this command", help = true)
         private boolean help;
 
-        @Parameter(names = {"-s", "--schema"}, description = "<schema file> Path of schema file.", required = false)
+        @Parameter(names = {"-s", "--xSchema"}, description = "<schema file> Path of schema file.", required = false)
         private String schema;
 
-        @Parameter(names = {"-d", "--docker"}, description = "<docker uri> Docker host uri.", required = false)
+        @Parameter(names = {"-d", "--dHost"}, description = "<docker uri> Docker host uri.", required = false)
         private String docker;
 
-        @Parameter(names = {"-r", "--dockerRemote"}, description = "Flag if docker host is a remote host.", required = false)
+        @Parameter(names = {"-r", "--dRemote"}, description = "Flag if docker host is a remote host.", required = false)
         private Boolean dockerRemote;
 
-        @Parameter(names = {"-x", "--xml"}, description = "<app xml> Path of application description xml file.", required = false)
+        @Parameter(names = {"-x", "--xFile"}, description = "<app xml> Path of application description xml file.", required = false)
         private String xml;
 
         @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path of .properties file with program's configuration.", required = false)
         private String conf;
 
-        @Parameter(names = {"-t", "--timeout"}, description = "<session timeout> Zookeeper client session timeout.", required = false)
+        @Parameter(names = {"-t", "--zTimeout"}, description = "<session timeout> Zookeeper client session timeout.", required = false)
         private int zTimeout;
 
-        @Parameter(names = {"-z", "--zookeeper"}, description = "<hosts> Zookeeper host list (comma seperated host:port pairs--no space).", required = false)
+        @Parameter(names = {"-z", "--zHost"}, description = "<hosts> Zookeeper host list (comma seperated host:port pairs--no space).", required = false)
         private String zHosts;
 
         // Getters
@@ -111,16 +111,16 @@ public class CliOptions {
         @Parameter(names = {"-h", "--help"}, description = "Help for this command", help = true)
         private boolean help;
 
-        @Parameter(description = "<app name> Name of the deployed application to stop.", required = true)
+        @Parameter(description = "<appID> The ID of the deployed application to stop.", required = true)
         private List<String> args;
 
         @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path of .properties file with program's configuration.", required = false)
         private String conf;
 
-        @Parameter(names = {"-t", "--timeout"}, description = "<session timeout> Zookeeper client session timeout.", required = false)
+        @Parameter(names = {"-t", "--zTimeout"}, description = "<session timeout> Zookeeper client session timeout.", required = false)
         private int zTimeout;
 
-        @Parameter(names = {"-z", "--zookeeper"}, description = "<hosts> Zookeeper host list (comma seperated host:port pairs--no space).", required = false)
+        @Parameter(names = {"-z", "--zHost"}, description = "<hosts> Zookeeper host list (comma seperated host:port pairs--no space).", required = false)
         private String zHosts;
 
         // Getters
@@ -152,16 +152,16 @@ public class CliOptions {
         @Parameter(names = {"-h", "--help"}, description = "Help for this command", help = true)
         private boolean help;
 
-        @Parameter(description = "<app name> Name of application to restart.", required = true)
+        @Parameter(description = "<appID> The ID of the application to restart.", required = true)
         private List<String> args;
 
         @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path of .properties file with program's configuration.", required = false)
         private String conf;
 
-        @Parameter(names = {"-t", "--timeout"}, description = "<session timeout> Zookeeper client session timeout.", required = false)
+        @Parameter(names = {"-t", "--zTimeout"}, description = "<session timeout> Zookeeper client session timeout.", required = false)
         private int zTimeout;
 
-        @Parameter(names = {"-z", "--zookeeper"}, description = "<hosts> Zookeeper host list (comma seperated host:port pairs--no space).", required = false)
+        @Parameter(names = {"-z", "--zHost"}, description = "<hosts> Zookeeper host list (comma seperated host:port pairs--no space).", required = false)
         private String zHosts;
 
         // Getters
@@ -187,7 +187,7 @@ public class CliOptions {
     }
 
     // delete command
-    @Parameters(commandDescription = "Delete zookeeper namespace and containers for application.")
+    @Parameters(commandDescription = "Delete zookeeper namespace and docker containers for deployed application.")
     public class DeleteCmdOpt {
 
         @Parameter(names = {"-h", "--help"}, description = "Help for this command", help = true)
@@ -199,10 +199,10 @@ public class CliOptions {
         @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path of .properties file with program's configuration.", required = false)
         private String conf;
 
-        @Parameter(names = {"-t", "--timeout"}, description = "<session timeout> Zookeeper client session timeout.", required = false)
+        @Parameter(names = {"-t", "--zTimeout"}, description = "<session timeout> Zookeeper client session timeout.", required = false)
         private int zTimeout;
 
-        @Parameter(names = {"-z", "--zookeeper"}, description = "<hosts> Zookeeper host list (comma seperated host:port pairs--no space).", required = false)
+        @Parameter(names = {"-z", "--zHost"}, description = "<hosts> Zookeeper host list (comma seperated host:port pairs--no space).", required = false)
         private String zHosts;
 
         // Getters

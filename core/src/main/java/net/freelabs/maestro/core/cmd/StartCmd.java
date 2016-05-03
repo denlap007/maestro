@@ -76,7 +76,7 @@ public final class StartCmd extends Command {
             // initialize zk and start master process
             initZk(zkConf);
             // create a docker client customized for the app
-            DockerInitializer appDocker = new DockerInitializer(pConf.getDockerHost());
+            DockerInitializer appDocker = new DockerInitializer(pConf.getDockerConf());
             DockerClient docker = appDocker.getDockerClient();
             // launch the CoreBrokers to boot containers, wait to finish
             runBrokerInit(handler, zkConf, docker);
@@ -235,6 +235,7 @@ public final class StartCmd extends Command {
      * fails.
      */
     public ZkConf createZkConf(WebApp webApp, String hosts, int timeout, ContainerHandler handler, ProgramConf pConf) throws JAXBException {
+        LOG.info("Creating application configuration for zookeeper.");
         /*
          Create a zookeeper configuration object. This object holds all the
          necessary configuration information needed for zookeeper to boostrap-
@@ -263,7 +264,7 @@ public final class StartCmd extends Command {
          Parent nodes are Persistent zNodes.
          */
         for (String type : handler.getContainerTypes()) {
-            LOG.info("Container type: {}", type);
+            LOG.debug("Initializing container type: {}", type);
             zkConf.initZkContainerType(type);
         }
 
@@ -279,13 +280,13 @@ public final class StartCmd extends Command {
         for (Container con : handler.listContainers()) {
             // generate JSON from container and return the generated JSON as a byte array
             byte[] data = JAXBSerializer.serialize(con);
-            LOG.info("Container description to xml: {}", JAXBSerializer.deserializeToString(data));
+            LOG.debug("Serialized container description of service {}: {}", con.getName(), JAXBSerializer.deserializeToString(data));
             // get the name for the child node
             String name = con.getName();
             // get the container type
             String type = Utils.getType(con);
             // initialize child node
-            LOG.info("Type: {}, data size: {}", type, data.length);
+            LOG.debug("Initializing zkConf node for service {} of type {} with data {} bytes", con.getName(), type, data.length);
             zkConf.initZkContainer(name, type, data);
         }
 
@@ -298,7 +299,7 @@ public final class StartCmd extends Command {
         // initialize zkConf node with data
         byte[] data = JAXBSerializer.serialize(zkConf);
         zkConf.getZkConf().setData(data);
-        LOG.debug("Printing serialized zkConf: {}", JAXBSerializer.deserializeToString(data));
+        LOG.debug("Serialized zkConf: {}", JAXBSerializer.deserializeToString(data));
 
         return zkConf; 
     }

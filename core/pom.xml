@@ -24,9 +24,9 @@
                 <configuration>
                     <mainClass>net.freelabs.maestro.core.boot.Main</mainClass>
                     <arguments>
-                       <argument>start</argument>
-                       <argument>-c</argument>
-                       <argument>/home/dio/THESIS/maestro/core/src/main/resources/maestro.properties</argument>
+                        <argument>start</argument>
+                        <argument>-c</argument>
+                        <argument>/home/dio/THESIS/maestro/core/src/main/resources/maestro.properties</argument>
                     </arguments>
                 </configuration>
             </plugin>
@@ -58,10 +58,20 @@
                 <artifactId>maven-jar-plugin</artifactId>
                 <version>2.6</version>
                 <configuration>
+                    <!-- exclude files from src/main/resources-->
+                     <excludes>
+                        <exclude>testCases/**</exclude>
+                        <exclude>old_schemas/**</exclude>
+                        <exclude>maestro/**</exclude>
+                        <exclude>web-broker/**</exclude>
+                        <exclude>data-broker/**</exclude>
+                        <exclude>business-broker/**</exclude>
+                    </excludes>
+                    
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>
-                            <mainClass>net.freelabs.maestro.boot.Bootstrap</mainClass>
+                            <mainClass>net.freelabs.maestro.boot.Main</mainClass>
                             <classpathPrefix>dependency-jars/</classpathPrefix>
                         </manifest>
                     </archive>
@@ -78,6 +88,7 @@
                             <includes>
                                 <include>dependency-jars/</include>
                                 <include>broker.jar</include>
+                                <include>maestro/bin/dependency-jars/</include>
                             </includes>
                             <followSymlinks>false</followSymlinks>
                         </fileset>
@@ -86,6 +97,8 @@
             </plugin>
             
         </plugins>
+        
+
     </build>
   
     <properties>

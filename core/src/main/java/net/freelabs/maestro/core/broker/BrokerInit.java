@@ -226,7 +226,7 @@ public final class BrokerInit {
                 success = false;
                 break;
             } catch (ExecutionException ex) {
-                LOG.error("Something went wrong: {}", ex);
+                LOG.error("Something went wrong: " + ex);
                 success = false;
                 break;
             } catch (TimeoutException ex) {

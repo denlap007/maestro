@@ -52,8 +52,8 @@ public class XmlProcessor {
      * another reason is thrown.
      */
     public Object unmarshal(String packageName, String schemaPath, String xmlFilePath) {
-        LOG.info("UNMARSHALLING xml.");
-        Object unmarshalled;
+        LOG.info("Unmarshalling application description xml file.");
+        Object unmarshalled = null;
         try {
             // create a JAXBContext capable of handling classes generated into
             // the specified package
@@ -104,20 +104,14 @@ public class XmlProcessor {
 
             // Do the unmarshalling
             unmarshalled = u.unmarshal(new File(xmlFilePath));
-
         } catch (org.xml.sax.SAXException se) {
             LOG.error("Unable to validate due to the following error: \n" + se);
-            return null;
+            return unmarshalled;
         } catch (JAXBException ex) {
             LOG.error("Something went wrong: \n" + ex);
-            return null;
+            return unmarshalled;
         }
 
-        // Print msgs
-        String file = new File(xmlFilePath).getName();
-
-        LOG.info("FIle \'{}\' unmarshalled.", file);
         return unmarshalled;
     }
-
 }

@@ -16,14 +16,16 @@
  */
 package net.freelabs.maestro.core.broker;
 
-import com.github.dockerjava.api.ConflictException;
 import com.github.dockerjava.api.DockerClient;
-import com.github.dockerjava.api.NotFoundException;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
+import com.github.dockerjava.api.exception.ConflictException;
+import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.AccessMode;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.ExposedPort;
+import com.github.dockerjava.api.model.NetworkSettings;
+import com.github.dockerjava.api.model.NetworkSettings.Network;
 import com.github.dockerjava.api.model.Ports;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.api.model.VolumesFrom;
@@ -39,6 +41,7 @@ import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.data.ZkDataStore;
 import net.freelabs.maestro.core.generated.BindMnt;
 import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.generated.Docker;
 import net.freelabs.maestro.core.generated.ExposePort;
 import net.freelabs.maestro.core.generated.Protocol;
 import net.freelabs.maestro.core.generated.PublishPort;
@@ -132,7 +135,7 @@ public abstract class Broker implements ContainerLifecycle {
     /**
      * The path of the .jar file to execute the Broker in the container.
      */
-    private static final String BROKER_JAR_IN_CONTAINER = "/home/maestro/bin/broker.jar";
+    private static final String BROKER_JAR_IN_CONTAINER = "/opt/maestro/bin/broker.jar";
 
     /**
      * Handles errors.
@@ -175,22 +178,24 @@ public abstract class Broker implements ContainerLifecycle {
         createContainerEnv();
         // create container instance
         CreateContainerResponse container = createContainer();
-        // upload data to zookeeper if necessary
-        success = uploadData(zkMaster.getZk(), con.getName());
-
-        if (success) {
-            // start the created container instance
-            cid = startContainer(container, con.getName());
-            // check for errors
-            if (cid != null) {
-                // get container IP
-                success = onPostStart(cid);
-            } else {
-                LOG.error("FAILED to start container. Shutting down Broker.");
-                shutdown();
+        // check if container was created 
+        if (container != null) {
+            // upload data to zookeeper if necessary
+            success = uploadData(zkMaster.getZk(), con.getName());
+            if (success) {
+                // start the created container instance
+                cid = startContainer(container, con.getName());
+                // check for errors
+                if (cid != null) {
+                    // get container IP
+                    success = onPostStart(cid);
+                } else {
+                    success = false;
+                    LOG.error("FAILED to start container. Shutting down Broker.");
+                    shutdown();
+                }
             }
         }
-
         return success;
     }
 
@@ -266,7 +271,7 @@ public abstract class Broker implements ContainerLifecycle {
             // if no services
             if (!services.isEmpty()) {
                 // create shutdown node
-                zkMaster.createShutdownNode();
+                zkMaster.signalAppShutdown();
                 // if shutdown node was created without errors
                 if (!zkMaster.isMasterError()) {
                     // wait services to stop
@@ -286,7 +291,7 @@ public abstract class Broker implements ContainerLifecycle {
                     }
                 }
             } else {
-                LOG.info("No service running. Checking containers.");
+                LOG.info("No service running.");
                 // check for running containers even though services are not running
                 Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
                 // if there are containers still running force stop
@@ -298,7 +303,7 @@ public abstract class Broker implements ContainerLifecycle {
                     }
                 } else {
                     success = true;
-                    LOG.warn("No Containers-Services running. Application already stopped.");
+                    LOG.warn("No Containers-Services running.");
                 }
             }
         }
@@ -327,7 +332,7 @@ public abstract class Broker implements ContainerLifecycle {
             try {
                 InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
                 // if container running add to map
-                if (inspResp.getState().isRunning()) {
+                if (inspResp.getState().getRunning()) {
                     runningCons.put(defName, deplname);
                 } else {
                     LOG.info("Container for service \'{}\' has stopped.", defName);
@@ -380,9 +385,11 @@ public abstract class Broker implements ContainerLifecycle {
         // inspect container with id
         InspectContainerResponse response = docker.inspectContainerCmd(containerId).exec();
         // get network settings 
-        InspectContainerResponse.NetworkSettings settings = response.getNetworkSettings();
-        // return the cotnainer's IP
-        return settings.getIpAddress();
+        NetworkSettings settings = response.getNetworkSettings();
+        // get Networks
+        Map<String, Network> netMap = settings.getNetworks();
+        // return the cotnainer's IP  FROM THE BRIDGE NETWORK
+        return netMap.get("bridge").getIpAddress();
     }
 
     /**
@@ -516,93 +523,32 @@ public abstract class Broker implements ContainerLifecycle {
 
     @Override
     public CreateContainerResponse createContainer() {
+        // create object to process declared docker configuration
+        DockerConfProcessor dcp = new DockerConfProcessor(con.getDocker());
         // initialize attributes
-        // deployed name mapped to defined name
+        // get the name with which to deploy the container 
         String conName = zkConf.getDeplCons().get(con.getName());
-        String conImg = con.getDocker().getImage();
+        
         String[] conCmd = conBootCmd.split(" ");
-        String conNetMode = "bridge";
-        boolean privileged = con.getDocker().isPrivileged();
-
         String[] conEnvArr = conBootEnv.split(",");
-
+        // get network mode
+        String conNetMode = "bridge";
+        // get container image
+        String conImg = dcp.getImage();
+        // get privileged flag
+        boolean privileged = dcp.isPrivileged();
         // process volumes
-        List<String> volPathList = con.getDocker().getVolumes();
-        List<Volume> volList = new ArrayList<>();
-        for (String volPath : volPathList) {
-            Volume vol = new Volume(volPath);
-            volList.add(vol);
-        }
-
+        List<Volume> volList = dcp.getVolumes();
         // process volumes from
-        List<String> defVolsFromList = con.getDocker().getVolumesFrom();
-        List<VolumesFrom> volsFromList = new ArrayList<>();
-        for (String container : defVolsFromList) {
-            VolumesFrom volFrom = new VolumesFrom(container);
-            volsFromList.add(volFrom);
-        }
-
+        List<VolumesFrom> volsFromList = dcp.getVolumesFrom();
         // process mount bind volumes
-        List<BindMnt> defBindMntList = con.getDocker().getBindMnt();
-        List<Bind> bindList = new ArrayList<>();
-
-        if (zkConf.getpConf().getDockerRemote()) {
-            // save upload and download paths to map for later use
-            for (BindMnt bindMnt : defBindMntList) {
-                upDownPaths.put(bindMnt.getHostPath(), bindMnt.getContainerPath());
-                // create a new volume
-                Volume vol = new Volume("/home/maestro");
-                // create a new Bind
-                AccessMode am = AccessMode.rw;
-                Bind bind = new Bind("/home/dio/THESIS/maestro/core/src/main/resources/maestro", vol, am);
-                // add to list
-                bindList.add(bind);
-            }
-        } else {
-            for (BindMnt bindMnt : defBindMntList) {
-                // create a new volume
-                Volume vol = new Volume(bindMnt.getContainerPath());
-                // create a new Bind
-                AccessMode am = bindMnt.getAccessMode().equals(net.freelabs.maestro.core.generated.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
-                Bind bind = new Bind(bindMnt.getHostPath(), vol, am);
-                // add to list
-                bindList.add(bind);
-            }
-        }
-
+        List<Bind> bindList = dcp.getBindMounts(upDownPaths, zkConf);
         // process exposed ports
-        List<ExposePort> defExpPortList = con.getDocker().getExposePorts().getPort();
-        List<ExposedPort> expPortList = new ArrayList<>();
-        for (ExposePort defPort : defExpPortList) {
-            // create new exposed port
-            ExposedPort expPort;
-            if (defPort.getProtocol() == Protocol.TCP) {
-                expPort = ExposedPort.tcp(defPort.getValue());
-            } else {
-                expPort = ExposedPort.udp(defPort.getValue());
-            }
-            // add to list
-            expPortList.add(expPort);
-        }
-
+        List<ExposedPort> expPortList = dcp.getExosedPorts();
         // process published ports
-        List<PublishPort> defPubPortList = con.getDocker().getPublishPort();
-        Ports portBindings = new Ports();
-
-        for (PublishPort defPubPort : defPubPortList) {
-            // create exposed container port
-            ExposedPort expPort;
-            if (defPubPort.getProtocol() == Protocol.TCP) {
-                expPort = ExposedPort.tcp(defPubPort.getContainerPort());
-            } else {
-                expPort = ExposedPort.udp(defPubPort.getContainerPort());
-            }
-            // create port binding
-            portBindings.bind(expPort, Ports.Binding(defPubPort.getIp(), defPubPort.getHostPort()));
-        }
-
+        Ports portBindings = dcp.getPublishedPorts();
         // process publishAllPorts
-        boolean publishAllPorts = con.getDocker().isPublishAllPorts();
+        boolean publishAllPorts = dcp.areAllPortsPublished();
 
         // set container configuration
         CreateContainerResponse container = null;
@@ -621,6 +567,10 @@ public abstract class Broker implements ContainerLifecycle {
                         .withEnv(conEnvArr)
                         .withPrivileged(privileged)
                         .exec();
+            } catch (ConflictException ex) {
+                // container with this name already exists
+                LOG.error("Something went wrong {}", ex.getMessage());
+                break;
             } catch (NotFoundException ex) {
                 // image not found locally
                 LOG.warn("Image \'{}\' does not exist locally. Pulling from docker hub.", conImg);
@@ -635,10 +585,6 @@ public abstract class Broker implements ContainerLifecycle {
                     LOG.error("FAILED to pull image");
                     break;
                 }
-            } catch (ConflictException ex) {
-                // container with this name already exists
-                LOG.error("Something went wrong {}", ex.getMessage());
-                break;
             }
         }
         return container;
@@ -677,7 +623,7 @@ public abstract class Broker implements ContainerLifecycle {
         }
         // confirm stop
         InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
-        if (inspResp.getState().isRunning()) {
+        if (inspResp.getState().getRunning()) {
             LOG.error("FAILED to stop container for service: {}", srv);
             return false;
         } else {
@@ -766,6 +712,160 @@ public abstract class Broker implements ContainerLifecycle {
             maxAttempts--;
         }
         return success;
+    }
+
+    /**
+     *
+     * Class that provides methods to process the docker configuration from
+     * application description defined.
+     */
+    public class DockerConfProcessor {
+
+        private final Docker dockerConf;
+
+        public DockerConfProcessor(Docker dockerConf) {
+            this.dockerConf = dockerConf;
+        }
+
+        /**
+         * 
+         * @return true if flag is set to container to publish all ports to host.
+         */
+        public boolean areAllPortsPublished() {
+            // process publishAllPorts
+            return dockerConf.isPublishAllPorts();
+        }
+
+        /**
+         *
+         * @return {@link Ports Ports} object initialized with ports to be
+         * published.
+         */
+        public Ports getPublishedPorts() {
+            // process published ports
+            List<PublishPort> defPubPortList = dockerConf.getPublishPort();
+            Ports portBindings = new Ports();
+
+            for (PublishPort defPubPort : defPubPortList) {
+                // create exposed container port
+                ExposedPort expPort;
+                if (defPubPort.getProtocol() == Protocol.TCP) {
+                    expPort = ExposedPort.tcp(defPubPort.getContainerPort());
+                } else {
+                    expPort = ExposedPort.udp(defPubPort.getContainerPort());
+                }
+                // create port binding
+                portBindings.bind(expPort, Ports.binding(defPubPort.getIp(), defPubPort.getHostPort()));
+            }
+            return portBindings;
+        }
+
+        /**
+         *
+         * @return a list of initialized {@link ExposedPort ExposedPort}
+         * objects.
+         */
+        public List<ExposedPort> getExosedPorts() {
+            // process exposed ports
+            List<ExposePort> defExpPortList = dockerConf.getExposePorts().getPort();
+            List<ExposedPort> expPortList = new ArrayList<>();
+            for (ExposePort defPort : defExpPortList) {
+                // create new exposed port
+                ExposedPort expPort;
+                if (defPort.getProtocol() == Protocol.TCP) {
+                    expPort = ExposedPort.tcp(defPort.getValue());
+                } else {
+                    expPort = ExposedPort.udp(defPort.getValue());
+                }
+                // add to list
+                expPortList.add(expPort);
+            }
+            return expPortList;
+        }
+
+        /**
+         *
+         * @param uploadDownloadMap map with the upload and download paths in
+         * case docker is a remote host, so data are uploaded to zookeeper and
+         * downloaded to containers instead of binding and mounting.
+         * @param zkConf the application zookeeper configuration.
+         * @return a list of initialized {@link BindMnt BindMnts}.
+         */
+        public List<Bind> getBindMounts(Map<String, String> uploadDownloadMap, ZkConf zkConf) {
+            // process mount bind volumes
+            List<BindMnt> defBindMntList = dockerConf.getBindMnt();
+            List<Bind> bindList = new ArrayList<>();
+
+            // if docker is a remote host CONVERT BIND MOUNT PATHS TO UPLOAD-DOWNLOAD
+            // DATA PATHS. Docker is not local to bind to host so data are uploaded
+            // to zk and then downloaded by the container to the paths defined.
+            // This is a transparent mechanism to handle bindMounts for remote hosts.
+            if (zkConf.getpConf().getDockerRemote()) {
+                // save upload and download paths to map for later use
+                for (BindMnt bindMnt : defBindMntList) {
+                    uploadDownloadMap.put(bindMnt.getHostPath(), bindMnt.getContainerPath());
+                }
+            } else {
+                for (BindMnt bindMnt : defBindMntList) {
+                    // create a new volume
+                    Volume vol = new Volume(bindMnt.getContainerPath());
+                    // create a new Bind
+                    AccessMode am = bindMnt.getAccessMode().equals(net.freelabs.maestro.core.generated.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
+                    Bind bind = new Bind(bindMnt.getHostPath(), vol, am);
+                    // add to list
+                    bindList.add(bind);
+                }
+            }
+            return bindList;
+        }
+
+        /**
+         *
+         * @return a list of initialized {@link VolumesFrom VolumesFrom}
+         * objects.
+         */
+        public List<VolumesFrom> getVolumesFrom() {
+            // process volumes from
+            List<String> defVolsFromList = dockerConf.getVolumesFrom();
+            List<VolumesFrom> volsFromList = new ArrayList<>();
+            for (String container : defVolsFromList) {
+                VolumesFrom volFrom = new VolumesFrom(container);
+                volsFromList.add(volFrom);
+            }
+            return volsFromList;
+        }
+
+        /**
+         *
+         * @return a list of initialized {@link Volume Volumes}.
+         */
+        public List<Volume> getVolumes() {
+            // process volumes
+            List<String> volPathList = dockerConf.getVolumes();
+            List<Volume> volList = new ArrayList<>();
+            for (String volPath : volPathList) {
+                Volume vol = new Volume(volPath);
+                volList.add(vol);
+            }
+            return volList;
+        }
+
+        /**
+         *
+         * @return true if flag is set for the container.
+         */
+        public boolean isPrivileged() {
+            return dockerConf.isPrivileged();
+        }
+
+        /**
+         *
+         * @return the defined container image.
+         */
+        public String getImage() {
+            return dockerConf.getImage();
+        }
+
     }
 
 }

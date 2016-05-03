@@ -5,7 +5,7 @@
             <name>web</name>
             <requires>business</requires>
             <docker>
-            	<image>dio/nginx_jre:v1</image>
+            	<image>dio/nginx_jre:v3</image>
             	<bindMnt accessMode="rw">
             		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
             		<containerPath>/home</containerPath>
@@ -33,7 +33,7 @@
             <name>business</name> 
             <requires>data</requires>
             <docker>
-            	<image>glassfish</image>
+            	<image>dio/glassfish:v1</image>
             	<bindMnt>
             		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
             		<containerPath>/home</containerPath>
@@ -64,11 +64,11 @@
                 <host_port>8080</host_port>
                 <app_name>ConsultingAgency</app_name>
             </env>
-        </businessContainer>
+        </businessContainer> 
         <dataContainer>
             <name>data</name>
             <docker>
-            	<image>dio/mysql_jre:v2</image>
+            	<image>dio/mysql_jre:v5</image>
             	<bindMnt>
             		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
             		<containerPath>/home</containerPath>

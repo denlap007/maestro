@@ -21,7 +21,7 @@ package net.freelabs.maestro.broker;
  * Class that provides configuration for {@link Broker Broker} class.
  */
 public final class BrokerConf {
-    public static final String PROGRAM_DIR = "/home/maestro";
+    public static final String PROGRAM_DIR = "/opt/maestro";
     public static final String RESTORE_DIR = PROGRAM_DIR + "/restore";
     public static final String SERVICES_DIR = PROGRAM_DIR + "/servicesConf";
     public String brokerDir;

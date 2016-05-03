@@ -35,14 +35,23 @@ public final class ProgramConf {
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(ProgramConf.class);
-
-
+    // zookeeper conf
     private String zkHosts;
     private int zkSessionTimeout;
+    // xml conf
     private String xmlSchemaPath;
     private String xmlFilePath;
+    // docker conf
     private String dockerHost;
     private Boolean dockerRemote;
+    private Boolean dockerTlsVerify;
+    private String dockerCertPath;
+    private String dockerConfig;
+    private String dockerApiVersion;
+    private String dockerRegistryUrl;
+    private String dockerRegistryUser;
+    private String dockerRegistryPass;
+    private String dockerRegistryMail;
     private static final String PROPERTIES_FILE_NAME = "maestro.properties";
     private static final String PROGRAM_NAME = "maestro";
     private static final String VERSION = "0.1.0";
@@ -70,23 +79,32 @@ public final class ProgramConf {
             prop.load(input);
             // get the properties only if they are not set by the user
             if (zkHosts == null) {
-                zkHosts = prop.getProperty("zkHosts");
+                zkHosts = prop.getProperty("zk.hosts");
             }
             if (zkSessionTimeout == 0) {
-                zkSessionTimeout = Integer.parseInt(prop.getProperty("zkSessionTimeout"));
+                zkSessionTimeout = Integer.parseInt(prop.getProperty("zk.session.timeout"));
             }
             if (xmlSchemaPath == null) {
-                xmlSchemaPath = prop.getProperty("xmlSchemaPath");
+                xmlSchemaPath = prop.getProperty("xml.schema.path");
             }
             if (xmlFilePath == null) {
-                xmlFilePath = prop.getProperty("xmlFilePath");
+                xmlFilePath = prop.getProperty("xml.file.path");
             }
             if (dockerHost == null) {
-                dockerHost = prop.getProperty("dockerHost");
+                dockerHost = prop.getProperty("docker.host");
             }
-            if (dockerRemote == null){
-                dockerRemote = Boolean.parseBoolean(prop.getProperty("dockerRemote"));
+            if (dockerRemote == null) {
+                dockerRemote = Boolean.parseBoolean(prop.getProperty("docker.remote"));
             }
+            // get rest docker conf
+            dockerTlsVerify = Boolean.parseBoolean(prop.getProperty("docker.tls.verify"));
+            dockerCertPath = prop.getProperty("docker.cert.path");
+            dockerConfig = prop.getProperty("docker.config");
+            dockerApiVersion = prop.getProperty("docker.api.version");
+            dockerRegistryUrl = prop.getProperty("docker.registry.url");
+            dockerRegistryUser = prop.getProperty("docker.registry.username");
+            dockerRegistryPass = prop.getProperty("docker.registry.password");
+            dockerRegistryMail = prop.getProperty("docker.registry.email");
         } catch (IOException ex) {
             loaded = false;
         }
@@ -117,12 +135,20 @@ public final class ProgramConf {
             // load .properties file
             prop.load(input);
             // get the properties 
-            zkHosts = prop.getProperty("zkHosts");
-            zkSessionTimeout = Integer.parseInt(prop.getProperty("zkSessionTimeout"));
-            xmlSchemaPath = prop.getProperty("xmlSchemaPath");
-            xmlFilePath = prop.getProperty("xmlFilePath");
-            dockerHost = prop.getProperty("dockerHost");
-            dockerRemote = Boolean.getBoolean(prop.getProperty("dockerRemote"));
+            zkHosts = prop.getProperty("zk.hosts");
+            zkSessionTimeout = Integer.parseInt(prop.getProperty("zk.session.timeout"));
+            xmlSchemaPath = prop.getProperty("xml.schema.path");
+            xmlFilePath = prop.getProperty("xml.file.path");
+            dockerHost = prop.getProperty("docker.host");
+            dockerRemote = Boolean.getBoolean(prop.getProperty("docker.remote"));
+            dockerTlsVerify = Boolean.parseBoolean(prop.getProperty("docker.tls.verify"));
+            dockerCertPath = prop.getProperty("docker.cert.path");
+            dockerConfig = prop.getProperty("docker.config");
+            dockerApiVersion = prop.getProperty("docker.api.version");
+            dockerRegistryUrl = prop.getProperty("docker.registry.url");
+            dockerRegistryUser = prop.getProperty("docker.registry.username");
+            dockerRegistryPass = prop.getProperty("docker.registry.password");
+            dockerRegistryMail = prop.getProperty("docker.registry.email");
         } catch (IOException ex) {
             loaded = false;
         }
@@ -138,16 +164,45 @@ public final class ProgramConf {
         boolean init = zkHosts != null && zkSessionTimeout != 0 && xmlSchemaPath != null && xmlFilePath != null && dockerHost != null;
         if (init) {
             LOG.info("Loaded configuration parameters:");
-            LOG.info("zkHosts: {}", zkHosts);
-            LOG.info("zkSessionTimeout: {}", zkSessionTimeout);
-            LOG.info("xmlSchemaPath: {}", xmlSchemaPath);
-            LOG.info("xmlFilePath: {}", xmlFilePath);
-            LOG.info("dockerHost: {}", dockerHost);
-            LOG.info("dockerRemote: {}", dockerRemote);
+            LOG.info("zk.hosts: {}", zkHosts);
+            LOG.info("zk.session.timeout: {}", zkSessionTimeout);
+            LOG.info("xml.schema.path: {}", xmlSchemaPath);
+            LOG.info("xml.file.path: {}", xmlFilePath);
+            LOG.info("docker.host: {}", dockerHost);
+            LOG.info("docker.remote: {}", dockerRemote);
+            LOG.info("docker.tls.verify: {}", dockerTlsVerify);
+            LOG.info("docker.cert.path: {}", dockerCertPath);
+            LOG.info("docker.config: {}", dockerConfig);
+            LOG.info("docker.api.version: {}", dockerApiVersion);
+            LOG.info("docker.registry.url: {}", dockerRegistryUrl);
+            LOG.info("docker.registry.username: {}", dockerRegistryUser);
+            LOG.info("docker.registry.password: {}", dockerRegistryPass);
+            LOG.info("docker.registry.email: {}", dockerRegistryMail);
         } else {
             LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
         }
         return init;
+    }
+
+    /**
+     * 
+     * @return all docker configuration parameters.
+     */
+    public String[] getDockerConf() {
+        String[] dConf = new String[9];
+        dConf[0] = dockerHost;
+        /*if (dockerTlsVerify == null){
+            dockerTlsVerify = false;
+        }*/
+        dConf[1] = String.valueOf(dockerTlsVerify);
+        dConf[2] = dockerCertPath;
+        dConf[3] = dockerConfig;
+        dConf[4] = dockerApiVersion;
+        dConf[5] = dockerRegistryUrl;
+        dConf[6] = dockerRegistryUser;
+        dConf[7] = dockerRegistryPass;
+        dConf[8] = dockerRegistryMail;
+        return dConf;
     }
 
     /**
@@ -232,7 +287,7 @@ public final class ProgramConf {
     }
 
     public Boolean getDockerRemote() {
-        if (dockerRemote == null){
+        if (dockerRemote == null) {
             dockerRemote = false;
         }
         return dockerRemote;
@@ -241,7 +296,7 @@ public final class ProgramConf {
     public void setDockerRemote(Boolean dockerRemote) {
         this.dockerRemote = dockerRemote;
     }
-    
+
     /**
      *
      * @return the program version.
@@ -252,5 +307,38 @@ public final class ProgramConf {
 
     public static String getPROGRAM_NAME() {
         return PROGRAM_NAME;
-    } 
+    }
+
+    public Boolean getDockerTlsVerify() {
+        return dockerTlsVerify;
+    }
+
+    public String getDockerCertPath() {
+        return dockerCertPath;
+    }
+
+    public String getDockerConfig() {
+        return dockerConfig;
+    }
+
+    public String getDockerApiVersion() {
+        return dockerApiVersion;
+    }
+
+    public String getDockerRegistryUrl() {
+        return dockerRegistryUrl;
+    }
+
+    public String getDockerRegistryUser() {
+        return dockerRegistryUser;
+    }
+
+    public String getDockerRegistryPass() {
+        return dockerRegistryPass;
+    }
+
+    public String getDockerRegistryMail() {
+        return dockerRegistryMail;
+    }
+
 }

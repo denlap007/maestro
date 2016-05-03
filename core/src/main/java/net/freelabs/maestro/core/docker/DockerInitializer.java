@@ -43,15 +43,23 @@ public final class DockerInitializer {
      */
     private static final Logger LOG = LoggerFactory.getLogger(DockerInitializer.class);
 
-    
     /**
      * Constructor.
      *
-     * @param dockerURI the docker daemon URI.
+     * @param dockerArgs the initialization parameters of the docker client.
+     * dockerArgs[0] --> docker host uri
+     * dockerArgs[1] --> enable/disable TLS verification (switch between http and https protocol)
+     * dockerArgs[2] --> path to the certificates needed for TLS verification
+     * dockerArgs[3] --> path for additional docker configuration files (like .dockercfg)
+     * dockerArgs[4] --> the API version, e.g. 1.21
+     * dockerArgs[5] --> your registry's address
+     * dockerArgs[6] --> your registry username (required to push containers)
+     * dockerArgs[7] --> your registry password
+     * dockerArgs[8] --> your registry email
      */
-    public DockerInitializer(String dockerURI) {
-        this.dockerURI = dockerURI;
-        dockerClient = initDockerClient(dockerURI);
+    public DockerInitializer(String... dockerArgs) {
+        this.dockerURI = dockerArgs[0];
+        dockerClient = initDockerClient(dockerArgs);
     }
 
     /**
@@ -60,9 +68,17 @@ public final class DockerInitializer {
      * @param dockerURI the docker daemon uri.
      * @return the docker client object.
      */
-    private DockerClient initDockerClient(String dockerURI) {
+    private DockerClient initDockerClient(String... dockerArgs) {
         DockerClientConfig config = DockerClientConfig.createDefaultConfigBuilder()
-                .withUri(dockerURI)
+                .withDockerHost(dockerArgs[0])
+                .withDockerTlsVerify(dockerArgs[1])
+                .withDockerCertPath(dockerArgs[2])
+                .withDockerConfig(dockerArgs[3])
+                .withApiVersion(dockerArgs[4])
+                .withRegistryUrl(dockerArgs[5])
+                .withRegistryUsername(dockerArgs[6])
+                .withRegistryPassword(dockerArgs[7])
+                .withRegistryEmail(dockerArgs[8])
                 .build();
 
         DockerClient client = DockerClientBuilder.getInstance(config)
@@ -93,5 +109,4 @@ public final class DockerInitializer {
         return dockerURI;
     }
 
-    
 }
