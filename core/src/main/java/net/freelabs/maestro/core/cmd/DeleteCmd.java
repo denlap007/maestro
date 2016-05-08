@@ -22,6 +22,7 @@ import net.freelabs.maestro.core.boot.ProgramConf;
 import net.freelabs.maestro.core.broker.BrokerInit;
 import net.freelabs.maestro.core.docker.DockerInitializer;
 import net.freelabs.maestro.core.handler.ContainerHandler;
+import net.freelabs.maestro.core.handler.NetworkHandler;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
@@ -50,6 +51,10 @@ public final class DeleteCmd extends Command {
      * A docker client to query for state of containers.
      */
     private DockerClient docker;
+    /**
+     * Handles interaction with application networks.
+     */
+    private NetworkHandler netHandler;
     /**
      * A Logger object.
      */
@@ -81,7 +86,7 @@ public final class DeleteCmd extends Command {
                 // if conf was downloaded
                 if (downloadedZkConf) {
                     // initialize docker client
-                    initDockerClient(zkConf.getpConf().getDockerHost());
+                    initDockerClient(zkConf.getpConf().getDockerConf());
                     // create and initialize Broker initializer to act on containers
                     BrokerInit brokerInit = runBrokerInit();
                     // delete application namespace
@@ -89,7 +94,8 @@ public final class DeleteCmd extends Command {
                     if (success) {
                         // remove containers
                         success = brokerInit.runDelete();
-
+                        // remove default network
+                        netHandler.deleteNetwork(zkConf.getAppDefaultNetName());
                     } 
                 }
             } else {
@@ -118,7 +124,8 @@ public final class DeleteCmd extends Command {
         // create container handler
         ContainerHandler handler = new ContainerHandler(zkConf.getWebApp().getContainers());
         // create and initialize the Broker Initializer
-        return new BrokerInit(handler, zkConf, docker, master);
+        netHandler = new NetworkHandler(docker);
+        return new BrokerInit(handler, zkConf, docker, master, null);
     }
 
     /**
@@ -168,9 +175,9 @@ public final class DeleteCmd extends Command {
      *
      * @param dockerURI the uri of the docker host.
      */
-    private void initDockerClient(String dockerURI) {
+    private void initDockerClient(String[] dockerConf) {
         // create a docker client 
-        DockerInitializer appDocker = new DockerInitializer(dockerURI);
+        DockerInitializer appDocker = new DockerInitializer(dockerConf);
         docker = appDocker.getDockerClient();
     }
 

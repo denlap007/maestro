@@ -39,7 +39,6 @@
             		<containerPath>/home</containerPath>
             	</bindMnt>
         		<publishPort protocol="tcp">
-        			<ip>127.0.0.1</ip>
         			<hostPort>8080</hostPort>
             		<containerPort>8080</containerPort>
             	</publishPort>

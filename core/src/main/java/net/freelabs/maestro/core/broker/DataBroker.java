@@ -18,6 +18,7 @@ package net.freelabs.maestro.core.broker;
 
 import com.github.dockerjava.api.DockerClient;
 import net.freelabs.maestro.core.generated.DataContainer;
+import net.freelabs.maestro.core.handler.NetworkHandler;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
 
@@ -33,8 +34,17 @@ public class DataBroker extends Broker {
      */
     private final DataContainer con;
 
-    public DataBroker(ZkConf zkConf, DataContainer con, DockerClient dockerClient, ZkMaster master) {
-        super(zkConf, con, dockerClient, master);
+    /**
+     * Constructor.
+     *
+     * @param zkConf the zookeeper configuration.
+     * @param con the container object.
+     * @param dockerClient an instance of a docker client.
+     * @param master handles interaction with zookeeper service.
+     * @param netHandler handles interaction with application networks.
+     */
+    public DataBroker(ZkConf zkConf, DataContainer con, DockerClient dockerClient, ZkMaster master, NetworkHandler netHandler) {
+        super(zkConf, con, dockerClient, master, netHandler);
         this.con = con;
     }
 }

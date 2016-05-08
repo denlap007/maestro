@@ -24,13 +24,12 @@ import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.AccessMode;
 import com.github.dockerjava.api.model.Bind;
 import com.github.dockerjava.api.model.ExposedPort;
+import com.github.dockerjava.api.model.Network;
 import com.github.dockerjava.api.model.NetworkSettings;
-import com.github.dockerjava.api.model.NetworkSettings.Network;
 import com.github.dockerjava.api.model.Ports;
 import com.github.dockerjava.api.model.Volume;
 import com.github.dockerjava.api.model.VolumesFrom;
 import com.github.dockerjava.core.command.PullImageResultCallback;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -38,13 +37,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import javax.xml.bind.JAXBException;
-import net.freelabs.maestro.core.data.ZkDataStore;
 import net.freelabs.maestro.core.generated.BindMnt;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.Docker;
 import net.freelabs.maestro.core.generated.ExposePort;
 import net.freelabs.maestro.core.generated.Protocol;
 import net.freelabs.maestro.core.generated.PublishPort;
+import net.freelabs.maestro.core.handler.NetworkHandler;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
@@ -53,7 +52,6 @@ import org.apache.zookeeper.AsyncCallback;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
-import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -85,10 +83,6 @@ public abstract class Broker implements ContainerLifecycle {
      */
     protected static final Logger LOG = LoggerFactory.getLogger(Broker.class);
     /**
-     * The container id.
-     */
-    private String cid;
-    /**
      * A ZkNode object that holds all the zk configuration about this container.
      */
     protected final ZkNode zNode;
@@ -119,7 +113,6 @@ public abstract class Broker implements ContainerLifecycle {
      * holds all the environment variables passed for proper boot and init.
      */
     private String conBootEnv;
-
     /**
      * Handles requests and interaction with zookeeper.
      */
@@ -132,6 +125,10 @@ public abstract class Broker implements ContainerLifecycle {
      * Data upload with download paths in case of data transfer.
      */
     private final Map<String, String> upDownPaths;
+    /**
+     * Holds information about application networks.
+     */
+    private final NetworkHandler netHandler;
     /**
      * The path of the .jar file to execute the Broker in the container.
      */
@@ -149,12 +146,14 @@ public abstract class Broker implements ContainerLifecycle {
      * @param dockerClient a docker client to communicate with the docker
      * daemon.
      * @param zkMaster handles interaction with zookeeper service.
+     * @param netHandler handles interaction with application networks.
      */
-    public Broker(ZkConf zkConf, Container con, DockerClient dockerClient, ZkMaster zkMaster) {
+    public Broker(ZkConf zkConf, Container con, DockerClient dockerClient, ZkMaster zkMaster, NetworkHandler netHandler) {
         this.zkConf = zkConf;
         this.con = con;
         this.docker = dockerClient;
         this.zkMaster = zkMaster;
+        this.netHandler = netHandler;
         shutdownSignal = new CountDownLatch(1);
         upDownPaths = new HashMap<>();
         if (con != null) {
@@ -180,40 +179,83 @@ public abstract class Broker implements ContainerLifecycle {
         CreateContainerResponse container = createContainer();
         // check if container was created 
         if (container != null) {
-            // upload data to zookeeper if necessary
-            success = uploadData(zkMaster.getZk(), con.getName());
-            if (success) {
-                // start the created container instance
-                cid = startContainer(container, con.getName());
-                // check for errors
-                if (cid != null) {
-                    // get container IP
-                    success = onPostStart(cid);
-                } else {
-                    success = false;
-                    LOG.error("FAILED to start container. Shutting down Broker.");
-                    shutdown();
+            // start the created container instance
+            String cid = startContainer(container, con.getName());
+            // check for errors
+            if (cid != null) {
+                // connect to application network
+                boolean connected = connectToNetwork(cid, netHandler.getAppNetId());
+                if (connected) {
+                    // copy data, if any, to container
+                    boolean copied = copyToContainer(cid);
+                    if (copied) {
+                        // get container IP
+                        success = onPostStart(cid);
+                    }
                 }
+            } else {
+                success = false;
+                LOG.error("FAILED to start container. Shutting down Broker.");
+                shutdown();
             }
         }
         return success;
     }
 
-    private boolean uploadData(ZooKeeper zk, String srvName) {
+    /**
+     * Copies data from local host paths to container paths.
+     *
+     * @param cid the container id.
+     * @return true if operation completed successfully.
+     */
+    private boolean copyToContainer(String cid) {
+        LOG.info("Copying files from host to container for service {}.", con.getName());
         boolean success = true;
-        // create zkDataStore to handle upload process
-        ZkDataStore zds = new ZkDataStore(zk);
-        // iterate through declared upload files 
+
         for (Map.Entry<String, String> entry : upDownPaths.entrySet()) {
-            String upFile = entry.getKey();
-            String downDir = entry.getValue();
-            File file = new File(upFile);
-            // create path for upload
-            String zkUpPath = zkConf.getConUpDataNodes().get(srvName) + "/" + file.getName();
-            // upload data
-            success = zds.uploadData(upFile, zkUpPath, downDir);
-            if (!success) {
+            String hostPath = entry.getKey();
+            String containerPath = entry.getValue();
+
+            try {
+                docker.copyArchiveToContainerCmd(cid)
+                        .withDirChildrenOnly(true)
+                        .withRemotePath(containerPath)
+                        .withHostResource(hostPath)
+                        .exec();
+            } catch (Exception ex) {
+                LOG.error("Something went wrong: {}", ex);
+                success = false;
                 break;
+            }
+        }
+        return success;
+    }
+
+    /**
+     * Connects the container to the default application network.
+     *
+     * @param cid the container id.
+     * @param netId the network id.
+     * @return true if the container connected to application network
+     * successfully.
+     */
+    private boolean connectToNetwork(String cid, String netId) {
+        LOG.info("Connecting container for service {} to network.", con.getName());
+        boolean success = false;
+        if (netId != null) {
+            try {
+                docker.connectToNetworkCmd()
+                        .withContainerId(cid)
+                        .withNetworkId(netId)
+                        .exec();
+
+                Network updatedNetwork = docker.inspectNetworkCmd()
+                        .withNetworkId(netId)
+                        .exec();
+
+                success = updatedNetwork.getContainers().containsKey(cid);
+            } catch (Exception ex) {
+                LOG.error("Something went wrong: {}", ex);
             }
         }
         return success;
@@ -244,7 +286,7 @@ public abstract class Broker implements ContainerLifecycle {
             waitForShutdown();
             success = !zkError;
         } catch (JAXBException ex) {
-            LOG.error("FAILED to update container IP. ", ex);
+            LOG.error("FAILED to update container IP. {}", ex);
         }
         return success;
     }
@@ -283,15 +325,15 @@ public abstract class Broker implements ContainerLifecycle {
                         // if containers still running force stop
                         if (!runningCons.isEmpty()) {
                             success = stopRunningCons(runningCons);
-                            // check that running cons stopped successfully
-                            if (success) {
-                                LOG.info("All containers stopped.");
-                            }
+                        }
+                        // check that running cons stopped successfully
+                        if (success) {
+                            LOG.info("All Containers stopped.");
                         }
                     }
                 }
             } else {
-                LOG.info("No service running.");
+                LOG.info("All Services stopped.");
                 // check for running containers even though services are not running
                 Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
                 // if there are containers still running force stop
@@ -299,7 +341,7 @@ public abstract class Broker implements ContainerLifecycle {
                     success = stopRunningCons(runningCons);
                     // check that running cons stopped successfully
                     if (success) {
-                        LOG.info("All containers stopped.");
+                        LOG.info("All Containers stopped.");
                     }
                 } else {
                     success = true;
@@ -324,8 +366,7 @@ public abstract class Broker implements ContainerLifecycle {
         // map with found running containers if any
         Map<String, String> runningCons = new HashMap<>();
         // iterate and check running state
-        LOG.info("Querying docker host.");
-
+        LOG.info("Querying state of containers...");
         for (Map.Entry<String, String> entry : deplCons.entrySet()) {
             String defName = entry.getKey();
             String deplname = entry.getValue();
@@ -352,6 +393,7 @@ public abstract class Broker implements ContainerLifecycle {
      */
     private boolean stopRunningCons(Map<String, String> runningCons) {
         boolean success = true;
+        boolean threwExeception = false;
         for (Map.Entry<String, String> entry : runningCons.entrySet()) {
             String defName = entry.getKey();
             String deplname = entry.getValue();
@@ -361,9 +403,10 @@ public abstract class Broker implements ContainerLifecycle {
             } catch (NotFoundException ex) {
                 LOG.error("Container for service \'{}\' does not exist.", defName);
                 success = false;
+                threwExeception = true;
             }
         }
-        return success;
+        return success && !threwExeception;
     }
 
     /**
@@ -387,9 +430,10 @@ public abstract class Broker implements ContainerLifecycle {
         // get network settings 
         NetworkSettings settings = response.getNetworkSettings();
         // get Networks
-        Map<String, Network> netMap = settings.getNetworks();
-        // return the cotnainer's IP  FROM THE BRIDGE NETWORK
-        return netMap.get("bridge").getIpAddress();
+        Map<String, NetworkSettings.Network> netMap = settings.getNetworks();
+        // return the cotnainer's IP  FROM THE DEFAULT APP NETWORK
+        String netName = zkConf.getAppDefaultNetName();
+        return netMap.get(netName).getIpAddress();
     }
 
     /**
@@ -528,11 +572,11 @@ public abstract class Broker implements ContainerLifecycle {
         // initialize attributes
         // get the name with which to deploy the container 
         String conName = zkConf.getDeplCons().get(con.getName());
-        
+
         String[] conCmd = conBootCmd.split(" ");
         String[] conEnvArr = conBootEnv.split(",");
-        // get network mode
-        String conNetMode = "bridge";
+        // get hostName
+        String hostName = conName;
         // get container image
         String conImg = dcp.getImage();
         // get privileged flag
@@ -555,6 +599,7 @@ public abstract class Broker implements ContainerLifecycle {
         while (container == null) {
             try {
                 container = docker.createContainerCmd(conImg)
+                        .withHostName(hostName)
                         .withVolumes(volList.toArray(new Volume[0]))
                         .withVolumesFrom(volsFromList.toArray(new VolumesFrom[0]))
                         .withBinds(bindList.toArray(new Bind[0]))
@@ -563,7 +608,6 @@ public abstract class Broker implements ContainerLifecycle {
                         .withPublishAllPorts(publishAllPorts)
                         .withName(conName)
                         .withCmd(conCmd)
-                        .withNetworkMode(conNetMode)
                         .withEnv(conEnvArr)
                         .withPrivileged(privileged)
                         .exec();
@@ -728,8 +772,9 @@ public abstract class Broker implements ContainerLifecycle {
         }
 
         /**
-         * 
-         * @return true if flag is set to container to publish all ports to host.
+         *
+         * @return true if flag is set to container to publish all ports to
+         * host.
          */
         public boolean areAllPortsPublished() {
             // process publishAllPorts

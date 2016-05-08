@@ -35,10 +35,6 @@ public final class DockerInitializer {
      */
     private final DockerClient dockerClient;
     /**
-     * The docker daemon URI.
-     */
-    private final String dockerURI;
-    /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(DockerInitializer.class);
@@ -47,18 +43,16 @@ public final class DockerInitializer {
      * Constructor.
      *
      * @param dockerArgs the initialization parameters of the docker client.
-     * dockerArgs[0] --> docker host uri
-     * dockerArgs[1] --> enable/disable TLS verification (switch between http and https protocol)
-     * dockerArgs[2] --> path to the certificates needed for TLS verification
-     * dockerArgs[3] --> path for additional docker configuration files (like .dockercfg)
-     * dockerArgs[4] --> the API version, e.g. 1.21
-     * dockerArgs[5] --> your registry's address
-     * dockerArgs[6] --> your registry username (required to push containers)
-     * dockerArgs[7] --> your registry password
-     * dockerArgs[8] --> your registry email
+     * dockerArgs[0] --> docker host uri dockerArgs[1] --> enable/disable TLS
+     * verification (switch between http and https protocol) dockerArgs[2] -->
+     * path to the certificates needed for TLS verification dockerArgs[3] -->
+     * path for additional docker configuration files (like .dockercfg)
+     * dockerArgs[4] --> the API version, e.g. 1.21 dockerArgs[5] --> your
+     * registry's address dockerArgs[6] --> your registry username (required to
+     * push containers) dockerArgs[7] --> your registry password dockerArgs[8]
+     * --> your registry email
      */
     public DockerInitializer(String... dockerArgs) {
-        this.dockerURI = dockerArgs[0];
         dockerClient = initDockerClient(dockerArgs);
     }
 
@@ -101,12 +95,4 @@ public final class DockerInitializer {
     public DockerClient getDockerClient() {
         return dockerClient;
     }
-
-    /**
-     * @return the dockerURI
-     */
-    public String getDockerURI() {
-        return dockerURI;
-    }
-
 }

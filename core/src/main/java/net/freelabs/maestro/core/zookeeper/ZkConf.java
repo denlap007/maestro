@@ -45,10 +45,6 @@ public final class ZkConf {
      */
     private ZkNode root;
     /**
-     * The zkNode where upData will be stored for upload/download if necessary.
-     */
-    private ZkNode upData;
-    /**
      * The naming service zkNode for the application.
      */
     private ZkNode services;
@@ -104,7 +100,10 @@ public final class ZkConf {
      * The program's configuration
      */
     private ProgramConf pConf;
-
+    /**
+     * The name of the default network for the application.
+     */
+    private String appDefaultNetName;
     /**
      * An id used as upData for nodes without upData. Also, this is the suffix to
      * the zk root node for the application.
@@ -155,13 +154,8 @@ public final class ZkConf {
         String rootPath = "/" + name;
         this.root = new ZkNode(rootPath, suffix.getBytes(), name, "");
         zkAppNamespace.add(this.root);
-        // create upData zknode
-        String path = rootPath + "/upData";
-        name = "upData";
-        upData = new ZkNode(path, suffix.getBytes(), name, "");
-        zkAppNamespace.add(upData);
         // create services zkNode
-        path = rootPath + "/services";
+        String path = rootPath + "/services";
         name = "services";
         services = new ZkNode(path, suffix.getBytes(), name, "");
         zkAppNamespace.add(services);
@@ -185,6 +179,8 @@ public final class ZkConf {
         deplCons = new HashMap<>();
         // initialize client configuration
         zkSrvConf = new ZkSrvConf(hosts, timeout);
+        // set default app network name
+        appDefaultNetName = this.root.getName() + "-net";
     }
 
     /**
@@ -245,12 +241,6 @@ public final class ZkConf {
         ZkNode zkNode = new ZkNode(nodePath, data, nodeName, conConfPath);
         // add to list
         containers.put(name, zkNode);
-        // init upData node for container
-        nodePath = this.upData.getPath() + "/" + name;
-        conUpDataNodes.put(name, nodePath);
-        // add to namespace to be created 
-        ZkNode zkDataNode = new ZkNode(nodePath, suffix.getBytes(), name, "");
-        zkAppNamespace.add(zkDataNode);
     }
 
     /**
@@ -327,11 +317,12 @@ public final class ZkConf {
         this.webApp = webApp;
     }
 
-    public ZkNode getUpData() {
-        return upData;
-    }
-
     public Map<String, String> getConUpDataNodes() {
         return conUpDataNodes;
     }
+
+    public String getAppDefaultNetName() {
+        return appDefaultNetName;
+    }
+    
 }

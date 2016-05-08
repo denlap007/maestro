@@ -18,6 +18,7 @@ package net.freelabs.maestro.core.broker;
 
 import com.github.dockerjava.api.DockerClient;
 import net.freelabs.maestro.core.generated.BusinessContainer;
+import net.freelabs.maestro.core.handler.NetworkHandler;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
 
@@ -38,10 +39,11 @@ public class BusinessBroker extends Broker {
      * @param zkConf the zookeeper configuration.
      * @param con the container object.
      * @param dockerClient an instance of a docker client.
-     * @param master 
+     * @param master handles interaction with zookeeper service.
+     * @param netHandler handles interaction with application networks.
      */
-    public BusinessBroker(ZkConf zkConf, BusinessContainer con, DockerClient dockerClient, ZkMaster master) {
-        super(zkConf, con, dockerClient, master);
+    public BusinessBroker(ZkConf zkConf, BusinessContainer con, DockerClient dockerClient, ZkMaster master, NetworkHandler netHandler) {
+        super(zkConf, con, dockerClient, master, netHandler);
         this.con = con;
     }
 }

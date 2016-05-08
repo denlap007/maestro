@@ -341,4 +341,38 @@ public final class ProgramConf {
         return dockerRegistryMail;
     }
 
+    public void setDockerTlsVerify(Boolean dockerTlsVerify) {
+        this.dockerTlsVerify = dockerTlsVerify;
+    }
+
+    public void setDockerCertPath(String dockerCertPath) {
+        this.dockerCertPath = dockerCertPath;
+    }
+
+    public void setDockerConfig(String dockerConfig) {
+        this.dockerConfig = dockerConfig;
+    }
+
+    public void setDockerApiVersion(String dockerApiVersion) {
+        this.dockerApiVersion = dockerApiVersion;
+    }
+
+    public void setDockerRegistryUrl(String dockerRegistryUrl) {
+        this.dockerRegistryUrl = dockerRegistryUrl;
+    }
+
+    public void setDockerRegistryUser(String dockerRegistryUser) {
+        this.dockerRegistryUser = dockerRegistryUser;
+    }
+
+    public void setDockerRegistryPass(String dockerRegistryPass) {
+        this.dockerRegistryPass = dockerRegistryPass;
+    }
+
+    public void setDockerRegistryMail(String dockerRegistryMail) {
+        this.dockerRegistryMail = dockerRegistryMail;
+    }
+    
+   
+
 }

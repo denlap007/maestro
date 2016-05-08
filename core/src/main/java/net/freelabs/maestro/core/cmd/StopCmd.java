@@ -86,7 +86,7 @@ public final class StopCmd extends Command {
                 // if conf was downloaded
                 if (downloadedZkConf) {
                     // initialize docker client
-                    initDockerClient(zkConf.getpConf().getDockerHost());
+                    initDockerClient(zkConf.getpConf().getDockerConf());
                     // create and run Initializer to process stop command 
                     stopped = runBrokerInit();
                 }
@@ -112,7 +112,7 @@ public final class StopCmd extends Command {
 
     private boolean runBrokerInit() {
         // create and initialize the Broker Initializer
-        BrokerInit brokerInit = new BrokerInit(null, zkConf, docker, master);
+        BrokerInit brokerInit = new BrokerInit(null, zkConf, docker, master, null);
         // run Initializer to act on contaienrs
         return brokerInit.runStop();
     }
@@ -122,9 +122,9 @@ public final class StopCmd extends Command {
      *
      * @param dockerURI the uri of the docker host.
      */
-    private void initDockerClient(String dockerURI) {
+    private void initDockerClient(String[] dockerConf) {
         // create a docker client 
-        DockerInitializer appDocker = new DockerInitializer(dockerURI);
+        DockerInitializer appDocker = new DockerInitializer(dockerConf);
         docker = appDocker.getDockerClient();
     }
 

@@ -29,6 +29,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import static net.freelabs.maestro.core.broker.Broker.LOG;
 import net.freelabs.maestro.core.handler.ContainerHandler;
+import net.freelabs.maestro.core.handler.NetworkHandler;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
 
@@ -64,6 +65,10 @@ public final class BrokerInit {
      */
     private final ZkMaster master;
     /**
+     * Handles interaction with application networks.
+     */
+    private final NetworkHandler netHandler;
+    /**
      * The total time (minutes) a Broker may run a task, before operation times
      * out.
      */
@@ -76,12 +81,14 @@ public final class BrokerInit {
      * @param zkConf the zookeeper configuration.
      * @param docker a docker client.
      * @param master the zookeeper master process.
+     * @param netHandler handles interaction with application networks.
      */
-    public BrokerInit(ContainerHandler handler, ZkConf zkConf, DockerClient docker, ZkMaster master) {
+    public BrokerInit(ContainerHandler handler, ZkConf zkConf, DockerClient docker, ZkMaster master, NetworkHandler netHandler) {
         this.handler = handler;
         this.zkConf = zkConf;
         this.docker = docker;
         this.master = master;
+        this.netHandler = netHandler;
         // create as many threads as containers
         if (handler == null) {
             executor = null;
@@ -94,19 +101,19 @@ public final class BrokerInit {
     public boolean runStart() {
         // execute Brokers for data containers
         handler.listDataContainers().stream().forEach((con) -> {
-            Broker broker = new DataBroker(zkConf, con, docker, master);
+            Broker broker = new DataBroker(zkConf, con, docker, master, netHandler);
             String logMsg = String.format("Starting %s-Broker.", con.getName());
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // execute Brokers for business containers
         handler.listBusinessContainers().stream().forEach((con) -> {
-            Broker broker = new BusinessBroker(zkConf, con, docker, master);
+            Broker broker = new BusinessBroker(zkConf, con, docker, master, netHandler);
             String logMsg = String.format("Starting %s-Broker.", con.getName());
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // execute Brokers for web containers
         handler.listWebContainers().stream().forEach((con) -> {
-            Broker broker = new WebBroker(zkConf, con, docker, master);
+            Broker broker = new WebBroker(zkConf, con, docker, master, netHandler);
             String logMsg = String.format("Starting %s-Broker.", con.getName());
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
@@ -134,7 +141,7 @@ public final class BrokerInit {
 
     public boolean runStop() {
         // create a broker of any type
-        Broker broker = new DataBroker(zkConf, null, docker, master);
+        Broker broker = new DataBroker(zkConf, null, docker, master, netHandler);
         // runStop services and containers
         return broker.onStop();
     }
@@ -150,17 +157,17 @@ public final class BrokerInit {
             LOG.info("Restarting application.");
             // run Brokers with restart for data containers
             handler.listDataContainers().stream().forEach((con) -> {
-                Broker broker = new DataBroker(zkConf, con, docker, master);
+                Broker broker = new DataBroker(zkConf, con, docker, master, netHandler);
                 runBroker(broker, Broker::onRestart, "", con.getName());
             });
             // run Brokers with restart Brokers for business containers
             handler.listBusinessContainers().stream().forEach((con) -> {
-                Broker broker = new BusinessBroker(zkConf, con, docker, master);
+                Broker broker = new BusinessBroker(zkConf, con, docker, master, netHandler);
                 runBroker(broker, Broker::onRestart, "", con.getName());
             });
             // run Brokers with restart Brokers for web containers
             handler.listWebContainers().stream().forEach((con) -> {
-                Broker broker = new WebBroker(zkConf, con, docker, master);
+                Broker broker = new WebBroker(zkConf, con, docker, master, netHandler);
                 runBroker(broker, Broker::onRestart, "", con.getName());
             });
             // do not allow new tasks wait for running to finish
@@ -181,7 +188,7 @@ public final class BrokerInit {
     public boolean runDelete() {
         boolean success = false;
         // create a broker of any type
-        Broker broker = new DataBroker(zkConf, null, docker, master);
+        Broker broker = new DataBroker(zkConf, null, docker, master, netHandler);
         // delete containers
         LOG.info("Removing containers.");
         Map<String, String> deplCons = zkConf.getDeplCons();

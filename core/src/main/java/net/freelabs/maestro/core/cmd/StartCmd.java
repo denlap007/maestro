@@ -28,6 +28,7 @@ import net.freelabs.maestro.core.docker.DockerInitializer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.WebApp;
 import net.freelabs.maestro.core.handler.ContainerHandler;
+import net.freelabs.maestro.core.handler.NetworkHandler;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.utils.Utils;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
@@ -76,10 +77,14 @@ public final class StartCmd extends Command {
             // initialize zk and start master process
             initZk(zkConf);
             // create a docker client customized for the app
-            DockerInitializer appDocker = new DockerInitializer(pConf.getDockerConf());
-            DockerClient docker = appDocker.getDockerClient();
+            DockerInitializer dockerInit = new DockerInitializer(pConf.getDockerConf());
+            DockerClient docker = dockerInit.getDockerClient();
+            // creaet application network handler
+            NetworkHandler netHandler = new NetworkHandler(docker);
+            // create network for application
+            netHandler.createNetwork(zkConf.getAppDefaultNetName());
             // launch the CoreBrokers to boot containers, wait to finish
-            runBrokerInit(handler, zkConf, docker);
+            runBrokerInit(handler, zkConf, docker, netHandler);
         } catch (Exception ex) {
             exitProgram(ex);
         }
@@ -150,25 +155,26 @@ public final class StartCmd extends Command {
      * @param handler object to query for containers.
      * @param zkConf the zk configuration.
      * @param docker a docker client.
+     * @param netHandler handles interaction with application networks.
      * @throws IOException if connection to zk cannot be established.
      * @throws InterruptedException if thread is interrupted.
      */
-    public void runBrokerInit(ContainerHandler handler, ZkConf zkConf, DockerClient docker) throws IOException, InterruptedException {
+    public void runBrokerInit(ContainerHandler handler, ZkConf zkConf, DockerClient docker, NetworkHandler netHandler) throws IOException, InterruptedException {
         /*  Get a Container from the container handler. The Container can be of 
             any type. Create the Broker and initialize it. The Broker will 
             connect to zk and then start execution on a new thread.
          */
-        BrokerInit brokerInit = new BrokerInit(handler, zkConf, docker, master);
+        BrokerInit brokerInit = new BrokerInit(handler, zkConf, docker, master, netHandler);
         // run the Broker initializer that will initialize start and execute Brokers
         boolean success = brokerInit.runStart();
         // check if operation was successful 
         if (!success) {
-            // error occurred so stop any runnin services and containers
+            // error occurred so stop any running services and containers
             brokerInit.runStop();
             // shutdown master
             shutdownMaster();
             // log 
-            LOG.error("Application deployment FAILED.");
+            LOG.error("FAILED to deploy application.");
         } else {
             // shutdown master
             shutdownMaster();

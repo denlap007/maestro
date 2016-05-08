@@ -41,7 +41,6 @@ import net.freelabs.maestro.broker.shutdown.Shutdown;
 import net.freelabs.maestro.broker.shutdown.ShutdownNotifier;
 import net.freelabs.maestro.broker.tasks.TaskHandler;
 import net.freelabs.maestro.broker.tasks.TaskMapper;
-import net.freelabs.maestro.core.data.ZkDataStore;
 import net.freelabs.maestro.core.generated.BusinessContainer;
 import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.generated.ContainerEnvironment;
@@ -234,29 +233,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         setShutDownWatch();
         // create container zNode
         createZkNodeEphemeral(zkContainerPath, BROKER_ID.getBytes());
-        // download any uploaded data
-        boolean downloaded = downloadData();
-        
-        if (downloaded) {
-            // set watch for the container description
-            waitForConDescription();
-            // wait for shutdown
-            waitForShutdown(SHUTDOWN);
-        }else{
-            shutdown();
-        }
-    }
-    
-    /**
-     * <p>Downloads data that were uploaded to zk in case of docker remote host used.
-     * <p>Method blocks.
-     * @return true if operation completed successfully.
-     */
-    private boolean downloadData() {
-        // create new zkDataStore to handle download process
-        ZkDataStore zds = new ZkDataStore(this.zk);
-        //zds.downloadData(zkConf.);
-        return zds.downloadData(conDataNode);
+        // set watch for the container description
+        waitForConDescription();
+        // wait for shutdown
+        waitForShutdown(SHUTDOWN);
     }
 
     /**
@@ -781,14 +761,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     }
                 }
             } else // check if srvs are initialized
-            {
-                if (srvMngr.areSrvInitialized()) {
+             if (srvMngr.areSrvInitialized()) {
                     // start processes
                     executorService.execute(() -> {
                         start();
                     });
                 }
-            }
         } else {
             conInitialized = true;
             LOG.info("Container INITIALIZED!");

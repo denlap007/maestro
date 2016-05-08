@@ -383,7 +383,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 // if no children exist
                 if (children.isEmpty()) {
                     printStoppedSrvs(children, servicesCache);
-                    LOG.info("ALL services STOPPED.");
+                    LOG.info("All services stopped.");
                     servicesStopped.countDown();
                 } else {
                     // services still exist, check which service(s) stopped
@@ -417,7 +417,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 String[] tokens = srv.split("/");
                 int size = tokens.length;
                 String name = tokens[size - 1];
-                LOG.info("Service stopped: {}.", name);
+                LOG.info("Service \'{}\' stopped.", name);
             }
         }
     }
@@ -429,7 +429,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * @return true if all services stopped. False in case an error occurred.
      */
     public boolean waitServicesToStop(List<String> services) {
-        LOG.info("Waiting services to stop.");
+        LOG.info("Stopping services...");
         // get services running
         servicesCache = services;
 
@@ -644,12 +644,12 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                     List<String> tmpList = getAllNodes(node + "/" + child);
                     if (tmpList != null) {
                         allNodes.addAll(tmpList);
-                    } 
+                    }
                 }
             }
             // add the node with wich the method was called to the list
             allNodes.add(node);
-        } 
+        }
         return allNodes;
     }
 
@@ -727,25 +727,25 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * @param path the path of the node to set data.
      * @param data the data to be set to the node.
      */
-    public void setContainerData(String path, byte[] data) {
-        zk.setData(path, data, -1, setChildDataCallback, data);
+    public void setNodeDataAsync(String path, byte[] data) {
+        zk.setData(path, data, -1, setNodeDataAsyncCallback, data);
     }
 
     /**
-     * Callback object to be used with (@link #setChildData() setChildData)
-     * method.
+     * Callback object to be used with (@link #setNodeDataAsync()
+     * setNodeDataAsync) method.
      */
-    private final StatCallback setChildDataCallback = (int rc, String path, Object ctx, Stat stat) -> {
+    private final StatCallback setNodeDataAsyncCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (Code.get(rc)) {
             case CONNECTIONLOSS:
                 LOG.warn("Connection loss was detected. Retrying...");
-                setContainerData(path, (byte[]) ctx);
+                setNodeDataAsync(path, (byte[]) ctx);
                 break;
             case NONODE:
-                LOG.error("Container does not exist: " + path);
+                LOG.error("Znode does not exist: " + path);
                 break;
             case OK:
-                LOG.info("Data set to node: " + path);
+                LOG.info("Data set to zNode: " + path);
                 break;
             default:
                 LOG.error("Something went wrong: ",
@@ -753,6 +753,32 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 break;
         }
     };
+
+    public boolean setNodeDataSync(String path, byte[] data) {
+        boolean success = false;
+        while (true) {
+            try {
+                zk.setData(path, data, -1);
+                success = true;
+                break;
+            } catch (InterruptedException ex) {
+                // log event
+                LOG.warn("Interrupted. Stopping");
+                // set interupt flag
+                Thread.currentThread().interrupt();
+                break;
+            } catch (ConnectionLossException ex) {
+                LOG.warn("Connection loss was detected! Retrying...");
+            } catch (NoNodeException ex) {
+                LOG.info("No zNode {} to set data.", path);
+                break;
+            } catch (KeeperException ex) {
+                LOG.error("Something went wrong", ex);
+                break;
+            }
+        }
+        return success;
+    }
 
     /**
      * Blocks until shutdown.
@@ -832,19 +858,19 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     public void createShutdownNode() {
         createNode(zkConf.getShutdown().getPath(), zkConf.getShutdown().getData(), EPHEMERAL);
     }
-    
-        /**
+
+    /**
      * Deletes a zookeeper node to the application namespace that indicates to
      * the application components to initiate shutdown.
      */
     public void deleteShutdownNode() {
         deleteNode(zkConf.getShutdown().getPath(), -1);
     }
-    
+
     /**
      * Signals the application components to initiate shutdown process.
      */
-    public void signalAppShutdown(){
+    public void signalAppShutdown() {
         createShutdownNode();
         deleteShutdownNode();
     }
@@ -873,8 +899,8 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     public boolean isMasterError() {
         return masterError;
     }
-    
-    public ZooKeeper getZk(){
+
+    public ZooKeeper getZk() {
         return this.zk;
     }
 }

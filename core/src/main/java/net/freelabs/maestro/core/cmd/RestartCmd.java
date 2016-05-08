@@ -81,7 +81,7 @@ public final class RestartCmd extends Command {
                 // if conf was downloaded
                 if (downloadedZkConf) {
                     // initialize docker client
-                    initDockerClient(zkConf.getpConf().getDockerHost());
+                    initDockerClient(zkConf.getpConf().getDockerConf());
                     // create and initialize Broker initializer to act on containers
                     BrokerInit brokerInit = runBrokerInit();
                     // restart application
@@ -118,7 +118,7 @@ public final class RestartCmd extends Command {
         // create container handler
         ContainerHandler handler = new ContainerHandler(zkConf.getWebApp().getContainers());
         // create and initialize the Broker Initializer
-        return new BrokerInit(handler, zkConf, docker, master);
+        return new BrokerInit(handler, zkConf, docker, master, null);
     }
 
     /**
@@ -168,9 +168,9 @@ public final class RestartCmd extends Command {
      *
      * @param dockerURI the uri of the docker host.
      */
-    private void initDockerClient(String dockerURI) {
+    private void initDockerClient(String[] dockerConf) {
         // create a docker client 
-        DockerInitializer appDocker = new DockerInitializer(dockerURI);
+        DockerInitializer appDocker = new DockerInitializer(dockerConf);
         docker = appDocker.getDockerClient();
     }
 
