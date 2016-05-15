@@ -161,7 +161,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * Creates the zookeeper hierarchical namespace defined for the application.
      */
     private void createZkNamespace() {
-        LOG.info("Creating zookeeper application namespace");
+        LOG.info("Creating application namespace in zookeeper");
         for (ZkNode node : zkConf.getZkAppNamespace()) {
             if (!masterError) {
                 createNode(node.getPath(), node.getData(), PERSISTENT);
@@ -417,7 +417,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 String[] tokens = srv.split("/");
                 int size = tokens.length;
                 String name = tokens[size - 1];
-                LOG.info("Service \'{}\' stopped.", name);
+                LOG.info("Service {} stopped.", name);
             }
         }
     }

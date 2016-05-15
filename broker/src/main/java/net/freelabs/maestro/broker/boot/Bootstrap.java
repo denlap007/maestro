@@ -50,8 +50,7 @@ public class Bootstrap {
                     args[2], // zkContainerPath
                     args[3], // namingService
                     args[4], // shutdownNode
-                    args[5], // userConfNode
-                    args[6] // conDataNode
+                    args[5] // userConfNode
             );
             // get the container name
             String name = broker.resolveConPath(args[2]);// zkContainerPath
@@ -63,8 +62,7 @@ public class Bootstrap {
                     args[2], // zkContainerPath
                     args[3], // namingService
                     args[4], // shutdownNode
-                    args[5], // userConfNode
-                    args[6] // conDataNode
+                    args[5] // userConfNode
             );
             // get the container name
             String name = broker.resolveConPath(args[2]);// zkContainerPath
@@ -76,8 +74,7 @@ public class Bootstrap {
                     args[2], // zkContainerPath
                     args[3], // namingService
                     args[4], // shutdownNode
-                    args[5], // userConfNode
-                    args[6] // conDataNode
+                    args[5] // userConfNode
             );
             // get the container name
             String name = broker.resolveConPath(args[2]);// zkContainerPath

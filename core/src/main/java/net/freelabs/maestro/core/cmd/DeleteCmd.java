@@ -186,7 +186,7 @@ public final class DeleteCmd extends Command {
      */
     @Override
     protected void errExit() {
-        LOG.error("Deletion of application with id \'{}\' FAILED. Exiting...", appID);
+        LOG.error("FAILED to delete application with id {}. Exiting...", appID);
         System.exit(1);
     }
 

@@ -72,7 +72,7 @@ public final class NetworkHandler {
     }
 
     public void deleteNetwork(String netName) {
-        LOG.info("Removing network: {}", netName);
+        LOG.info("Removing network {}", netName);
         docker.removeNetworkCmd(netName).exec();
     }
 

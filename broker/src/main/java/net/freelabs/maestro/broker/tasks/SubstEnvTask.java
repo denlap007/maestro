@@ -97,9 +97,9 @@ public final class SubstEnvTask implements Task {
                     Path src = Paths.get(path);
                     Path dst = Paths.get(BrokerConf.RESTORE_DIR);
                     try {
-                        Files.copy(src, dst.resolve(src.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+                        Files.copy(src, dst.resolve(src.getFileName()), StandardCopyOption.COPY_ATTRIBUTES);
                     } catch (IOException ex) {
-                        LOG.error("FAILED to copy file for restore: {}. {}", src, ex.getMessage());
+                        LOG.error("FAILED to copy file {} for restore: {}", src, ex.getMessage());
                     }
                 }
                 try {

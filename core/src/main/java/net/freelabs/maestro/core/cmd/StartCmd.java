@@ -124,7 +124,7 @@ public final class StartCmd extends Command {
         RestrictionAnalyzer ra = new RestrictionAnalyzer(handler.listContainers());
 
         // analyze dependencies
-        LOG.info("Analyzing dependencies.");
+        LOG.info("Checking service dependencies.");
         // search for circular dependencies
         boolean found = ra.detectCircularDependencies();
         // if circular dependencies found exit
@@ -133,7 +133,7 @@ public final class StartCmd extends Command {
         }
 
         // analyze container names 
-        LOG.info("Analyzing container names.");
+        LOG.info("Checking servce names.");
         found = ra.detectDuplicateNames();
         // if duplicate contianer names found exit
         if (found) {
@@ -178,7 +178,7 @@ public final class StartCmd extends Command {
         } else {
             // shutdown master
             shutdownMaster();
-            LOG.info("---> APPLICATION DEPLOYED WITH ID: {}.", master.getDeployedID());
+            LOG.info("---> Application deployed with id {}.", master.getDeployedID());
         }
     }
 
@@ -335,7 +335,7 @@ public final class StartCmd extends Command {
         // start the master process
         masterThread.start();
         // wait for initialization
-        LOG.info("WAITING FOR MASTER INITIALIZATION");
+        LOG.debug("WAITING FOR MASTER INITIALIZATION");
         // check initialization
         if (!master.isMasterInitialized()) {
             errExit();

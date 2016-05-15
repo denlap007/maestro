@@ -5,11 +5,14 @@
             <name>web</name>
             <requires>business</requires>
             <docker>
-            	<image>dio/nginx_jre:v3</image>
+            	<image>dio/nginx_jre:v5</image>
             	<bindMnt accessMode="rw">
             		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
             		<containerPath>/home</containerPath>
             	</bindMnt>
+                <publishPort protocol="tcp">
+                    <containerPort>80</containerPort>
+                </publishPort>
             	<publishAllPorts>false</publishAllPorts>
             	<privileged>false</privileged>
             </docker>
@@ -33,13 +36,12 @@
             <name>business</name> 
             <requires>data</requires>
             <docker>
-            	<image>dio/glassfish:v1</image>
+            	<image>dio/glassfish:v3</image>
             	<bindMnt>
             		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
             		<containerPath>/home</containerPath>
             	</bindMnt>
         		<publishPort protocol="tcp">
-        			<hostPort>8080</hostPort>
             		<containerPort>8080</containerPort>
             	</publishPort>
             	<privileged>false</privileged>
@@ -67,7 +69,7 @@
         <dataContainer>
             <name>data</name>
             <docker>
-            	<image>dio/mysql_jre:v5</image>
+            	<image>dio/mysql_jre:v7</image>
             	<bindMnt>
             		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
             		<containerPath>/home</containerPath>

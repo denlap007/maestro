@@ -96,11 +96,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     private final String conConfNode;
     /**
-     * The path of the zNode that holds data uploaded to be used by the
-     * container.
-     */
-    private final String conDataNode;
-    /**
      * An object to handle execution of operations on another thread.
      */
     private final ExecutorService executorService = Executors.newFixedThreadPool(5);
@@ -161,15 +156,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * namespace.
      * @param shutdownNode the node the signals the shutdown.
      * @param conConfNode the node with the initial container configuration.
-     * @param conDataNode the node with data uploaded to be used be the
-     * container.
      */
-    public Broker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String conConfNode, String conDataNode) {
+    public Broker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String conConfNode) {
         super(zkHosts, zkSessionTimeout);
         this.zkContainerPath = zkContainerPath;
         this.shutdownNode = shutdownNode;
         this.conConfNode = conConfNode;
-        this.conDataNode = conDataNode;
         containerName = resolveConPath(zkContainerPath);
         brokerConf = new BrokerConf();
         brokerConf.brokerDir = BrokerConf.SERVICES_DIR + File.separator + containerName + "-service";

@@ -91,17 +91,17 @@ public final class StopCmd extends Command {
                     stopped = runBrokerInit();
                 }
             } else {
-                errMsg = String.format("Application \'%s\' does NOT exist.", appID);
+                errMsg = String.format("Application %s does NOT exist.", appID);
             }
         }
 
         master.shutdownMaster();
 
         if (stopped) {
-            LOG.info("---> Application with id \'{}\' STOPPED.", appID);
+            LOG.info("---> Application with id {} stopped.", appID);
         } else {
             if (errMsg.isEmpty()) {
-                LOG.error("FAILED to stop Application with id \'{}\'.", appID);
+                LOG.error("FAILED to stop Application with id {}.", appID);
             } else {
                 LOG.error(errMsg);
             }

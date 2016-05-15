@@ -36,8 +36,8 @@ public class WebBroker extends Broker {
      */
     private static final Logger LOG = LoggerFactory.getLogger(Broker.class);
 
-    public WebBroker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String userConfNode, String conDataNode) {
-        super(zkHosts, zkSessionTimeout, zkContainerPath, zkNamingService, shutdownNode, userConfNode, conDataNode);
+    public WebBroker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String userConfNode) {
+        super(zkHosts, zkSessionTimeout, zkContainerPath, zkNamingService, shutdownNode, userConfNode);
     }
 
     @Override

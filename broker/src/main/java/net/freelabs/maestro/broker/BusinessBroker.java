@@ -36,8 +36,8 @@ public class BusinessBroker extends Broker {
      */
     private static final Logger LOG = LoggerFactory.getLogger(DataBroker.class);
 
-    public BusinessBroker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String userConfNode, String conDataNode) {
-        super(zkHosts, zkSessionTimeout, zkContainerPath, zkNamingService, shutdownNode, userConfNode, conDataNode);
+    public BusinessBroker(String zkHosts, int zkSessionTimeout, String zkContainerPath, String zkNamingService, String shutdownNode, String userConfNode) {
+        super(zkHosts, zkSessionTimeout, zkContainerPath, zkNamingService, shutdownNode, userConfNode);
     }
 
     @Override

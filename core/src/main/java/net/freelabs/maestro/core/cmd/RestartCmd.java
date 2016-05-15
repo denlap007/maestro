@@ -93,7 +93,7 @@ public final class RestartCmd extends Command {
                     }
                 }
             } else {
-                LOG.error("Application with id \'{}\' does NOT exist.", appID);
+                LOG.error("Application with id {} does NOT exist.", appID);
             }
 
         }
@@ -102,7 +102,7 @@ public final class RestartCmd extends Command {
 
         if (success) {
             master.shutdownMaster();
-            LOG.info("---> Application with id \'{}\' restarted.", appID);
+            LOG.info("---> Application with id {} restarted.", appID);
         } else {
             errExit();
         }
