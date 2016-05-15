@@ -129,7 +129,7 @@ public final class RestartCmd extends Command {
      * @return true if zkConf node was successfully downloaded from zookeeper.
      */
     private boolean downloadZkConf() {
-        LOG.info("Getting application configuration.");
+        LOG.info("Fetching application configuration...");
         boolean downloaded = false;
         byte[] data = master.nodeData(zkConf.getZkConf().getPath(), null);
         // check for errors
@@ -179,7 +179,7 @@ public final class RestartCmd extends Command {
      */
     @Override
     protected void errExit() {
-        LOG.error("Restart of \'{}\' FAILED. Exiting...", appID);
+        LOG.error("Restart of {} FAILED. Exiting...", appID);
         System.exit(1);
     }
 

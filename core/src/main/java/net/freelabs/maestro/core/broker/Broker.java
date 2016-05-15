@@ -179,27 +179,21 @@ public abstract class Broker implements ContainerLifecycle {
         CreateContainerResponse container = createContainer();
         // check if container was created 
         if (container != null) {
-            // connect to application network
-            boolean attached = attachToNetwork(container.getId(), netHandler.getAppNetId());
-            if (attached) {
-                // start the created container instance
-                String cid = startContainer(container, con.getName());
-                // check for errors
-                if (cid != null) {
-                    // copy data, if any, to container
-                    boolean copied = copyToContainer(cid);
-                    if (copied) {
-                        // get container IP
-                        success = onPostStart(cid);
-                    }
-                } else {
-                    LOG.error("FAILED to start container. Shutting down Broker.");
+            // start the created container instance
+            String cid = startContainer(container, con.getName());
+            // check for errors
+            if (cid != null) {
+                // copy data, if any, to container
+                boolean copied = copyToContainer(cid);
+                if (copied) {
+                    // get container IP
+                    success = onPostStart(cid);
                 }
-            }else{
-                LOG.error("FAILED to attach container to network. Shutting down Broker.");
+            } else {
+                LOG.error("FAILED to start container.");
             }
         }
-        if (!success){
+        if (!success) {
             shutdown();
         }
         return success;
@@ -212,7 +206,7 @@ public abstract class Broker implements ContainerLifecycle {
      * @return true if operation completed successfully.
      */
     private boolean copyToContainer(String cid) {
-        LOG.info("Copying files from host to container for service {}", con.getName());
+        LOG.info("Copying files from host to container for service {}...", con.getName());
         boolean success = true;
 
         for (Map.Entry<String, String> entry : upDownPaths.entrySet()) {
@@ -235,7 +229,7 @@ public abstract class Broker implements ContainerLifecycle {
     }
 
     /**
-     * Attaches the container to the default application network.
+     * Attaches the container to a network.
      *
      * @param cid the container id.
      * @param netId the network id.
@@ -243,7 +237,7 @@ public abstract class Broker implements ContainerLifecycle {
      * successfully.
      */
     private boolean attachToNetwork(String cid, String netId) {
-        LOG.info("Attaching container for service {} to network.", con.getName(), netId);
+        LOG.info("Attaching container for service {} to network...", con.getName());
         boolean success = false;
         if (netId != null) {
             try {
@@ -273,10 +267,11 @@ public abstract class Broker implements ContainerLifecycle {
         updateIP(IP);
 
         try {
+            LOG.info("Updating zookeeper configuration for service {}...", zNode.getName());
             // update zNode configuration
             zNode.setData(JAXBSerializer.serialize(con));
             // log the event
-            LOG.info("Updated configuration of {}, {}:{}", zNode.getName(), "IP", IP);
+
             LOG.debug(JAXBSerializer.deserializeToString(zNode.getData()));
             // create zk configuration node
             createNode(zNode.getConfNodePath(), zNode.getData());
@@ -396,7 +391,7 @@ public abstract class Broker implements ContainerLifecycle {
             String defName = entry.getKey();
             String deplname = entry.getValue();
             try {
-                LOG.warn("Container for service {} is still running. Forcing stop.", defName);
+                LOG.warn("Container for service {} is still running. Forcing stop...", defName);
                 success = stopContainer(deplname, defName);
             } catch (NotFoundException ex) {
                 LOG.error("Container for service {} does not exist.", defName);
@@ -462,7 +457,7 @@ public abstract class Broker implements ContainerLifecycle {
                     shutdown();
                     break;
                 case OK:
-                    LOG.info("Created zNode: " + path);
+                    LOG.debug("Created zNode: " + path);
                     shutdown();
                     break;
                 default:
@@ -535,7 +530,7 @@ public abstract class Broker implements ContainerLifecycle {
     }
 
     public void shutdown() {
-        LOG.info("Initiating Broker shutdown.");
+        LOG.debug("Initiating Broker shutdown.");
         // release latch to finish execution
         shutdownSignal.countDown();
     }
@@ -567,12 +562,14 @@ public abstract class Broker implements ContainerLifecycle {
         LOG.info("Creating container for service {}", con.getName());
         // create object to process declared docker configuration
         DockerConfProcessor dcp = new DockerConfProcessor(con.getDocker());
-        // initialize attributes
         // get the name with which to deploy the container 
         String conName = zkConf.getDeplCons().get(con.getName());
-
+        // boot command
         String[] conCmd = conBootCmd.split(" ");
+        // env var passed
         String[] conEnvArr = conBootEnv.split(",");
+        // get network
+        String netName = zkConf.getAppDefaultNetName();
         // get hostName
         String hostName = con.getName();
         // get container image
@@ -597,6 +594,7 @@ public abstract class Broker implements ContainerLifecycle {
         while (container == null) {
             try {
                 container = docker.createContainerCmd(conImg)
+                        .withNetworkMode(netName)
                         .withHostName(hostName)
                         .withVolumes(volList.toArray(new Volume[0]))
                         .withVolumesFrom(volsFromList.toArray(new VolumesFrom[0]))
@@ -615,7 +613,7 @@ public abstract class Broker implements ContainerLifecycle {
                 break;
             } catch (NotFoundException ex) {
                 // image not found locally
-                LOG.warn("Image {} does not exist locally. Pulling from docker hub.", conImg);
+                LOG.warn("Image {} does not exist locally. Pulling from docker hub...", conImg);
                 // pull image from docker hub
                 boolean runSuccess = runAndRetry(() -> {
                     pullContainerImg(conImg);
@@ -643,7 +641,7 @@ public abstract class Broker implements ContainerLifecycle {
     public String startContainer(CreateContainerResponse container, String srv) {
         if (container != null) {
             // START CONTAINER
-            LOG.info("Starting container for service {}", srv);
+            LOG.info("Starting container for service {}...", srv);
             String id = container.getId();
             boolean runSuccess = runAndRetry(() -> {
                 docker.startContainerCmd(id).exec();
@@ -681,7 +679,7 @@ public abstract class Broker implements ContainerLifecycle {
         InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
         String startTime1 = inspResp.getState().getStartedAt();
         // restart
-        LOG.info("Restarting container for service {}", srv);
+        LOG.info("Restarting container for service {}...", srv);
         try {
             docker.restartContainerCmd(con).exec();
         } catch (NotFoundException e) {
@@ -702,7 +700,7 @@ public abstract class Broker implements ContainerLifecycle {
     @Override
     public boolean deleteContainer(String con, String srv) {
         boolean success = false;
-        LOG.info("Removing container for service {}", srv);
+        LOG.info("Removing container for service {}...", srv);
         try {
             docker.removeContainerCmd(con)
                     .withForce(true)

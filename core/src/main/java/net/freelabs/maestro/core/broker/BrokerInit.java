@@ -149,12 +149,12 @@ public final class BrokerInit {
     public boolean runRestart() {
         boolean success;
         // stop application if necessary
-        LOG.info("Checking application state.");
+        LOG.info("Checking application state...");
         // stop the application
         success = runStop();
         if (success) {
             // re-start application
-            LOG.info("Restarting application.");
+            LOG.info("Restarting application...");
             // run Brokers with restart for data containers
             handler.listDataContainers().stream().forEach((con) -> {
                 Broker broker = new DataBroker(zkConf, con, docker, master, netHandler);
@@ -190,7 +190,7 @@ public final class BrokerInit {
         // create a broker of any type
         Broker broker = new DataBroker(zkConf, null, docker, master, netHandler);
         // delete containers
-        LOG.info("Removing containers.");
+        LOG.info("Removing containers...");
         Map<String, String> deplCons = zkConf.getDeplCons();
         for (Map.Entry<String, String> entry : deplCons.entrySet()) {
             String defName = entry.getKey();

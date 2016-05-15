@@ -151,7 +151,7 @@ public final class StopCmd extends Command {
      * @return true if zkConf node was successfully downloaded from zookeeper.
      */
     private boolean downloadZkConf() {
-        LOG.info("Getting application configuration.");
+        LOG.info("Fetching application configuration...");
         boolean downloaded = false;
         byte[] data = master.nodeData(zkConf.getZkConf().getPath(), null);
         // check for errors

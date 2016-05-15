@@ -124,7 +124,7 @@ public final class StartCmd extends Command {
         RestrictionAnalyzer ra = new RestrictionAnalyzer(handler.listContainers());
 
         // analyze dependencies
-        LOG.info("Checking service dependencies.");
+        LOG.info("Checking service dependencies...");
         // search for circular dependencies
         boolean found = ra.detectCircularDependencies();
         // if circular dependencies found exit
@@ -133,7 +133,7 @@ public final class StartCmd extends Command {
         }
 
         // analyze container names 
-        LOG.info("Checking servce names.");
+        LOG.info("Checking service names...");
         found = ra.detectDuplicateNames();
         // if duplicate contianer names found exit
         if (found) {
@@ -178,7 +178,7 @@ public final class StartCmd extends Command {
         } else {
             // shutdown master
             shutdownMaster();
-            LOG.info("---> Application deployed with id {}.", master.getDeployedID());
+            LOG.info("[Application Deployed] - id: {}.", master.getDeployedID());
         }
     }
 
@@ -241,7 +241,7 @@ public final class StartCmd extends Command {
      * fails.
      */
     public ZkConf createZkConf(WebApp webApp, String hosts, int timeout, ContainerHandler handler, ProgramConf pConf) throws JAXBException {
-        LOG.info("Creating application configuration for zookeeper.");
+        LOG.info("Creating application configuration for zookeeper...");
         /*
          Create a zookeeper configuration object. This object holds all the
          necessary configuration information needed for zookeeper to boostrap-

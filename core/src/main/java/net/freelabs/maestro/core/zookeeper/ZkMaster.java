@@ -145,6 +145,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * session.
      */
     public void connectToZk() {
+        LOG.info("Connecting to zookeeper servers...");
         try {
             connect();
         } catch (IOException ex) {
@@ -161,7 +162,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * Creates the zookeeper hierarchical namespace defined for the application.
      */
     private void createZkNamespace() {
-        LOG.info("Creating application namespace in zookeeper");
+        LOG.info("Creating application namespace in zookeeper...");
         for (ZkNode node : zkConf.getZkAppNamespace()) {
             if (!masterError) {
                 createNode(node.getPath(), node.getData(), PERSISTENT);
@@ -291,9 +292,9 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
         waitMasterInit();
         // check for errors
         if (!masterError) {
-            LOG.info("Master is INITIALIZED.");
+            LOG.debug("Master is INITIALIZED.");
         } else {
-            LOG.error("Master initialization FAILED.");
+            LOG.error("Zookeeper initialization for application FAILED.");
         }
         return !masterError;
     }
@@ -660,7 +661,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * @return true if operation completed without errors.
      */
     public boolean cleanZkNamespace() {
-        LOG.info("Cleaning zookeeper namespace.");
+        LOG.info("Cleaning zookeeper namespace...");
 
         List<String> nodesToDelete = getAllNodes(zkConf.getRoot().getPath());
         ListIterator<String> iter = nodesToDelete.listIterator();
@@ -837,7 +838,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
      * deployed application.
      */
     public void shutdownMaster() {
-        LOG.info("Initiating master shutdown.");
+        LOG.debug("Initiating master shutdown.");
         try {
             // close session
             closeSession();
