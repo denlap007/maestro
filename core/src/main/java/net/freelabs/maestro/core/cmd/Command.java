@@ -42,6 +42,7 @@ abstract class Command {
      * Executes the user command.
      */
     protected abstract void exec(ProgramConf pConf, String... args);
+
     /**
      * Exits program with error exit code and exit message.
      */

@@ -86,7 +86,7 @@ public final class StopCmd extends Command {
                 // if conf was downloaded
                 if (downloadedZkConf) {
                     // initialize docker client
-                    initDockerClient(zkConf.getpConf().getDockerConf());
+                    initDockerClient(pConf.getDockerConf());
                     // create and run Initializer to process stop command 
                     stopped = runBrokerInit();
                 }

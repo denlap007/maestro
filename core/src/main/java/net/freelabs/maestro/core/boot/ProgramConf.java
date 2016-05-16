@@ -46,7 +46,7 @@ public final class ProgramConf {
     private Boolean dockerRemote;
     private Boolean dockerTlsVerify;
     private String dockerCertPath;
-    private String dockerConfig;
+    private String dockerConfigPath;
     private String dockerApiVersion;
     private String dockerRegistryUrl;
     private String dockerRegistryUser;
@@ -109,7 +109,7 @@ public final class ProgramConf {
                 log4jPropertiesPath = prop.getProperty("log4j.properties.path");
             }
             // get rest docker conf
-            dockerConfig = prop.getProperty("docker.config");
+            dockerConfigPath = prop.getProperty("docker.config");
             dockerApiVersion = prop.getProperty("docker.api.version");
             dockerRegistryUrl = prop.getProperty("docker.registry.url");
             dockerRegistryUser = prop.getProperty("docker.registry.username");
@@ -153,12 +153,13 @@ public final class ProgramConf {
             dockerRemote = Boolean.getBoolean(prop.getProperty("docker.remote"));
             dockerTlsVerify = Boolean.parseBoolean(prop.getProperty("docker.tls.verify"));
             dockerCertPath = prop.getProperty("docker.cert.path");
-            dockerConfig = prop.getProperty("docker.config");
+            dockerConfigPath = prop.getProperty("docker.config");
             dockerApiVersion = prop.getProperty("docker.api.version");
             dockerRegistryUrl = prop.getProperty("docker.registry.url");
             dockerRegistryUser = prop.getProperty("docker.registry.username");
             dockerRegistryPass = prop.getProperty("docker.registry.password");
             dockerRegistryMail = prop.getProperty("docker.registry.email");
+            log4jPropertiesPath = prop.getProperty("log4j.properties.path");
         } catch (IOException ex) {
             loaded = false;
         }
@@ -169,27 +170,34 @@ public final class ProgramConf {
      * Check if program's configuration fields where all initialized.
      *
      * @return true if all necessary configuration fields where initialized.
+     *
+     * public boolean isConfInit() { boolean init = zkHosts != null &&
+     * zkSessionTimeout != 0 && xmlSchemaPath != null && xmlFilePath != null &&
+     * dockerHost != null && dockerRemote != null && dockerTlsVerify != null; if
+     * (init) { LOG.info("Loaded configuration parameters:");
+     * LOG.info("zk.hosts: {}", zkHosts); LOG.info("zk.session.timeout: {}",
+     * zkSessionTimeout); LOG.info("xml.schema.path: {}", xmlSchemaPath);
+     * LOG.info("xml.file.path: {}", xmlFilePath); LOG.info("docker.host: {}",
+     * dockerHost); LOG.info("docker.remote: {}", dockerRemote);
+     * LOG.info("docker.tls.verify: {}", dockerTlsVerify);
+     * LOG.info("docker.cert.path: {}", dockerCertPath);
+     * LOG.info("docker.config: {}", dockerConfigPath);
+     * LOG.info("docker.api.version: {}", dockerApiVersion);
+     * LOG.info("docker.registry.url: {}", dockerRegistryUrl);
+     * LOG.info("docker.registry.username: {}", dockerRegistryUser);
+     * LOG.info("docker.registry.password: {}", dockerRegistryPass);
+     * LOG.info("docker.registry.email: {}", dockerRegistryMail); } else {
+     * LOG.error("Program configuration NOT initialized. Check the .properties
+     * file and/or user input."); } return init; }
      */
     public boolean isConfInit() {
         boolean init = zkHosts != null && zkSessionTimeout != 0 && xmlSchemaPath
                 != null && xmlFilePath != null && dockerHost != null
                 && dockerRemote != null && dockerTlsVerify != null;
         if (init) {
-            LOG.info("Loaded configuration parameters:");
-            LOG.info("zk.hosts: {}", zkHosts);
-            LOG.info("zk.session.timeout: {}", zkSessionTimeout);
-            LOG.info("xml.schema.path: {}", xmlSchemaPath);
-            LOG.info("xml.file.path: {}", xmlFilePath);
-            LOG.info("docker.host: {}", dockerHost);
-            LOG.info("docker.remote: {}", dockerRemote);
-            LOG.info("docker.tls.verify: {}", dockerTlsVerify);
-            LOG.info("docker.cert.path: {}", dockerCertPath);
-            LOG.info("docker.config: {}", dockerConfig);
-            LOG.info("docker.api.version: {}", dockerApiVersion);
-            LOG.info("docker.registry.url: {}", dockerRegistryUrl);
-            LOG.info("docker.registry.username: {}", dockerRegistryUser);
-            LOG.info("docker.registry.password: {}", dockerRegistryPass);
-            LOG.info("docker.registry.email: {}", dockerRegistryMail);
+            if (dockerTlsVerify == true) {
+                return dockerCertPath != null;
+            }
         } else {
             LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
         }
@@ -203,12 +211,9 @@ public final class ProgramConf {
     public String[] getDockerConf() {
         String[] dConf = new String[9];
         dConf[0] = dockerHost;
-        /*if (dockerTlsVerify == null){
-            dockerTlsVerify = false;
-        }*/
         dConf[1] = String.valueOf(dockerTlsVerify);
         dConf[2] = dockerCertPath;
-        dConf[3] = dockerConfig;
+        dConf[3] = dockerConfigPath;
         dConf[4] = dockerApiVersion;
         dConf[5] = dockerRegistryUrl;
         dConf[6] = dockerRegistryUser;
@@ -329,8 +334,8 @@ public final class ProgramConf {
         return dockerCertPath;
     }
 
-    public String getDockerConfig() {
-        return dockerConfig;
+    public String getDockerConfigPath() {
+        return dockerConfigPath;
     }
 
     public String getDockerApiVersion() {
@@ -361,8 +366,8 @@ public final class ProgramConf {
         this.dockerCertPath = dockerCertPath;
     }
 
-    public void setDockerConfig(String dockerConfig) {
-        this.dockerConfig = dockerConfig;
+    public void setDockerConfigPath(String dockerConfigPath) {
+        this.dockerConfigPath = dockerConfigPath;
     }
 
     public void setDockerApiVersion(String dockerApiVersion) {

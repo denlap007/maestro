@@ -61,6 +61,8 @@ public final class Main {
         // create the command line parser, initialize with cli options-cmds defined
         JCommander cl = new JCommander(opts);
         cl.setProgramName(ProgramConf.getPROGRAM_NAME());
+        cl.setCaseSensitiveOptions(false);
+        cl.setAllowAbbreviatedOptions(true);
 
         /* COMMANDS
          instantiate inner classes of CliOptions (commands) */
@@ -93,15 +95,39 @@ public final class Main {
 
         // get the command, if any, entered by the user
         String parsedCmd = cl.getParsedCommand();
+
+        // parse docker and zookeeper options, if any
+        boolean parsed = opts.parseDockerOpts();
+        if (!parsed) {
+            // print usage
+            cl.usage();
+            errExit();
+        }
+        parsed = opts.parseZkOpts();
+        if (!parsed) {
+            // print usage
+            cl.usage();
+            errExit();
+        }
         // set (if specified) cli options before commands
-        pConf.setZkHosts(opts.getzHosts());
-        pConf.setZkSessionTimeout(opts.getzTimeout());
-        pConf.setLog4jPropertiesPath(opts.getLog4j());
-        pConf.setDockerHost(startCmdOpt.getDocker());
-        pConf.setDockerRemote(startCmdOpt.isDockerRemote());
+        pConf.setZkHosts(opts.getZkHosts());
+        pConf.setZkSessionTimeout(opts.getZkTimeout());
+        // docker
+        pConf.setDockerHost(opts.getDockerHost());
+        pConf.setDockerRemote(opts.getDockerRemote());
+        pConf.setDockerTlsVerify(opts.getDockerTls());
+        pConf.setDockerCertPath(opts.getDockerCertPath());
+        pConf.setDockerConfigPath(opts.getDockerConfigPath());
+        pConf.setDockerRegistryUrl(opts.getDockerRegUrl());
+        pConf.setDockerRegistryUser(opts.getDockerRegUser());
+        pConf.setDockerRegistryPass(opts.getDockerRegPass());
+        pConf.setDockerRegistryMail(opts.getDockerRegMail());
+        // xml
         pConf.setXmlSchemaPath(startCmdOpt.getSchema());
         pConf.setXmlFilePath(startCmdOpt.getXml());
+        // log
         pConf.setLog4jPropertiesPath(opts.getLog4j());
+
         // if custom path for program configuration is set load values
         // only those not set by the uer
         if (opts.getConf() != null) {
@@ -131,11 +157,12 @@ public final class Main {
                     cl.usage(start);
                 } else {
                     // check if program configuration is complete
-                    boolean ok = pConf.isConfInit();
-                    if (ok) {
+                    boolean confInitialized = pConf.isConfInit();
+                    if (confInitialized) {
                         // execute START command
                         cmdExec.exec_start();
                     } else {
+                        LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
                         errExit();
                     }
                 }
@@ -143,38 +170,46 @@ public final class Main {
                 // stop command
                 if (stopCmdOpt.isHelp()) {
                     cl.usage(stop);
-                } else // check if program's configuration is complete
-                if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0) {
-                    // execute STOP command
-                    cmdExec.exec_stop(stopCmdOpt.getArgs().get(0));
                 } else {
-                    LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
-                    errExit();
+                    // check if program configuration is complete
+                    boolean confInitialized = pConf.isConfInit();
+                    if (confInitialized) {
+                        // execute STOP command
+                        cmdExec.exec_stop(stopCmdOpt.getArgs().get(0));
+                    } else {
+                        LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                        errExit();
+                    }
                 }
             } else if (parsedCmd.equals(restart)) {
                 // restart command
                 if (restartCmdOpt.isHelp()) {
                     cl.usage(restart);
-                } else // check if program's configuration is complete
-                if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0) {
-                    // execute RESTART command
-                    cmdExec.exec_restart(restartCmdOpt.getArgs().get(0));
                 } else {
-                    LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
-                    errExit();
+                    // check if program configuration is complete
+                    boolean confInitialized = pConf.isConfInit();
+                    if (confInitialized) {
+                        // execute RESTART command
+                        cmdExec.exec_restart(restartCmdOpt.getArgs().get(0));
+                    } else {
+                        LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                        errExit();
+                    }
                 }
-
             } else if (parsedCmd.equals(delete)) {
                 // delete command
                 if (deleteCmdOpt.isHelp()) {
                     cl.usage(delete);
-                } else // check if program's configuration is complete
-                if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0) {
-                    // execute DELETE command
-                    cmdExec.exec_delete(deleteCmdOpt.getArgs().get(0));
                 } else {
-                    LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
-                    errExit();
+                    // check if program configuration is complete
+                    boolean confInitialized = pConf.isConfInit();
+                    if (confInitialized) {
+                        // execute DELETE command
+                        cmdExec.exec_delete(deleteCmdOpt.getArgs().get(0));
+                    } else {
+                        LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                        errExit();
+                    }
                 }
             }
         }
@@ -185,13 +220,6 @@ public final class Main {
      */
     private static void errExit() {
         System.exit(1);
-    }
-
-    /**
-     * Exits program normally with no error code.
-     */
-    private static void exit() {
-        System.exit(0);
     }
 
     /**
@@ -206,7 +234,7 @@ public final class Main {
             logProperties.load(new FileInputStream(file));
             PropertyConfigurator.configure(logProperties);
         } catch (IOException ex) {
-            System.err.println("FAILED to load log4j properties file: " + ex.getMessage());
+            System.err.println("FAILED to load log4j .properties file: " + ex.getMessage());
         }
 
     }

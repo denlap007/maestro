@@ -307,7 +307,7 @@ public final class StartCmd extends Command {
         zkConf.getZkConf().setData(data);
         LOG.debug("Serialized zkConf: {}", JAXBSerializer.deserializeToString(data));
 
-        return zkConf; 
+        return zkConf;
     }
 
     /**

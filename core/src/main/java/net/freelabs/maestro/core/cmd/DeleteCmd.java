@@ -86,7 +86,7 @@ public final class DeleteCmd extends Command {
                 // if conf was downloaded
                 if (downloadedZkConf) {
                     // initialize docker client
-                    initDockerClient(zkConf.getpConf().getDockerConf());
+                    initDockerClient(pConf.getDockerConf());
                     // create and initialize Broker initializer to act on containers
                     BrokerInit brokerInit = runBrokerInit();
                     // delete application namespace
@@ -96,7 +96,7 @@ public final class DeleteCmd extends Command {
                         success = brokerInit.runDelete();
                         // remove default network
                         netHandler.deleteNetwork(zkConf.getAppDefaultNetName());
-                    } 
+                    }
                 }
             } else {
                 LOG.error("Application with id {} does NOT exist.", appID);
