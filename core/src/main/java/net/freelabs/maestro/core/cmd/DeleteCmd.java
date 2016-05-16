@@ -99,7 +99,7 @@ public final class DeleteCmd extends Command {
                     } 
                 }
             } else {
-                LOG.error("Application with id \'{}\' does NOT exist.", appID);
+                LOG.error("Application with id {} does NOT exist.", appID);
             }
         }
 
@@ -107,7 +107,7 @@ public final class DeleteCmd extends Command {
 
         if (success) {
             master.shutdownMaster();
-            LOG.info("---> Application with id \'{}\' deleted.", appID);
+            LOG.info("[Application Deleted] - id: {}", appID);
         } else {
             errExit();
         }
@@ -150,7 +150,7 @@ public final class DeleteCmd extends Command {
                 LOG.error("Something went wrong: ", ex);
             }
         } else {
-            LOG.error("Application data NOT found in configuration node zkConf.");
+            LOG.error("Application data NOT found in zookeeper configuration node.");
         }
         return downloaded;
     }

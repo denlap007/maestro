@@ -98,10 +98,10 @@ public final class StopCmd extends Command {
         master.shutdownMaster();
 
         if (stopped) {
-            LOG.info("---> Application with id {} stopped.", appID);
+            LOG.info("[Application Stopped] - id: {}.", appID);
         } else {
             if (errMsg.isEmpty()) {
-                LOG.error("FAILED to stop Application with id {}.", appID);
+                LOG.error("FAILED to stop Application with id {}", appID);
             } else {
                 LOG.error(errMsg);
             }
@@ -165,7 +165,7 @@ public final class StopCmd extends Command {
                 LOG.error("Something went wrong: ", ex);
             }
         } else {
-            LOG.error("Application data NOT found in configuration node zkConf.");
+            LOG.error("Application data NOT found in zookeeper configuration node.");
         }
         return downloaded;
     }

@@ -102,7 +102,7 @@ public final class RestartCmd extends Command {
 
         if (success) {
             master.shutdownMaster();
-            LOG.info("---> Application with id {} restarted.", appID);
+            LOG.info("[Application Restarted] - id: {}", appID);
         } else {
             errExit();
         }
@@ -143,7 +143,7 @@ public final class RestartCmd extends Command {
                 LOG.error("Something went wrong: ", ex);
             }
         } else {
-            LOG.error("Application data NOT found in configuration node zkConf.");
+            LOG.error("Application data NOT found in zookeeper configuration node.");
         }
         return downloaded;
     }

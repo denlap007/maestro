@@ -19,8 +19,12 @@ package net.freelabs.maestro.core.boot;
 import net.freelabs.maestro.core.cmd.CommandHandler;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterException;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.util.Properties;
 import java.util.Scanner;
 import net.freelabs.maestro.core.boot.cl.CliOptions;
+import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +32,7 @@ import org.slf4j.LoggerFactory;
  * Class that holds the main method of the program. Parses command line
  * arguments and boots the program.
  */
-public class Main {
+public final class Main {
 
     /**
      * A Logger object.
@@ -75,19 +79,37 @@ public class Main {
         cl.addCommand(restart, restartCmdOpt);
         cl.addCommand(delete, deleteCmdOpt);
 
-        // parse arguments
+        // parse cli arguments
         try {
             cl.parse(args);
         } catch (ParameterException e) {
             // show error msg
-            LOG.error(e.getMessage());
+            System.err.print(e.getMessage());
             // print usage
             cl.usage();
             // exit
             errExit();
         }
+
         // get the command, if any, entered by the user
         String parsedCmd = cl.getParsedCommand();
+        // set (if specified) cli options before commands
+        pConf.setZkHosts(opts.getzHosts());
+        pConf.setZkSessionTimeout(opts.getzTimeout());
+        pConf.setLog4jPropertiesPath(opts.getLog4j());
+        pConf.setDockerHost(startCmdOpt.getDocker());
+        pConf.setDockerRemote(startCmdOpt.isDockerRemote());
+        pConf.setXmlSchemaPath(startCmdOpt.getSchema());
+        pConf.setXmlFilePath(startCmdOpt.getXml());
+        pConf.setLog4jPropertiesPath(opts.getLog4j());
+        // if custom path for program configuration is set load values
+        // only those not set by the uer
+        if (opts.getConf() != null) {
+            pConf.loadFromFileUnset(opts.getConf());
+        } else {
+            // load from current running path, if exists, options not set by user
+            pConf.loadFromFileUnset("");
+        }
 
         if (opts.isHelp()) {
             // program help
@@ -95,53 +117,33 @@ public class Main {
         } else if (opts.isVersion()) {
             // program version
             LOG.info("Maestro  v" + ProgramConf.getVERSION());
-        } else if (parsedCmd.equals(start)) {
-            // start command
-            if (startCmdOpt.isHelp()) {
-                cl.usage(start);
-            } else {
-                pConf.setZkHosts(startCmdOpt.getzHosts());
-                pConf.setZkSessionTimeout(startCmdOpt.getzTimeout());
-                pConf.setDockerHost(startCmdOpt.getDocker());
-                pConf.setDockerRemote(startCmdOpt.isDockerRemote());
-                pConf.setXmlSchemaPath(startCmdOpt.getSchema());
-                pConf.setXmlFilePath(startCmdOpt.getXml());
-                // init unset (if any) conf parameters with file input (if any)
-                // check for external properties file
-                if (startCmdOpt.getConf() != null) {
-                    // if found load parameters to pConf
-                    pConf.loadFromFileUnset(startCmdOpt.getConf());
+        } else if (pConf.getLog4jPropertiesPath() == null) {
+            // no log4j.properties file
+            System.err.print("No log4j.properties file found. Check the program's .properties file and/or user input. ");
+            errExit();
+        } else {
+            // load log4j properties file to initialize logging
+            loadLod4jProperties(pConf.getLog4jPropertiesPath());
+
+            if (parsedCmd.equals(start)) {
+                // start command
+                if (startCmdOpt.isHelp()) {
+                    cl.usage(start);
                 } else {
-                    // check for properties file to the running path
-                    pConf.loadFromFileUnset("");
+                    // check if program configuration is complete
+                    boolean ok = pConf.isConfInit();
+                    if (ok) {
+                        // execute START command
+                        cmdExec.exec_start();
+                    } else {
+                        errExit();
+                    }
                 }
-                // check if program configuration is complete
-                boolean ok = pConf.isConfInit();
-                if (ok) {
-                    // execute START command
-                    cmdExec.exec_start();
-                } else {
-                    errExit();
-                }
-            }
-        } else if (parsedCmd.equals(stop)) {
-            // stop command
-            if (stopCmdOpt.isHelp()) {
-                cl.usage(stop);
-            } else {
-                // check configuration
-                pConf.setZkHosts(stopCmdOpt.getzHosts());
-                pConf.setZkSessionTimeout(stopCmdOpt.getzTimeout());
-                // init unset (if any) conf parameters with file input (if any)
-                // check for external properties file
-                if (stopCmdOpt.getConf() != null) {
-                    // if found load parameters to pConf
-                    pConf.loadFromFileUnset(stopCmdOpt.getConf());
-                } else {
-                    // check for properties file to the running path
-                    pConf.loadFromFileUnset("");
-                }
-                // check if program's configuration is complete
+            } else if (parsedCmd.equals(stop)) {
+                // stop command
+                if (stopCmdOpt.isHelp()) {
+                    cl.usage(stop);
+                } else // check if program's configuration is complete
                 if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0) {
                     // execute STOP command
                     cmdExec.exec_stop(stopCmdOpt.getArgs().get(0));
@@ -149,26 +151,11 @@ public class Main {
                     LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
                     errExit();
                 }
-            }
-
-        } else if (parsedCmd.equals(restart)) {
-            // restart command
-            if (restartCmdOpt.isHelp()) {
-                cl.usage(restart);
-            } else {
-                // check configuration
-                pConf.setZkHosts(restartCmdOpt.getzHosts());
-                pConf.setZkSessionTimeout(restartCmdOpt.getzTimeout());
-                // init unset (if any) conf parameters with file input (if any)
-                // check for external properties file
-                if (restartCmdOpt.getConf() != null) {
-                    // if found load parameters to pConf
-                    pConf.loadFromFileUnset(restartCmdOpt.getConf());
-                } else {
-                    // check for properties file to the running path
-                    pConf.loadFromFileUnset("");
-                }
-                // check if program's configuration is complete
+            } else if (parsedCmd.equals(restart)) {
+                // restart command
+                if (restartCmdOpt.isHelp()) {
+                    cl.usage(restart);
+                } else // check if program's configuration is complete
                 if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0) {
                     // execute RESTART command
                     cmdExec.exec_restart(restartCmdOpt.getArgs().get(0));
@@ -176,26 +163,12 @@ public class Main {
                     LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
                     errExit();
                 }
-            }
 
-        } else if (parsedCmd.equals(delete)) {
-            // delete command
-            if (deleteCmdOpt.isHelp()) {
-                cl.usage(delete);
-            } else {
-                // check configuration
-                pConf.setZkHosts(restartCmdOpt.getzHosts());
-                pConf.setZkSessionTimeout(restartCmdOpt.getzTimeout());
-                // init unset (if any) conf parameters with file input (if any)
-                // check for external properties file
-                if (deleteCmdOpt.getConf() != null) {
-                    // if found load parameters to pConf
-                    pConf.loadFromFileUnset(deleteCmdOpt.getConf());
-                } else {
-                    // check for properties file to the running path
-                    pConf.loadFromFileUnset("");
-                }
-                // check if program's configuration is complete
+            } else if (parsedCmd.equals(delete)) {
+                // delete command
+                if (deleteCmdOpt.isHelp()) {
+                    cl.usage(delete);
+                } else // check if program's configuration is complete
                 if (pConf.getZkHosts() != null && pConf.getZkSessionTimeout() != 0) {
                     // execute DELETE command
                     cmdExec.exec_delete(deleteCmdOpt.getArgs().get(0));
@@ -210,13 +183,31 @@ public class Main {
     /**
      * Exits program due to error using an error code.
      */
-    public static void errExit() {
+    private static void errExit() {
         System.exit(1);
     }
+
     /**
      * Exits program normally with no error code.
      */
-    public static void exit(){
+    private static void exit() {
         System.exit(0);
+    }
+
+    /**
+     * Loads the log4j properties file.
+     *
+     * @param file the path of the log4j properties file.
+     */
+    private static void loadLod4jProperties(String file) {
+        try {
+            Properties logProperties = new Properties();
+            // load log4j properties file
+            logProperties.load(new FileInputStream(file));
+            PropertyConfigurator.configure(logProperties);
+        } catch (IOException ex) {
+            System.err.println("FAILED to load log4j properties file: " + ex.getMessage());
+        }
+
     }
 }

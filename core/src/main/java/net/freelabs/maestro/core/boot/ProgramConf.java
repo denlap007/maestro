@@ -52,6 +52,9 @@ public final class ProgramConf {
     private String dockerRegistryUser;
     private String dockerRegistryPass;
     private String dockerRegistryMail;
+    // log4j conf
+    private String log4jPropertiesPath;
+    // program general conf
     private static final String PROPERTIES_FILE_NAME = "maestro.properties";
     private static final String PROGRAM_NAME = "maestro";
     private static final String VERSION = "0.1.0";
@@ -96,9 +99,16 @@ public final class ProgramConf {
             if (dockerRemote == null) {
                 dockerRemote = Boolean.parseBoolean(prop.getProperty("docker.remote"));
             }
+            if (dockerTlsVerify == null) {
+                dockerTlsVerify = Boolean.parseBoolean(prop.getProperty("docker.tls.verify"));
+            }
+            if (dockerCertPath == null) {
+                dockerCertPath = prop.getProperty("docker.cert.path");
+            }
+            if (log4jPropertiesPath == null) {
+                log4jPropertiesPath = prop.getProperty("log4j.properties.path");
+            }
             // get rest docker conf
-            dockerTlsVerify = Boolean.parseBoolean(prop.getProperty("docker.tls.verify"));
-            dockerCertPath = prop.getProperty("docker.cert.path");
             dockerConfig = prop.getProperty("docker.config");
             dockerApiVersion = prop.getProperty("docker.api.version");
             dockerRegistryUrl = prop.getProperty("docker.registry.url");
@@ -161,7 +171,9 @@ public final class ProgramConf {
      * @return true if all necessary configuration fields where initialized.
      */
     public boolean isConfInit() {
-        boolean init = zkHosts != null && zkSessionTimeout != 0 && xmlSchemaPath != null && xmlFilePath != null && dockerHost != null;
+        boolean init = zkHosts != null && zkSessionTimeout != 0 && xmlSchemaPath
+                != null && xmlFilePath != null && dockerHost != null
+                && dockerRemote != null && dockerTlsVerify != null;
         if (init) {
             LOG.info("Loaded configuration parameters:");
             LOG.info("zk.hosts: {}", zkHosts);
@@ -185,7 +197,7 @@ public final class ProgramConf {
     }
 
     /**
-     * 
+     *
      * @return all docker configuration parameters.
      */
     public String[] getDockerConf() {
@@ -372,7 +384,12 @@ public final class ProgramConf {
     public void setDockerRegistryMail(String dockerRegistryMail) {
         this.dockerRegistryMail = dockerRegistryMail;
     }
-    
-   
 
+    public String getLog4jPropertiesPath() {
+        return log4jPropertiesPath;
+    }
+
+    public void setLog4jPropertiesPath(String log4jPropertiesPath) {
+        this.log4jPropertiesPath = log4jPropertiesPath;
+    }
 }

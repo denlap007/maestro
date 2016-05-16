@@ -559,7 +559,7 @@ public abstract class Broker implements ContainerLifecycle {
 
     @Override
     public CreateContainerResponse createContainer() {
-        LOG.info("Creating container for service {}", con.getName());
+        LOG.info("Creating container for service {}...", con.getName());
         // create object to process declared docker configuration
         DockerConfProcessor dcp = new DockerConfProcessor(con.getDocker());
         // get the name with which to deploy the container 

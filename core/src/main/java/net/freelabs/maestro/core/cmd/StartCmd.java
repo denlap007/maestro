@@ -178,7 +178,7 @@ public final class StartCmd extends Command {
         } else {
             // shutdown master
             shutdownMaster();
-            LOG.info("[Application Deployed] - id: {}.", master.getDeployedID());
+            LOG.info("[Application Deployed] - id: {}", master.getDeployedID());
         }
     }
 
