@@ -21,8 +21,10 @@ import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterException;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.URL;
 import java.util.Properties;
 import java.util.Scanner;
+import java.util.logging.Level;
 import net.freelabs.maestro.core.boot.cl.CliOptions;
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
@@ -86,9 +88,7 @@ public final class Main {
             cl.parse(args);
         } catch (ParameterException e) {
             // show error msg
-            System.err.print(e.getMessage());
-            // print usage
-            cl.usage();
+            System.err.print(e.getMessage() + ". See \'maestro --help\'");
             // exit
             errExit();
         }
@@ -96,19 +96,22 @@ public final class Main {
         // get the command, if any, entered by the user
         String parsedCmd = cl.getParsedCommand();
 
-        // parse docker and zookeeper options, if any
-        boolean parsed = opts.parseDockerOpts();
-        if (!parsed) {
-            // print usage
-            cl.usage();
-            errExit();
+        if (opts.getDockerOptions() != null) {
+            // parse docker and options
+            boolean parsed = opts.parseDockerOpts();
+            if (!parsed) {
+                // print usage
+                errExit();
+            }
         }
-        parsed = opts.parseZkOpts();
-        if (!parsed) {
-            // print usage
-            cl.usage();
-            errExit();
+        if (opts.getZkOptions() != null) {
+            boolean parsed = opts.parseZkOpts();
+            if (!parsed) {
+                // print usage
+                errExit();
+            }
         }
+
         // set (if specified) cli options before commands
         pConf.setZkHosts(opts.getZkHosts());
         pConf.setZkSessionTimeout(opts.getZkTimeout());
@@ -118,6 +121,7 @@ public final class Main {
         pConf.setDockerTlsVerify(opts.getDockerTls());
         pConf.setDockerCertPath(opts.getDockerCertPath());
         pConf.setDockerConfigPath(opts.getDockerConfigPath());
+        pConf.setDockerApiVersion(opts.getDockerApiVer());
         pConf.setDockerRegistryUrl(opts.getDockerRegUrl());
         pConf.setDockerRegistryUser(opts.getDockerRegUser());
         pConf.setDockerRegistryPass(opts.getDockerRegPass());
@@ -228,14 +232,40 @@ public final class Main {
      * @param file the path of the log4j properties file.
      */
     private static void loadLod4jProperties(String file) {
+        // load from file on disk
+        Properties logProperties = new Properties();
         try {
-            Properties logProperties = new Properties();
-            // load log4j properties file
             logProperties.load(new FileInputStream(file));
             PropertyConfigurator.configure(logProperties);
+            LOG.info("Loaded log4j properties file: {}", file);
         } catch (IOException ex) {
-            System.err.println("FAILED to load log4j .properties file: " + ex.getMessage());
-        }
+            java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.WARNING,
+                    "Failed to load log4j properties file: {0}. Trying application workDir. ", ex.getMessage());
+            try {
+                String workDir = System.getProperty("user.dir");
+                file = workDir + "/log4j.properties";
+                logProperties.load(new FileInputStream(file));
+                PropertyConfigurator.configure(logProperties);
+                LOG.info("Loaded log4j properties file: {}", file);
+            } catch (IOException ex1) {
+                java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.WARNING,
+                        "Failed to load log4j properties file: {0} {1}. Trying application classpath", new Object[]{file, ex.getMessage()});
+                // load log4j properties file on classpath
+                ClassLoader loader = Thread.currentThread().getContextClassLoader();
+                URL url = loader.getResource("log4j.properties");
+                if (url != null) {
+                    PropertyConfigurator.configure(url);
+                    LOG.info("Loaded log4j properties file: {}", url.toString());
+                } else {
+                    java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
+                            "FAILED to load log4j.properties file. Put the file in your workDir, classpath "
+                            + "\n"
+                            + "\tor declare its path to program's .properties file!");
+                    errExit();
+                }
+            }
 
+        }
     }
+
 }

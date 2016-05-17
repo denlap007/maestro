@@ -18,8 +18,10 @@ package net.freelabs.maestro.core.boot.cl;
 
 import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
-import java.util.ArrayList;
+import com.beust.jcommander.converters.CommaParameterSplitter;
 import java.util.List;
+import java.util.logging.Level;
+import net.freelabs.maestro.core.boot.Main;
 
 /**
  *
@@ -27,11 +29,6 @@ import java.util.List;
  * the program.
  */
 public class CliOptions {
-
-    public CliOptions() {
-        this.dockerOptions = new ArrayList<>();
-        this.zkOptions = new ArrayList<>();
-    }
 
     private String zkHosts;
 
@@ -60,10 +57,12 @@ public class CliOptions {
     private static final int DOCKER_OPTS_NUM = 10;
 
     private static final int ZK_OPTS_NUM = 2;
+    
+    private static final String TOKEN_SPLITTER = ":";
 
     // --------------------------- Command Line Options ---------------------------
     @Parameter(names = {"-h", "--help"}, description = "Show this help message.", help = true)
-    private boolean help;
+    private Boolean help;
 
     @Parameter(names = {"-v", "--version"}, description = "Show program version.")
     private boolean version;
@@ -72,24 +71,24 @@ public class CliOptions {
     private String conf;
 
     @Parameter(names = {"-z", "--zkOpts[]"}, description = "Options for zookeeper "
-            + "in key=value pairs, space delimited. Options: "
-            + "hosts=<zk host> "
-            + "timeout=<zk client session timeout>", variableArity = true, required = false)
-    private final List<String> zkOptions;
+            + "in key:value pairs, comma delimited (no space). Options: "
+            + "hosts:<zk host>,"
+            + "timeout:<zk client session timeout>", splitter = CommaParameterSplitter.class, required = false)
+    private List<String> zkOptions;
 
     @Parameter(names = {"-d", "--dockerOpts[]"}, description = "Options for docker "
-            + "in key=value pairs, space delimited. Options: "
-            + "host=<docker host uri, with tcp://ip or unix:///socker> "
-            + "remote=<true for remote host> "
-            + "tls=<true to enable https> "
-            + "cert=<path to certs for tls> "
-            + "config=<path to config like .dockercfg> "
-            + "api=<api version> "
-            + "regUrl=<registry url> "
-            + "regUser=<regisrty username> "
-            + "regPass=<registry password> "
-            + "regEmail=<registry email>", variableArity = true, required = false)
-    private final List<String> dockerOptions;
+            + "in key:value pairs, comma delimited (no space). Options: "
+            + "host:<docker host uri, with tcp://ip or unix:///socker>,"
+            + "remote:<true for remote host>,"
+            + "tls:<true to enable https>,"
+            + "cert:<path to certs for tls>,"
+            + "config:<path to config like .dockercfg>,"
+            + "api:<api version>,"
+            + "regUrl:<registry url>,"
+            + "regUser:<regisrty username>,"
+            + "regPass:<registry password>,"
+            + "regEmail:<registry email>", splitter = CommaParameterSplitter.class, required = false)
+    private List<String> dockerOptions;
 
     @Parameter(names = {"-l", "--log"}, description = "<log4j properties> Path to log4j.properties file with log configuration.", required = false)
     private String log4j;
@@ -100,16 +99,19 @@ public class CliOptions {
     public class StartCmdOpt {
 
         @Parameter(names = {"-h", "--help"}, description = "Help for start command", help = true)
-        private boolean help;
+        private Boolean help;
 
-        @Parameter(names = {"-s", "--xmlSchema"}, description = "<schema file> Path of xml schema file.", required = false)
+        @Parameter(names = {"-s", "--xmlSchema"}, description = "<schema file> Path to xml schema file.", required = false)
         private String schema;
 
-        @Parameter(names = {"-x", "--xmlFile"}, description = "<app xml> Path of application description xml file.", required = false)
+        @Parameter(names = {"-x", "--xmlFile"}, description = "<app xml file> Path to application description xml file.", required = false)
         private String xml;
 
         // Getters
         public boolean isHelp() {
+            if (help == null) {
+                help = false;
+            }
             return this.help;
         }
 
@@ -127,13 +129,16 @@ public class CliOptions {
     public class StopCmdOpt {
 
         @Parameter(names = {"-h", "--help"}, description = "Help for stop command", help = true)
-        private boolean help;
+        private Boolean help;
 
         @Parameter(description = "<appId> The Id of the deployed application to stop.", required = true)
         private List<String> args;
 
         // Getters
         public boolean isHelp() {
+            if (help == null) {
+                help = false;
+            }
             return this.help;
         }
 
@@ -147,13 +152,16 @@ public class CliOptions {
     public class RestartCmdOpt {
 
         @Parameter(names = {"-h", "--help"}, description = "Help for restart command", help = true)
-        private boolean help;
+        private Boolean help;
 
         @Parameter(description = "<appId> The Id of the deployed application to restart.", required = true)
         private List<String> args;
 
         // Getters
         public boolean isHelp() {
+            if (help == null) {
+                help = false;
+            }
             return this.help;
         }
 
@@ -167,13 +175,16 @@ public class CliOptions {
     public class DeleteCmdOpt {
 
         @Parameter(names = {"-h", "--help"}, description = "Help for delete command", help = true)
-        private boolean help;
+        private Boolean help;
 
         @Parameter(description = "<appId> The Id of the deployed application to delete.", required = true)
         private List<String> args;
 
         // Getters
         public boolean isHelp() {
+            if (help == null) {
+                help = false;
+            }
             return this.help;
         }
 
@@ -186,18 +197,21 @@ public class CliOptions {
     public boolean parseZkOpts() {
         boolean parsedOptions = true;
         if (zkOptions.size() > ZK_OPTS_NUM) {
-            System.err.println("Too many zookeeper options defined.");
+            java.util.logging.Logger.getLogger(Main.class.getName())
+                    .log(Level.SEVERE, "Too many zookeeper options defined. See \'maestro --help\'");
         } else if (!zkOptions.isEmpty()) {
-            for (int i = 0; i < ZK_OPTS_NUM; i++) {
+            for (int i = 0; i < zkOptions.size(); i++) {
                 boolean parsed = parseAndSetZkOption(zkOptions.get(i));
                 if (!parsed) {
                     parsedOptions = false;
-                    System.err.println("Invalid zookeeper option: " + zkOptions.get(i));
+                    java.util.logging.Logger.getLogger(Main.class.getName())
+                            .log(Level.SEVERE, "Invalid zookeeper option: {0}. See \'maestro --help\'", zkOptions.get(i));
                     break;
                 }
             }
         } else {
-            System.err.println("No zookeeper option defined.");
+            java.util.logging.Logger.getLogger(Main.class.getName())
+                    .log(Level.SEVERE, "No zookeeper option defined. See \'maestro --help\'");
         }
 
         return parsedOptions;
@@ -214,7 +228,7 @@ public class CliOptions {
         String value = checkKVPair(kvPair);
 
         if (value != null) {
-            String[] kv = kvPair.split("=");
+            String[] kv = kvPair.split(TOKEN_SPLITTER);
             boolean set = setZkrOption(kv[0], kv[1]);
             if (!set) {
                 value = null;
@@ -265,18 +279,21 @@ public class CliOptions {
     public boolean parseDockerOpts() {
         boolean parsedOptions = true;
         if (dockerOptions.size() > DOCKER_OPTS_NUM) {
-            System.err.println("Too many docker options defined.");
+            java.util.logging.Logger.getLogger(Main.class.getName())
+                    .log(Level.SEVERE, "Too many docker options defined. See \'maestro --help\'");
         } else if (!dockerOptions.isEmpty()) {
-            for (int i = 0; i < DOCKER_OPTS_NUM; i++) {
+            for (int i = 0; i < dockerOptions.size(); i++) {
                 boolean parsed = parseAndSetDockerOption(dockerOptions.get(i));
                 if (!parsed) {
                     parsedOptions = false;
-                    System.err.println("Invalid docker option: " + dockerOptions.get(i));
+                    java.util.logging.Logger.getLogger(Main.class.getName())
+                            .log(Level.SEVERE, "Invalid docker option: {0}. See \'maestro --help\'", dockerOptions.get(i));
                     break;
                 }
             }
         } else {
-            System.err.println("No docker option defined.");
+            java.util.logging.Logger.getLogger(Main.class.getName())
+                    .log(Level.SEVERE, "No docker option defined. See \'maestro --help\'");
         }
         return parsedOptions;
     }
@@ -291,7 +308,7 @@ public class CliOptions {
         String value = checkKVPair(kvPair);
 
         if (value != null) {
-            String[] kv = kvPair.split("=");
+            String[] kv = kvPair.split(TOKEN_SPLITTER);
             boolean set = setDockerOption(kv[0], kv[1]);
             if (!set) {
                 value = null;
@@ -311,7 +328,7 @@ public class CliOptions {
      */
     private String checkKVPair(String kvPair) {
         String value = null;
-        String[] splitElem = kvPair.split("=");
+        String[] splitElem = kvPair.split(TOKEN_SPLITTER);
         if (splitElem.length == 2) {
             value = kvPair;
         }
@@ -380,6 +397,9 @@ public class CliOptions {
     }
 
     public boolean isHelp() {
+        if (help == null) {
+            help = false;
+        }
         return help;
     }
 
