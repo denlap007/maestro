@@ -61,6 +61,7 @@
                     <!-- exclude files from src/main/resources-->
                      <excludes>
                         <exclude>testCases/**</exclude>
+                        <exclude>swarm_deployment/**</exclude>
                         <exclude>old_schemas/**</exclude>
                         <exclude>maestro/**</exclude>
                         <exclude>web-broker/**</exclude>

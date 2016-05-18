@@ -105,16 +105,27 @@ public final class ProgramConf {
             if (dockerCertPath == null) {
                 dockerCertPath = prop.getProperty("docker.cert.path");
             }
+            if (dockerConfigPath == null) {
+                dockerConfigPath = prop.getProperty("docker.config");
+            }
+            if (dockerApiVersion == null) {
+                dockerApiVersion = prop.getProperty("docker.api.version");
+            }
+            if (dockerRegistryUrl == null) {
+                dockerRegistryUrl = prop.getProperty("docker.registry.url");
+            }
+            if (dockerRegistryUser == null) {
+                dockerRegistryUser = prop.getProperty("docker.registry.username");
+            }
+            if (dockerRegistryPass == null) {
+                dockerRegistryPass = prop.getProperty("docker.registry.password");
+            }
+            if (dockerRegistryMail == null) {
+                dockerRegistryMail = prop.getProperty("docker.registry.email");
+            }
             if (log4jPropertiesPath == null) {
                 log4jPropertiesPath = prop.getProperty("log4j.properties.path");
             }
-            // get rest docker conf
-            dockerConfigPath = prop.getProperty("docker.config");
-            dockerApiVersion = prop.getProperty("docker.api.version");
-            dockerRegistryUrl = prop.getProperty("docker.registry.url");
-            dockerRegistryUser = prop.getProperty("docker.registry.username");
-            dockerRegistryPass = prop.getProperty("docker.registry.password");
-            dockerRegistryMail = prop.getProperty("docker.registry.email");
         } catch (IOException ex) {
             loaded = false;
         }
@@ -196,7 +207,10 @@ public final class ProgramConf {
                 && dockerRemote != null && dockerTlsVerify != null;
         if (init) {
             if (dockerTlsVerify == true) {
-                return dockerCertPath != null;
+                if (dockerCertPath == null) {
+                    LOG.error("A valid path for docker cert must be specified if tls is enabled.");
+                    init = false;
+                }
             }
         } else {
             LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");

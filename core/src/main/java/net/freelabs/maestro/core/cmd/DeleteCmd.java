@@ -91,12 +91,10 @@ public final class DeleteCmd extends Command {
                     BrokerInit brokerInit = runBrokerInit();
                     // delete application namespace
                     success = master.cleanZkNamespace();
-                    if (success) {
-                        // remove containers
-                        success = brokerInit.runDelete();
-                        // remove default network
-                        netHandler.deleteNetwork(zkConf.getAppDefaultNetName());
-                    }
+                    // remove containers
+                    success = brokerInit.runDelete() && success;
+                    // remove default network
+                    netHandler.deleteNetwork(zkConf.getAppDefaultNetName());
                 }
             } else {
                 LOG.error("Application with id {} does NOT exist.", appID);

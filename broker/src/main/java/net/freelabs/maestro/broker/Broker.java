@@ -1149,8 +1149,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         srvMngr.setSrvStateStatus(path, srvNode.getStatus());
         // log
         LOG.info("Status of service {} is: {}", path, srvNode.getStatus().toString());
-        // check if all services are initialized
-        checkInit();
+        /* check if all services are initialized. If the container is already initialized
+        and a status update from a service is received, that means that a service
+        from another container failed OR updated its configurations (NOT IMPLEMENTED
+        YET). Hence, reconfiguring is needed (NOT IMPLEMENTED YET)
+         */
+        if (!conInitialized) {
+            checkInit();
+        }
     }
 
     /**

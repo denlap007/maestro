@@ -169,12 +169,18 @@ public final class StartCmd extends Command {
         boolean success = brokerInit.runStart();
         // check if operation was successful 
         if (!success) {
+            LOG.info("Performing cleanup...");
             // error occurred so stop any running services and containers
             brokerInit.runStop();
+            // delete application namespace
+            master.cleanZkNamespace();
+            // remove containers
+            brokerInit.runDelete();
+            // remove default network
+            netHandler.deleteNetwork(zkConf.getAppDefaultNetName());
             // shutdown master
             shutdownMaster();
-            // log 
-            LOG.error("FAILED to deploy application.");
+            errExit();
         } else {
             // shutdown master
             shutdownMaster();
@@ -358,8 +364,8 @@ public final class StartCmd extends Command {
      */
     @Override
     protected void errExit() {
-        LOG.error("The program will exit!");
-
+        // log 
+        LOG.error("FAILED to deploy application.");
         System.exit(1);
     }
 }

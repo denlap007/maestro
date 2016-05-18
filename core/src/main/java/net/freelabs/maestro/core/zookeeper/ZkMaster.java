@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.apache.zookeeper.AsyncCallback.DataCallback;
 import org.apache.zookeeper.AsyncCallback.StatCallback;
 import org.apache.zookeeper.AsyncCallback.StringCallback;
@@ -347,7 +348,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
         while (true) {
             try {
                 children = zk.getChildren(zkConf.getServices().getPath(), childrenWatcher);
-                return children;
+                break;
             } catch (InterruptedException ex) {
                 masterError = true;
                 // log event
@@ -424,12 +425,16 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     }
 
     /**
-     * Waits until all application services have stopped.
+     * Waits until all application services have stopped or a timeout occurs, 
+     * whichever happens first. 
      *
      * @param services list of services to wait to closeSession.
+     * @param timeout the maximum time to wait
+     * @param timeUnit the time unit of the timeout argument
      * @return true if all services stopped. False in case an error occurred.
      */
-    public boolean waitServicesToStop(List<String> services) {
+    public boolean waitServicesToStop(List<String> services, long timeout, TimeUnit timeUnit) {
+        boolean stopped = false;
         LOG.info("Stopping services...");
         // get services running
         servicesCache = services;
@@ -437,7 +442,10 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
         if (servicesCache != null) {
             if (!servicesCache.isEmpty()) {
                 try {
-                    servicesStopped.await();
+                    stopped = servicesStopped.await(timeout, timeUnit);
+                    if (!stopped){
+                        LOG.warn("Some services are still running!");
+                    }
                 } catch (InterruptedException ex) {
                     masterError = true;
                     // log the event
@@ -449,8 +457,11 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 LOG.error("Containers-Services NOT running.");
                 masterError = true;
             }
+        }else{
+            LOG.error("An error encountered while waiting for services to stop.");
         }
-        return !masterError;
+        
+        return !masterError && stopped;
     }
 
     /**

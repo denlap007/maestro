@@ -149,7 +149,8 @@ public final class Main {
             LOG.info("Maestro  v" + ProgramConf.getVERSION());
         } else if (pConf.getLog4jPropertiesPath() == null) {
             // no log4j.properties file
-            System.err.print("No log4j.properties file found. Check the program's .properties file and/or user input. ");
+             java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
+                     "FAILED to locate log4j.properties file. Check the program's .properties file and/or user input.");
             errExit();
         } else {
             // load log4j properties file to initialize logging
@@ -225,7 +226,7 @@ public final class Main {
     private static void errExit() {
         System.exit(1);
     }
-
+    
     /**
      * Loads the log4j properties file.
      *
@@ -237,10 +238,10 @@ public final class Main {
         try {
             logProperties.load(new FileInputStream(file));
             PropertyConfigurator.configure(logProperties);
-            LOG.info("Loaded log4j properties file: {}", file);
+            LOG.debug("Loaded log4j properties file: {}", file);
         } catch (IOException ex) {
             java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.WARNING,
-                    "Failed to load log4j properties file: {0}. Trying application workDir. ", ex.getMessage());
+                    "Could to load log4j properties file: {0}. Trying application workDir. ", ex.getMessage());
             try {
                 String workDir = System.getProperty("user.dir");
                 file = workDir + "/log4j.properties";
@@ -249,7 +250,7 @@ public final class Main {
                 LOG.info("Loaded log4j properties file: {}", file);
             } catch (IOException ex1) {
                 java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.WARNING,
-                        "Failed to load log4j properties file: {0} {1}. Trying application classpath", new Object[]{file, ex.getMessage()});
+                        "Could to load log4j properties file: {0} {1}. Trying application classpath", new Object[]{file, ex.getMessage()});
                 // load log4j properties file on classpath
                 ClassLoader loader = Thread.currentThread().getContextClassLoader();
                 URL url = loader.getResource("log4j.properties");
@@ -258,7 +259,7 @@ public final class Main {
                     LOG.info("Loaded log4j properties file: {}", url.toString());
                 } else {
                     java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
-                            "FAILED to load log4j.properties file. Put the file in your workDir, classpath "
+                            "FAILED to locate a valid log4j.properties file. Put the file in your workDir, classpath "
                             + "\n"
                             + "\tor declare its path to program's .properties file!");
                     errExit();

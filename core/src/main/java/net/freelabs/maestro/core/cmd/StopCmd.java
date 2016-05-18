@@ -101,7 +101,7 @@ public final class StopCmd extends Command {
             LOG.info("[Application Stopped] - id: {}.", appID);
         } else {
             if (errMsg.isEmpty()) {
-                LOG.error("FAILED to stop Application with id {}", appID);
+                LOG.error("Stop of application with id {} comleted wiht errors.", appID);
             } else {
                 LOG.error(errMsg);
             }

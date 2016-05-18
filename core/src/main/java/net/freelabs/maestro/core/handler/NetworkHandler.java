@@ -61,7 +61,7 @@ public final class NetworkHandler {
      */
     public boolean createNetwork(String netName) {
         // create default network for app. 
-        LOG.info("Creating network {} with the default driver.", netName);
+        LOG.info("Creating network {} with the default driver...", netName);
         CreateNetworkResponse createNetworkResponse = docker.createNetworkCmd()
                 .withName(netName)
                 .exec();
@@ -72,7 +72,7 @@ public final class NetworkHandler {
     }
 
     public void deleteNetwork(String netName) {
-        LOG.info("Removing network {}", netName);
+        LOG.info("Removing network {}...", netName);
         docker.removeNetworkCmd(netName).exec();
     }
 

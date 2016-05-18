@@ -36,6 +36,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.generated.BindMnt;
 import net.freelabs.maestro.core.generated.Container;
@@ -133,6 +134,12 @@ public abstract class Broker implements ContainerLifecycle {
      * The path of the .jar file to execute the Broker in the container.
      */
     private static final String BROKER_JAR_IN_CONTAINER = "/opt/maestro/bin/broker.jar";
+    /**
+     * Time that services are waited to stop.
+     */
+    private static final long SERVICES_TIMEOUT = 2;
+
+    private static final TimeUnit SERVICES_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
     /**
      * Handles errors.
@@ -310,20 +317,19 @@ public abstract class Broker implements ContainerLifecycle {
                 // if shutdown node was created without errors
                 if (!zkMaster.isMasterError()) {
                     // wait services to stop
-                    success = zkMaster.waitServicesToStop(services);
-                    // confirm containers were stopped
-                    if (success) {
-                        // check for running containers
-                        Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
-                        // if containers still running force stop
-                        if (!runningCons.isEmpty()) {
-                            success = stopRunningCons(runningCons);
-                        }
-                        // check that running cons stopped successfully
-                        if (success) {
-                            LOG.info("All Containers stopped.");
-                        }
+                    boolean  stoppedSrvsWithoutError = zkMaster.waitServicesToStop(services, SERVICES_TIMEOUT, SERVICES_TIMEOUT_UNIT);
+                    // check for running containers
+                    Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
+                    // if containers still running force stop
+                    boolean stoppedContainersWithoutError = true;
+                    if (!runningCons.isEmpty()) {
+                        stoppedContainersWithoutError = stopRunningCons(runningCons);
                     }
+                    // check that running cons stopped successfully
+                    if (stoppedContainersWithoutError) {
+                        LOG.info("All Containers stopped.");
+                    }
+                    success = stoppedContainersWithoutError && stoppedSrvsWithoutError;
                 }
             } else {
                 LOG.info("All Services stopped.");
@@ -544,17 +550,20 @@ public abstract class Broker implements ContainerLifecycle {
         String ZK_NAMING_SERVICE = zkConf.getServices().getPath();
         String SHUTDOWN_NODE = zkConf.getShutdown().getPath();
         String CONF_NODE = zNode.getConfNodePath();
-        // create a string with all the key-value pairs
+        // create a string with all the key-value pairs (env vars)
         conBootEnv = "";
-        /* String.format("ZK_HOSTS=%s,ZK_SESSION_TIMEOUT=%s,"
-                + "ZK_CONTAINER_PATH=%s,ZK_NAMING_SERVICE=%s,SHUTDOWN_NODE=%s,"
-                + "CONF_NODE=%s,DATA_NODE=%s", ZK_HOSTS, ZK_SESSION_TIMEOUT, ZK_CONTAINER_PATH,
-                ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE, DATA_NODE); */
         // set the arguments for the container boot command
         conBootArgs = String.format("%s %s %s %s %s %s", ZK_HOSTS, ZK_SESSION_TIMEOUT,
                 ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
         // create the boot command
-        conBootCmd = "java -jar " + BROKER_JAR_IN_CONTAINER + " " + conBootArgs;
+
+        // FOR TESTING
+        conBootCmd = "wget maestro.freelabs.net/maestroBroker.zip || curl maestro.freelabs.net/maestroBroker.zip; "
+                + "rm -r /opt/maestro; "
+                + "unzip maestroBroker.zip -d /opt; "
+                + "exec java -jar /opt/maestro/bin/broker.jar " + conBootArgs;
+
+        //  conBootCmd =  "java -jar " + BROKER_JAR_IN_CONTAINER + " " + conBootArgs;
     }
 
     @Override
@@ -711,7 +720,9 @@ public abstract class Broker implements ContainerLifecycle {
             docker.inspectContainerCmd(con).exec();
         } catch (NotFoundException e) {
             if (!success) {
-                LOG.error("FAILED to remove container for service {}. Container does NOT exist.", srv);
+                LOG.warn("FAILED to remove container for service {}. Container does NOT exist.", srv);
+                // this is not an error so we need to re-set the flag to success
+                success = true;
             }
         }
 

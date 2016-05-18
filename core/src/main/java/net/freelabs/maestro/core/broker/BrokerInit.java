@@ -99,22 +99,23 @@ public final class BrokerInit {
     }
 
     public boolean runStart() {
+        LOG.info("Starting application...");
         // execute Brokers for data containers
         handler.listDataContainers().stream().forEach((con) -> {
             Broker broker = new DataBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting %s-Broker.", con.getName());
+            String logMsg = String.format("Starting handler for %s service.", con.getName());
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // execute Brokers for business containers
         handler.listBusinessContainers().stream().forEach((con) -> {
             Broker broker = new BusinessBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting %s-Broker.", con.getName());
+            String logMsg = String.format("Starting handler for %s service.", con.getName());
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // execute Brokers for web containers
         handler.listWebContainers().stream().forEach((con) -> {
             Broker broker = new WebBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting %s-Broker.", con.getName());
+            String logMsg = String.format("Starting handler for %s service.", con.getName());
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // do not allow new tasks wait for running to finish
@@ -140,6 +141,7 @@ public final class BrokerInit {
     }
 
     public boolean runStop() {
+        LOG.info("Stopping application...");
         // create a broker of any type
         Broker broker = new DataBroker(zkConf, null, docker, master, netHandler);
         // runStop services and containers
@@ -186,7 +188,7 @@ public final class BrokerInit {
     }
 
     public boolean runDelete() {
-        boolean success = false;
+        boolean success = true;
         // create a broker of any type
         Broker broker = new DataBroker(zkConf, null, docker, master, netHandler);
         // delete containers
@@ -195,11 +197,11 @@ public final class BrokerInit {
         for (Map.Entry<String, String> entry : deplCons.entrySet()) {
             String defName = entry.getKey();
             String deplname = entry.getValue();
-            // delete
-            success = broker.deleteContainer(deplname, defName);
-            if (!success) {
-                break;
-            }
+            // delete all but maintain success outcome in case of error
+            success = broker.deleteContainer(deplname, defName) && success;
+        }
+        if (!success){
+            LOG.warn("Could not remove all containers.");
         }
 
         return success;
@@ -233,7 +235,8 @@ public final class BrokerInit {
                 success = false;
                 break;
             } catch (ExecutionException ex) {
-                LOG.error("Something went wrong: " + ex);
+                LOG.error("Something went wrong: {}", ex.getMessage());
+                LOG.trace("Something went wrong: ", ex);
                 success = false;
                 break;
             } catch (TimeoutException ex) {
