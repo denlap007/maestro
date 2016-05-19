@@ -16,8 +16,8 @@
  */
 package net.freelabs.maestro.broker.process;
 
-import net.freelabs.maestro.broker.process.start.StartGroupHandler;
-import net.freelabs.maestro.broker.process.stop.StopGroupHandler;
+import net.freelabs.maestro.broker.process.start.StartGroupProcessHandler;
+import net.freelabs.maestro.broker.process.stop.StopGroupProcessHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,11 +30,11 @@ public final class ProcessManager {
     /**
      * Process manager for processes defined in start section.
      */
-    private StartGroupHandler startGroupHandler;
+    private StartGroupProcessHandler startGroupHandler;
     /**
      * Process manager for processes defined in stop section.
      */
-    private StopGroupHandler stopGroupHandler;
+    private StopGroupProcessHandler stopGroupHandler;
     /**
      * A Logger object.
      */
@@ -47,7 +47,7 @@ public final class ProcessManager {
      * @param startGroupHandler an initialized instance of {@link #startGroupHandler
      * startGroupHandler).
      */
-    public void setStartGroupHandler(StartGroupHandler startGroupHandler) {
+    public void setStartGroupHandler(StartGroupProcessHandler startGroupHandler) {
         this.startGroupHandler = startGroupHandler;
     }
 
@@ -58,7 +58,7 @@ public final class ProcessManager {
      * @param stopGroupHandler an initialized instance of {@link #stopGroupHandler
      * stopGroupHandler}.
      */
-    public void setStopGroupHandler(StopGroupHandler stopGroupHandler) {
+    public void setStopGroupHandler(StopGroupProcessHandler stopGroupHandler) {
         this.stopGroupHandler = stopGroupHandler;
     }
 
@@ -67,9 +67,13 @@ public final class ProcessManager {
      */
     public void exec_start_procs() {
         LOG.info("Executing start-group processes.");
-        boolean success = startGroupHandler.exec_group_procs();
-        if (success) {
-            LOG.info("Start-group processes executed SUCCESSFULLY.");
+        if (isStartHandlerInit()) {
+            boolean success = startGroupHandler.exec_group_procs();
+            if (success) {
+                LOG.info("Start-group processes executed SUCCESSFULLY.");
+            }
+        } else {
+            LOG.error("Start-group processes handler NOT INITIALIZED.");
         }
     }
 
@@ -78,11 +82,15 @@ public final class ProcessManager {
      */
     public void exec_stop_procs() {
         LOG.info("Executing stop-group processes.");
-        boolean success = stopGroupHandler.exec_group_procs();
-        if (success) {
-            LOG.info("Stop-group processes executed SUCCESSFULLY.");
+        if (isStopHandlerInit()) {
+            boolean success = stopGroupHandler.exec_group_procs();
+            if (success) {
+                LOG.info("Stop-group processes executed SUCCESSFULLY.");
+            } else {
+                LOG.error("Stop-group processes executed WITH ERRORS.");
+            }
         } else {
-            LOG.error("Stop-group processes executed WITH ERRORS.");
+            LOG.error("Stop-group processes handler NOT INITIALIZED.");
         }
     }
 

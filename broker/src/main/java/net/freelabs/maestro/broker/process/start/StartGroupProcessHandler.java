@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
  *
  * Class that manages process execution defined in start.
  */
-public final class StartGroupHandler extends GroupProcessHandler {
+public final class StartGroupProcessHandler extends GroupProcessHandler {
 
     /**
      * The handler for the main process.
@@ -45,7 +45,7 @@ public final class StartGroupHandler extends GroupProcessHandler {
     /**
      * A Logger object.
      */
-    private static final Logger LOG = LoggerFactory.getLogger(StartGroupHandler.class);
+    private static final Logger LOG = LoggerFactory.getLogger(StartGroupProcessHandler.class);
 
     /**
      * Constructor.
@@ -56,7 +56,7 @@ public final class StartGroupHandler extends GroupProcessHandler {
      * the main process.
      * @param mainHandler the handler for the main process.
      */
-    public StartGroupHandler(List<ProcessHandler> preHandlers, List<ProcessHandler> postHandlers, MainProcessHandler mainHandler) {
+    public StartGroupProcessHandler(List<ProcessHandler> preHandlers, List<ProcessHandler> postHandlers, MainProcessHandler mainHandler) {
         preMainHandlers = preHandlers;
         postMainHandlers = postHandlers;
         this.mainHandler = mainHandler;

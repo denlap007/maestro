@@ -16,6 +16,17 @@
   
   
     <build>
+        
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <includes>
+                    <include>log4j.properties</include>
+                </includes>
+            </resource>
+        </resources>
+        
+        
         <plugins>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
@@ -59,7 +70,7 @@
                 <version>2.6</version>
                 <configuration>
                     <!-- exclude files from src/main/resources-->
-                     <excludes>
+                    <!--<excludes>
                         <exclude>testCases/**</exclude>
                         <exclude>swarm_deployment/**</exclude>
                         <exclude>old_schemas/**</exclude>
@@ -68,7 +79,7 @@
                         <exclude>data-broker/**</exclude>
                         <exclude>business-broker/**</exclude>
                     </excludes>
-                    
+                    -->
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>

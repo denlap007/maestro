@@ -112,7 +112,11 @@ public final class MainProcessHandler extends ProcessHandler {
      */
     @Override
     protected boolean isHandlerInitialized() {
-        return (pData != null && execOnSuccess != null && execOnFailure != null);
+        boolean initialized = pData != null;
+        if (!initialized){
+            LOG.error("Process Data NOT SET for main process.");
+        }
+        return initialized;
     }
 
     /**
@@ -121,8 +125,7 @@ public final class MainProcessHandler extends ProcessHandler {
      * @return true if the main container process is running.
      */
     public boolean isMainProcRunning() {
-        boolean running = mainProcMon.isRunning();
-        return running;
+       return mainProcMon.isRunning();
     }
 
     /**

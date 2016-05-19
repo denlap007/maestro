@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
  *
  * Class that manages stop process execution defined in stop
  */
-public final class StopGroupHandler extends GroupProcessHandler {
+public final class StopGroupProcessHandler extends GroupProcessHandler {
 
     /**
      * List with all handlers.
@@ -35,14 +35,14 @@ public final class StopGroupHandler extends GroupProcessHandler {
     /**
      * A Logger object.
      */
-    private static final Logger LOG = LoggerFactory.getLogger(StopGroupHandler.class);
+    private static final Logger LOG = LoggerFactory.getLogger(StopGroupProcessHandler.class);
 
     /**
      * Constructor.
      *
      * @param handlers list of process handlers of the processes to execute.
      */
-    public StopGroupHandler(List<ProcessHandler> handlers) {
+    public StopGroupProcessHandler(List<ProcessHandler> handlers) {
         this.handlers = handlers;
     }
 

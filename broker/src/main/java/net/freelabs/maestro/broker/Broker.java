@@ -33,8 +33,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.broker.process.*;
-import net.freelabs.maestro.broker.process.start.StartGroupHandler;
-import net.freelabs.maestro.broker.process.stop.StopGroupHandler;
+import net.freelabs.maestro.broker.process.start.StartGroupProcessHandler;
+import net.freelabs.maestro.broker.process.stop.StopGroupProcessHandler;
 import net.freelabs.maestro.broker.process.stop.StopResMapper;
 import net.freelabs.maestro.broker.services.ServiceManager;
 import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
@@ -759,12 +759,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     }
                 }
             } else // check if srvs are initialized
-             if (srvMngr.areSrvInitialized()) {
+            {
+                if (srvMngr.areSrvInitialized()) {
                     // start processes
                     executorService.execute(() -> {
                         start();
                     });
                 }
+            }
         } else {
             conInitialized = true;
             LOG.info("Container INITIALIZED!");
@@ -817,8 +819,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * <li>Creates and initializes the {@link ProcessHandler process handlers}
      * for the main and other processes, to handle process initialization and
      * initiation.</li>
-     * <li>Creates and initializes the {@link StartGroupHandler start handler}
-     * that handles the execution of the processes defined in start group.</li>
+     * <li>Creates and initializes the
+     * {@link StartGroupProcessHandler start handler} that handles the execution
+     * of the processes defined in start group.</li>
      * </ul>
      */
     private void initStartGroup() {
@@ -834,7 +837,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // get handlers for the interaction with processes scheduled after main
         List<ProcessHandler> postMainHandlers = initDefaultProcs(rm, rm.getPostMainRes(), env);
         // create and init start group process handler
-        StartGroupHandler startGroupHandler = new StartGroupHandler(preMainHandlers, postMainHandlers, mainHandler);
+        StartGroupProcessHandler startGroupHandler = new StartGroupProcessHandler(preMainHandlers, postMainHandlers, mainHandler);
         // code to execute on success
         startGroupHandler.setExecOnSuccess(() -> {
             // change service status to INITIALIZED
@@ -878,7 +881,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // init handlers
         List<ProcessHandler> handlers = initDefaultProcs(rm, resources, env);
         // init proc handler for stop group
-        StopGroupHandler stopGroupHandler = new StopGroupHandler(handlers);
+        StopGroupProcessHandler stopGroupHandler = new StopGroupProcessHandler(handlers);
         procMngr.setStopGroupHandler(stopGroupHandler);
     }
 
@@ -1159,9 +1162,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         from another container failed OR updated its configurations (NOT IMPLEMENTED
         YET). Hence, reconfiguring is needed (NOT IMPLEMENTED YET)
          */
-        if (!conInitialized) {
-            checkInit();
-        }
+        checkInit();
     }
 
     /**
