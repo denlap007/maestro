@@ -17,20 +17,29 @@
 package net.freelabs.maestro.broker.process.stop;
 
 import java.util.List;
+import net.freelabs.maestro.broker.process.GroupProcessHandler;
 import net.freelabs.maestro.broker.process.ProcessHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * Class that manages stop process execution defined in stop
  */
-public final class StopGroupHandler {
+public final class StopGroupHandler extends GroupProcessHandler {
 
     /**
      * List with all handlers.
      */
     private final List<ProcessHandler> handlers;
     /**
-     * Constructor. 
+     * A Logger object.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(StopGroupHandler.class);
+
+    /**
+     * Constructor.
+     *
      * @param handlers list of process handlers of the processes to execute.
      */
     public StopGroupHandler(List<ProcessHandler> handlers) {
@@ -39,15 +48,39 @@ public final class StopGroupHandler {
 
     /**
      * <p>
-     * Starts executing declared processes.
+     * Starts executing declared processes. If processes executed successfully
+     * the return value is set to true. However, If a process fails, remaining
+     * processes will still be executed but the return value is set to false.
      * <p>
      * Method waits for processes to execute. Processes are executed serially.
      * <p>
      * Method blocks.
+     *
+     * @return true if group processes executed without errors.
      */
-    public void exec_stopProcs() {
-        handlers.stream().forEach((handler) -> {
-            handler.execute();
-        });
+    @Override
+    protected boolean start_group_procs() {
+        boolean processesSuccess = true;
+
+        for (ProcessHandler handler : handlers) {
+            processesSuccess = handler.execute() && processesSuccess;
+        }
+        return processesSuccess;
+    }
+
+    @Override
+    protected boolean isGroupHandlerInitialized() {
+        boolean initialized = false;
+        if (handlers == null) {
+            LOG.error("Stop Group Process Handler CANNOT start: "
+                    + "Process Handlers NOT INITIALIZED properly.");
+        } else {
+            initialized = true;
+        }
+        return initialized;
+    }
+
+    @Override
+    protected void cleanup() {
     }
 }

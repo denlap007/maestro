@@ -18,6 +18,8 @@ package net.freelabs.maestro.broker.tasks;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -33,6 +35,10 @@ public final class TaskHandler {
      * List of postStopTasks to execute.
      */
     private final List<Task> postStopTasks;
+    /**
+     * A Logger object.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(TaskHandler.class);
 
     /**
      * Constructor.
@@ -75,6 +81,7 @@ public final class TaskHandler {
      * Executes defined preStartTasks.
      */
     public void execPreStartTasks() {
+        LOG.info("Executing pre-start tasks.");
         preStartTasks.stream().forEach((task) -> {
             task.run();
         });
@@ -84,6 +91,7 @@ public final class TaskHandler {
      * Executes defined postStopTasks.
      */
     public void execPostStopTasks() {
+        LOG.info("Executing post-stop tasks.");
         postStopTasks.stream().forEach((task) -> {
             task.run();
         });

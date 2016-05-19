@@ -17,8 +17,8 @@
 package net.freelabs.maestro.broker.process.start;
 
 import java.util.List;
+import net.freelabs.maestro.broker.process.GroupProcessHandler;
 import net.freelabs.maestro.broker.process.ProcessHandler;
-import net.freelabs.maestro.broker.process.ProcessManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
  *
  * Class that manages process execution defined in start.
  */
-public final class StartGroupHandler {
+public final class StartGroupHandler extends GroupProcessHandler {
 
     /**
      * The handler for the main process.
@@ -45,7 +45,7 @@ public final class StartGroupHandler {
     /**
      * A Logger object.
      */
-    private static final Logger LOG = LoggerFactory.getLogger(ProcessManager.class);
+    private static final Logger LOG = LoggerFactory.getLogger(StartGroupHandler.class);
 
     /**
      * Constructor.
@@ -67,84 +67,101 @@ public final class StartGroupHandler {
      * <p>
      * Starts executing declared processes.
      * <p>
-     * If declared, any processes to be run before the main are executed. Then, the
-     * main container process is started. If executed successfully the other
+     * If declared, any processes to be run before the main are executed. Then,
+     * the main container process is started. If executed successfully the other
      * processes are spawned.
      * <p>
      * The method waits for every process to finish execution, except main. Main
-     * process returns after initialization is complete.
+     * process returns after initialization is complete. That is because a main
+     * process will be running a server. When the server is initialized and
+     * running we don't want the process to finish execution as the server will
+     * stop running.
      * <p>
      * The method blocks.
+     *
+     * @return
      */
-    public void exec_startProcs() {
-        if (isProcMngrInitialized()) {
-            boolean preMainSuccess = true;
-            boolean postMainSuccess = true;
+    @Override
+    protected boolean start_group_procs() {
+        boolean preMainSuccess = true;
+        boolean postMainSuccess = true;
+        boolean mainSuccess = true;
 
-            // execute pre-main processes, if any
-            if (!preMainHandlers.isEmpty()) {
-                for (ProcessHandler procHandler : preMainHandlers) {
-                    // execute process and get success value
-                    preMainSuccess = procHandler.execute();
-                    // get user requirement in case of failure
-                    boolean abortOnFail = procHandler.getpData().getRes().isAbortOnFail();
-                    // if there was an error and user concurs exit
-                    if (!preMainSuccess && abortOnFail) {
-                        break;
-                    } else {
-                        // correct flag if error is ignored to execute main proc
-                        preMainSuccess = true;
-                    }
+        // execute pre-main processes, if any
+        if (!preMainHandlers.isEmpty()) {
+            for (ProcessHandler procHandler : preMainHandlers) {
+                // execute process and get success value
+                preMainSuccess = procHandler.execute();
+                // get user requirement in case of failure
+                boolean abortOnFail = procHandler.getpData().getRes().isAbortOnFail();
+                // if there was an error and user concurs exit
+                if (!preMainSuccess && abortOnFail) {
+                    break;
+                } else {
+                    // correct flag if error is ignored to execute main proc
+                    preMainSuccess = true;
                 }
             }
+        }
 
-            // if preMain procs executed successfully, execute main
-            if (preMainSuccess) {
-                // execute the main Process
-                boolean mainSuccess = mainHandler.execute();
+        // if preMain procs executed successfully, execute main
+        if (preMainSuccess) {
+            // execute the main Process
+            mainSuccess = mainHandler.execute();
 
-                // if main proc executed successfully, execute postMain procs
-                if (mainSuccess) {
-                    // execute post-main processes, if any
-                    if (!postMainHandlers.isEmpty()) {
-                        for (ProcessHandler procHandler : postMainHandlers) {
-                            // execute process and get success value
-                            postMainSuccess = procHandler.execute();
-                            // get user requirement in case of failure
-                            boolean abortOnFail = procHandler.getpData().getRes().isAbortOnFail();
-                            // if there was an error and user concurs exit
-                            if (!postMainSuccess && abortOnFail) {
-                                break;
-                            } else {
-                                // correct flag if error is ignored
-                                postMainSuccess = true;
-                            }
+            // if main proc executed successfully, execute postMain procs
+            if (mainSuccess) {
+                // execute post-main processes, if any
+                if (!postMainHandlers.isEmpty()) {
+                    for (ProcessHandler procHandler : postMainHandlers) {
+                        // execute process and get success value
+                        postMainSuccess = procHandler.execute();
+                        // get user requirement in case of failure
+                        boolean abortOnFail = procHandler.getpData().getRes().isAbortOnFail();
+                        // if there was an error and user concurs exit
+                        if (!postMainSuccess && abortOnFail) {
+                            break;
+                        } else {
+                            // correct flag if error is ignored
+                            postMainSuccess = true;
                         }
-                        // check for errors on postMain proc execution to abort
-                        if (!postMainSuccess) {
-                            LOG.error("Post-main process execution FAILED.");
-                            mainHandler.stop();
-                        }
+                    }
+                    // check for errors on postMain proc execution to abort
+                    if (!postMainSuccess) {
+                        LOG.error("Post-main process execution FAILED.");
+                        mainHandler.stop();
                     }
                 }
             } else {
-                LOG.error("Pre-main process execution FAILED. "
-                        + "ABORTING main process execution.");
+                LOG.error("ABORTING post-main process execution.");
             }
         } else {
-            LOG.error("Process Manager CANNOT start: "
-                    + "Main Process Handler NOT INITIALIZED properly.");
+            LOG.error("Pre-main process execution FAILED. "
+                    + "ABORTING main process execution.");
         }
+
+        return preMainSuccess && postMainSuccess && mainSuccess;
     }
 
-    /**
-     *
-     * @return true if {@link ProcessManager ProcessManager} is initialized
-     * properly, that is when at least the
-     * {@link MainProcessHandler MainProcessHandler} is set.
-     */
-    private boolean isProcMngrInitialized() {
-        return (mainHandler != null);
+    @Override
+    protected boolean isGroupHandlerInitialized() {
+        boolean initialized = false;
+        if (mainHandler == null) {
+            LOG.error("Start Group Process Handler CANNOT start: "
+                    + "Main Process Handler NOT INITIALIZED properly.");
+        } else if (postMainHandlers == null && preMainHandlers == null) {
+            LOG.error("Start Group Process Handler CANNOT start: "
+                    + "PreMain and PostMain Process Handlers NOT INITIALIZED properly.");
+        } else if (preMainHandlers == null) {
+            LOG.error("Start Group Process Handler CANNOT start: "
+                    + "PreMain Process Handler NOT INITIALIZED properly.");
+        } else if (postMainHandlers == null) {
+            LOG.error("Start Group Process Handler CANNOT start: "
+                    + "PostMain Process Handler NOT INITIALIZED properly.");
+        } else {
+            initialized = true;
+        }
+        return initialized;
     }
 
     /**
@@ -161,5 +178,9 @@ public final class StartGroupHandler {
      */
     public void waitForMainProc() {
         mainHandler.waitForMainProc();
+    }
+
+    @Override
+    protected void cleanup() {
     }
 }

@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.broker.process.*;
 import net.freelabs.maestro.broker.process.start.StartGroupHandler;
+import net.freelabs.maestro.broker.process.stop.StopGroupHandler;
 import net.freelabs.maestro.broker.process.stop.StopResMapper;
 import net.freelabs.maestro.broker.services.ServiceManager;
 import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
@@ -63,6 +64,7 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeCreated;
 import static org.apache.zookeeper.Watcher.Event.EventType.NodeDataChanged;
+import static org.apache.zookeeper.Watcher.Event.EventType.NodeDeleted;
 import static org.apache.zookeeper.ZooDefs.Ids.OPEN_ACL_UNSAFE;
 import org.apache.zookeeper.data.Stat;
 import org.slf4j.Logger;
@@ -601,9 +603,13 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
             //            
             // CODE TO MONITOR FOR UPDATES ON THE SERVICE NODE
-            //
+            // CHANGE OF STATE
             //  get data from node
             getZkSrvUpdatedData(event.getPath());
+        } else if (event.getType() == NodeDeleted) {
+            //
+            // ACTION TO TAKE IF SERVICE IS REMOVED
+            //
         }
     };
 
@@ -785,10 +791,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // initialize tasks
         taskHandler = initTaskHandler();
         // execute tasks
-        LOG.info("Executing pre-start tasks.");
         taskHandler.execPreStartTasks();
         // execute START processes
-        procMngr.exec_start();
+        procMngr.exec_start_procs();
     }
 
     /**
@@ -828,8 +833,28 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         List<ProcessHandler> preMainHandlers = initDefaultProcs(rm, rm.getPreMainRes(), env);
         // get handlers for the interaction with processes scheduled after main
         List<ProcessHandler> postMainHandlers = initDefaultProcs(rm, rm.getPostMainRes(), env);
+        // create and init start group process handler
+        StartGroupHandler startGroupHandler = new StartGroupHandler(preMainHandlers, postMainHandlers, mainHandler);
+        // code to execute on success
+        startGroupHandler.setExecOnSuccess(() -> {
+            // change service status to INITIALIZED
+            updateZkSrvStatus(conZkSrvNode::setStatusInitialized);
+            // monitor service and update status accordingly for zk service node
+            monService();
+        });
+        // code to execute on failure
+        boolean running = startGroupHandler.isMainProcRunning();
+        startGroupHandler.setExecOnFailure(() -> {
+            if (running) {
+                // change service status to NOT_INITIALIZED
+                updateZkSrvStatus(conZkSrvNode::setStatusNotInitialized);
+            } else {
+                // change service status to NOT_RUNNING
+                updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
+            }
+        });
         // set configuration to process manager
-        procMngr.initStartHandler(preMainHandlers, postMainHandlers, mainHandler);
+        procMngr.setStartGroupHandler(startGroupHandler);
     }
 
     /**
@@ -853,7 +878,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // init handlers
         List<ProcessHandler> handlers = initDefaultProcs(rm, resources, env);
         // init proc handler for stop group
-        procMngr.initStopHandler(handlers);
+        StopGroupHandler stopGroupHandler = new StopGroupHandler(handlers);
+        procMngr.setStopGroupHandler(stopGroupHandler);
     }
 
     /**
@@ -861,11 +887,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     @Override
     public void stop() {
-        LOG.info("Executing stop group processes.");
         // execute stop processes
-        procMngr.exec_stop();
+        procMngr.exec_stop_procs();
         // execute tasks
-        LOG.info("Executing post-stop tasks.");
         taskHandler.execPostStopTasks();
     }
 
@@ -957,26 +981,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             int procPort = getHostPort();
             // create and init the object that stores all the process configuration
             MainProcessData pdata = new MainProcessData(rm.getMainRes(), env, "localhost", procPort);
-            // create and handler for main process execution
+            // create and init handler for main process execution
             pHandler = new MainProcessHandler(pdata);
-            // set code to execute if process executed successfully
-            pHandler.setExecOnSuccess(() -> {
-                // change service status to INITIALIZED
-                updateZkSrvStatus(conZkSrvNode::setStatusInitialized);
-                // monitor service and update status accordingly for zk service node
-                monService();
-            });
-            // set code to execute if process failed
-            boolean running = pHandler.isMainProcRunning();
-            pHandler.setExecOnFailure(() -> {
-                if (running) {
-                    // change service status to NOT_INITIALIZED
-                    updateZkSrvStatus(conZkSrvNode::setStatusNotInitialized);
-                } else {
-                    // change service status to NOT_RUNNING
-                    updateZkSrvStatus(conZkSrvNode::setStatusNotRunning);
-                }
-            });
         }
         return pHandler;
     }
@@ -1097,11 +1103,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
             /**
              *
-             * CODE FOR RETRIEVING UPDATES ON CONTAINER STATE
-             *
+             * CODE FOR RETRIEVING UPDATES ON CONTAINER STATE REQUIRES
+             * RECONFIGURING NOT IMPLEMENTED YET
              *
              */
-
             // RE-SET WATCH TO KEEP MONITORING THE CONTAINER
         }
     };

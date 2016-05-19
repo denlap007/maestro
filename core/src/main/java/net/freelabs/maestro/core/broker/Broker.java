@@ -574,7 +574,7 @@ public abstract class Broker implements ContainerLifecycle {
         // get the name with which to deploy the container 
         String conName = zkConf.getDeplCons().get(con.getName());
         // boot command
-        String[] conCmd = conBootCmd.split(" ");
+        String conCmd = conBootCmd;
         // env var passed
         String[] conEnvArr = conBootEnv.split(",");
         // get network
@@ -612,7 +612,7 @@ public abstract class Broker implements ContainerLifecycle {
                         .withPortBindings(portBindings)
                         .withPublishAllPorts(publishAllPorts)
                         .withName(conName)
-                        .withCmd(conCmd)
+                        .withCmd("/bin/sh", "-c", conCmd)
                         .withEnv(conEnvArr)
                         .withPrivileged(privileged)
                         .exec();

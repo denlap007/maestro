@@ -16,10 +16,10 @@
  */
 package net.freelabs.maestro.broker.process;
 
-import net.freelabs.maestro.broker.process.start.MainProcessHandler;
-import java.util.List;
 import net.freelabs.maestro.broker.process.start.StartGroupHandler;
 import net.freelabs.maestro.broker.process.stop.StopGroupHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -30,46 +30,60 @@ public final class ProcessManager {
     /**
      * Process manager for processes defined in start section.
      */
-    private StartGroupHandler startHandler;
+    private StartGroupHandler startGroupHandler;
     /**
      * Process manager for processes defined in stop section.
      */
-    private StopGroupHandler stopHandler;
+    private StopGroupHandler stopGroupHandler;
+    /**
+     * A Logger object.
+     */
+    private static final Logger LOG = LoggerFactory.getLogger(ProcessManager.class);
 
     /**
-     * Initializes process manager that handles execution of processes defined
-     * in start section.
+     * Initializes process manager with a start group handler, that handles
+     * execution of processes defined in start section.
      *
-     * @param preHandlers
-     * @param postHandlers
-     * @param mainHandler
+     * @param startGroupHandler an initialized instance of {@link #startGroupHandler
+     * startGroupHandler).
      */
-    public void initStartHandler(List<ProcessHandler> preHandlers, List<ProcessHandler> postHandlers, MainProcessHandler mainHandler) {
-        startHandler = new StartGroupHandler(preHandlers, postHandlers, mainHandler);
+    public void setStartGroupHandler(StartGroupHandler startGroupHandler) {
+        this.startGroupHandler = startGroupHandler;
     }
 
     /**
-     * Initializes process manager that handles execution of processes defined
-     * in stop section.
+     * Initializes process manager with a stop group handler, that handles
+     * execution of processes defined in stop section.
      *
-     * @param handlers list of handlers for processes to be executed.
+     * @param stopGroupHandler an initialized instance of {@link #stopGroupHandler
+     * stopGroupHandler}.
      */
-    public void initStopHandler(List<ProcessHandler> handlers) {
-        stopHandler = new StopGroupHandler(handlers);
+    public void setStopGroupHandler(StopGroupHandler stopGroupHandler) {
+        this.stopGroupHandler = stopGroupHandler;
     }
 
     /**
      * Executes processes defined in start section.
      */
-    public void exec_start() {
-        startHandler.exec_startProcs();
+    public void exec_start_procs() {
+        LOG.info("Executing start-group processes.");
+        boolean success = startGroupHandler.exec_group_procs();
+        if (success) {
+            LOG.info("Start-group processes executed SUCCESSFULLY.");
+        }
     }
 
     /**
      * Executes processes defined in stop section.
      */
-    public void exec_stop() {
-        stopHandler.exec_stopProcs();
+    public void exec_stop_procs() {
+        LOG.info("Executing stop-group processes.");
+        boolean success = stopGroupHandler.exec_group_procs();
+        if (success) {
+            LOG.info("Stop-group processes executed SUCCESSFULLY.");
+        } else {
+            LOG.error("Stop-group processes executed WITH ERRORS.");
+        }
     }
 
     /**
@@ -78,14 +92,14 @@ public final class ProcessManager {
      * @return true if the main container process is running.
      */
     public boolean isMainProcRunning() {
-        return startHandler.isMainProcRunning();
+        return startGroupHandler.isMainProcRunning();
     }
 
     /**
      * Waits until the main process stops running.
      */
     public void waitForMainProc() {
-        startHandler.waitForMainProc();
+        startGroupHandler.waitForMainProc();
     }
 
     /**
@@ -94,7 +108,7 @@ public final class ProcessManager {
      * @return true if handler for stop process group is initialized.
      */
     public boolean isStopHandlerInit() {
-        return stopHandler != null;
+        return stopGroupHandler != null;
     }
 
     /**
@@ -103,6 +117,6 @@ public final class ProcessManager {
      * @return true if handler for start process group is initialized.
      */
     public boolean isStartHandlerInit() {
-        return startHandler != null;
+        return startGroupHandler != null;
     }
 }

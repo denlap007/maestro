@@ -103,19 +103,19 @@ public final class BrokerInit {
         // execute Brokers for data containers
         handler.listDataContainers().stream().forEach((con) -> {
             Broker broker = new DataBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting handler for %s service.", con.getName());
+            String logMsg = String.format("Starting handler for %s service...", con.getName());
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // execute Brokers for business containers
         handler.listBusinessContainers().stream().forEach((con) -> {
             Broker broker = new BusinessBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting handler for %s service.", con.getName());
+            String logMsg = String.format("Starting handler for %s service...", con.getName());
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // execute Brokers for web containers
         handler.listWebContainers().stream().forEach((con) -> {
             Broker broker = new WebBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting handler for %s service.", con.getName());
+            String logMsg = String.format("Starting handler for %s service...", con.getName());
             runBroker(broker, Broker::onStart, logMsg, con.getName());
         });
         // do not allow new tasks wait for running to finish
