@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<webApp>
+    <containers> 
+        <webContainer>
+            <name>web</name>
+            <requires>business</requires>
+            <docker>
+            	<image>dio/nginx_jre:v5</image>
+            	<bindMnt accessMode="rw">
+            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
+            		<containerPath>/home</containerPath>
+            	</bindMnt>
+                <publishPort protocol="tcp">
+                    <containerPort>80</containerPort>
+                </publishPort>
+            	<publishAllPorts>false</publishAllPorts>
+            	<privileged>false</privileged>
+            </docker>
+            <start>
+                <preMain abortOnFail="true">cp /home/testCases/crudApp/webTier/nginx.conf /etc/nginx/nginx.conf</preMain>
+                <main>nginx -g "daemon off;"</main>
+            </start>
+            <stop>
+                <main>nginx -s quit</main>
+            </stop>
+            <tasks>
+                <substEnv>
+                	<filePath restoreOnExit="true">/home/testCases/crudApp/webTier/nginx.conf</filePath>
+                </substEnv>
+            </tasks>
+            <env>
+                <host_port>80</host_port>
+            </env>
+        </webContainer>
+        <businessContainer>
+            <name>business</name> 
+            <requires>data</requires>
+            <docker>
+            	<image>dio/glassfish:v3</image>
+            	<bindMnt>
+            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
+            		<containerPath>/home</containerPath>
+            	</bindMnt>
+        		<publishPort protocol="tcp">
+            		<containerPort>8080</containerPort>
+            	</publishPort>
+            	<privileged>false</privileged>
+            </docker>
+            <start>
+                <main>/home/testCases/crudApp/BusinessTier/business-entrypoint.sh</main>
+                <postMain abortOnFail="true">asadmin add-resources /home/testCases/crudApp/BusinessTier/glassfish-resources.xml</postMain>
+                <postMain abortOnFail="true">asadmin deploy /home/testCases/crudApp/BusinessTier/ConsultingAgency.war</postMain>
+            </start>
+            <stop>
+                <preMain>asadmin undeploy ConsultingAgency</preMain>
+                <preMain>/home/testCases/crudApp/BusinessTier/delete_resources.sh</preMain>
+                <main>asadmin stop-domain domain1</main>
+            </stop>
+            <tasks>
+                <substEnv>
+                	<filePath restoreOnExit="true">/home/testCases/crudApp/BusinessTier/glassfish-resources.xml</filePath>
+                </substEnv>
+            </tasks>
+            <env>
+                <host_port>8080</host_port>
+                <app_name>ConsultingAgency</app_name>
+            </env>
+        </businessContainer> 
+        <dataContainer>
+            <name>data</name>
+            <docker>
+            	<image>dio/mysql_jre:v7</image>
+            	<bindMnt>
+            		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
+            		<containerPath>/home</containerPath>
+            	</bindMnt>
+            	<privileged>false</privileged>
+            </docker>
+            <start>
+                <main>/home/testCases/crudApp/dataTier/data-entrypoint.sh mysqld</main>
+            </start>
+            <stop>
+                <main>service mysql stop</main>
+            </stop>
+            <env>
+                <host_port>3306</host_port>
+                <db_user>root</db_user>
+                <db_pass>root</db_pass>
+                <db_name>consult</db_name>
+                <db_driver/>
+            </env>
+        </dataContainer>
+    </containers>
+</webApp>

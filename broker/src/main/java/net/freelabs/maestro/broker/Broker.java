@@ -123,10 +123,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     private final ZkNamingService ns;
     /**
-     * Indicates weather the container is initialized.
-     */
-    private volatile boolean conInitialized;
-    /**
      * Manages process execution.
      */
     private ProcessManager procMngr;
@@ -146,6 +142,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * Configuration for the program.
      */
     private final BrokerConf brokerConf;
+    /**
+     * Handles execution of container life-cycles based on events.
+     */
+    private final LifecycleHandler lifecycleHandler = new LifecycleHandler();
 
     /**
      * Constructor
@@ -180,6 +180,31 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * BOOTSTRAPPING
      * **************************************************************************
      */
+    public void preBootInitialization() {
+        // initialize lifecycle handler
+        lifecycleHandler.setExecContainerBootCycle(() -> executorService.execute(() -> {
+            this.boot();
+        })
+        );
+        lifecycleHandler.setExecContainerInitCycle(() -> executorService.execute(() -> {
+            this.init();
+        }));
+        lifecycleHandler.setExecContainerStartLifeCycle(() -> executorService.execute(() -> {
+            this.start();
+        }));
+        lifecycleHandler.setExecContainerShutdownLifeCycle(() -> executorService.execute(() -> {
+            this.shutdown();
+        }));
+        lifecycleHandler.setExecContainerUpdateLifeCycle(() -> executorService.execute(() -> {
+            this.update();
+        }));
+        lifecycleHandler.setExecContainerErrorLifeCycle(() -> executorService.execute(() -> {
+            this.error();
+        }));
+        // bootEvent
+        lifecycleHandler.bootEvent();
+    }
+
     /**
      * Bootstraps the broker.
      */
@@ -190,7 +215,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // if succeeded
         if (connected) {
             // start initialization
-            init();
+            lifecycleHandler.containerInitEvent();
         } else {
             LOG.error("FAILED to start broker. Terminating.");
         }
@@ -269,7 +294,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         LOG.info(event.getType() + ", " + event.getPath());
 
         if (event.getType() == NodeCreated) {
-            shutdown();
+            lifecycleHandler.shutdownEvent();
         }
     };
 
@@ -431,11 +456,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         container = deserializeConType(data);
         /* initialize the services manager to manage services-dependencies
         The dependencies are retrieved from the current cotnainer configuration,
-        from "connectWith" field.        
+        from "requires" field.
          */
         List<String> srvNames = container.getRequires();
         Map<String, String> srvsNamePath = ns.getSrvsNamePath(srvNames);
         srvMngr = new ServiceManager(srvsNamePath);
+        lifecycleHandler.setSrvMngr(srvMngr);
         // set data to the container zNode 
         setZkConNodeData(data);
     }
@@ -527,7 +553,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     });
                 } else {
                     executorService.execute(() -> {
-                        checkInit();
+                        lifecycleHandler.serviceNoneEvent();
                     });
                 }
                 break;
@@ -593,23 +619,26 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * {@link  #serviceExists(java.lang.String) serviceExists} method.
      */
     private final Watcher serviceWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
-
-        if (event.getType() == NodeCreated) {
-            LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
-            // get data from service node
-            getZkSrvData(event.getPath());
-        } else if (event.getType() == NodeDataChanged) {
-            LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
-            //            
-            // CODE TO MONITOR FOR UPDATES ON THE SERVICE NODE
-            // CHANGE OF STATE
-            //  get data from node
-            getZkSrvUpdatedData(event.getPath());
-        } else if (event.getType() == NodeDeleted) {
-            //
-            // ACTION TO TAKE IF SERVICE IS REMOVED
-            //
+        LOG.info("Watch TRIGGERED. Event {} for {}", event.getType(), event.getPath());
+        if (event.getType() != null) {
+            switch (event.getType()) {
+                case NodeCreated:
+                    // get data from service node
+                    getZkSrvData(event.getPath());
+                    break;
+                case NodeDataChanged:
+                    /* MONITOR FOR UPDATES ON THE SERVICE NODES - CHANGE OF STATE*/
+                    getZkSrvUpdatedData(event.getPath());
+                    break;
+                case NodeDeleted:
+                    /* ACTION TO TAKE IF SERVICE NODE IS REMOVED */
+                    LOG.warn("A required service was REMOVED: {}", event.getPath());
+                    srvMngr.deleteSrvNode(event.getPath());
+                    lifecycleHandler.serviceDeletedEvent();
+                    break;
+                default:
+                    break;
+            }
         }
     };
 
@@ -725,7 +754,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         srvMngr.setSrvConfStatusProc(ns.resolveSrvName(conName));
         LOG.info("Service: {}\tStatus: {}.", conName, SRV_CONF_STATUS.PROCESSED.toString());
         // check if container is initialized in order to start processes
-        checkInit();
+        lifecycleHandler.serviceAddedEvent();
     }
 
     /**
@@ -733,50 +762,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * PROCESS HANDLING
      * *************************************************************************
      */
-    /**
-     * <p>
-     * Checks the necessary conditions for the container to be initialized and
-     * for the processes to get started.
-     * <p>
-     * Checks if all container services-dependencies are processed and sets
-     * {@link #conInitialized conInitialized} flag to true.
-     * <p>
-     * If {@link #conInitialized conInitialized} flag is true, checks if all
-     * services-dependencies are initialized and bootstraps the process(es).
-     */
-    private synchronized void checkInit() {
-        if (srvMngr.hasServices()) {
-            // if container is not initialized
-            if (!conInitialized) {
-                // check if srvs are processed
-                if (srvMngr.areSrvProcessed()) {
-                    conInitialized = true;
-                    LOG.info("Container INITIALIZED!");
-                    // check if srvs are initialized
-                    if (srvMngr.areSrvInitialized()) {
-                        // start processes
-                        start();
-                    }
-                }
-            } else // check if srvs are initialized
-            {
-                if (srvMngr.areSrvInitialized()) {
-                    // start processes
-                    executorService.execute(() -> {
-                        start();
-                    });
-                }
-            }
-        } else {
-            conInitialized = true;
-            LOG.info("Container INITIALIZED!");
-            // execute in new thread
-            executorService.execute(() -> {
-                start();
-            });
-        }
-    }
-
     /**
      * Creates the {@link ProcessManager ProcessManager}, creates the
      * environment for processes, initializes start-stops group processes,
@@ -1100,10 +1085,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * {@link  #setConWatch(java.lang.String) setConWatch(String)} method.
      */
     private final Watcher setConWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
+        LOG.info("Watch TRIGGERED {} for {}.", event.getType(), event.getPath());
 
         if (event.getType() == NodeDataChanged) {
-            LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
             /**
              *
              * CODE FOR RETRIEVING UPDATES ON CONTAINER STATE REQUIRES
@@ -1155,14 +1139,27 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         ZkNamingServiceNode srvNode = ns.deserializeZkSrvNode(path, data);
         // set the new service status
         srvMngr.setSrvStateStatus(path, srvNode.getStatus());
-        // log
-        LOG.info("Status of service {} is: {}", path, srvNode.getStatus().toString());
-        /* check if all services are initialized. If the container is already initialized
-        and a status update from a service is received, that means that a service
-        from another container failed OR updated its configurations (NOT IMPLEMENTED
-        YET). Hence, reconfiguring is needed (NOT IMPLEMENTED YET)
-         */
-        checkInit();
+        /*We received a status updated for a required service. The node had its data 
+        changed. It was not created or deleted, because those actions are handled
+        from different methods. Service status may have changed to INITIALIZED
+        NOT_RUNNING, UPDATED*/
+
+        if (srvNode.isStatusSetToUpdated()) {
+            // service was updated so conf of service is reset to NOT_PROCESSED 
+            srvMngr.setSrvConfStatusNotProc(path);
+            /* RE-CONFIGURATION NEEDED!!! NOT IMPLEMENTED YET
+            
+            container node data has changed. Download again and do processing,
+            just like getConData()->processConData(). At the end call
+            lifecycleHandler.serviceUpdatedEvent instead of lifecycleHandler.serviceAddedEvent.
+             */
+        } else if (srvNode.isStatusSetToInitialized()) {
+            lifecycleHandler.serviceInitializedEvent();
+        } else if (srvNode.isStatusSetToNotRunning()) {
+            lifecycleHandler.serviceNotRunnningEvent();
+        } else if (srvNode.isStatusSetToNotInitialized()) {
+            lifecycleHandler.serviceNotInitializedEvent();
+        }
     }
 
     /**
@@ -1385,6 +1382,16 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                 break;
             }
         }
+    }
+
+    @Override
+    public void update() {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public void error() {
+        throw new UnsupportedOperationException("Not supported yet.");
     }
 
 }

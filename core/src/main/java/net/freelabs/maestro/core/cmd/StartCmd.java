@@ -82,9 +82,15 @@ public final class StartCmd extends Command {
             // creaet application network handler
             NetworkHandler netHandler = new NetworkHandler(docker);
             // create network for application
-            netHandler.createNetwork(zkConf.getAppDefaultNetName());
-            // launch the CoreBrokers to boot containers, wait to finish
-            runBrokerInit(handler, zkConf, docker, netHandler);
+            boolean netCreated = netHandler.createNetwork(zkConf.getAppDefaultNetName());
+            if (netCreated) {
+                // launch the CoreBrokers to boot containers, wait to finish
+                runBrokerInit(handler, zkConf, docker, netHandler);
+            }else{
+                //cleanup
+                master.cleanZkNamespace();
+                errExit();
+            }
         } catch (Exception ex) {
             exitProgram(ex);
         }

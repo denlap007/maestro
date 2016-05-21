@@ -99,6 +99,7 @@ public final class ZkConf {
     /**
      * The program's configuration
      */
+    @XmlTransient
     private ProgramConf pConf;
     /**
      * The name of the default network for the application.

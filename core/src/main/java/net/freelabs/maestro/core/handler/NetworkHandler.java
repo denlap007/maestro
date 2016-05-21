@@ -62,11 +62,19 @@ public final class NetworkHandler {
     public boolean createNetwork(String netName) {
         // create default network for app. 
         LOG.info("Creating network {} with the default driver...", netName);
-        CreateNetworkResponse createNetworkResponse = docker.createNetworkCmd()
+        CreateNetworkResponse createNetworkResponse = null;
+        try{
+        createNetworkResponse = docker.createNetworkCmd()
                 .withName(netName)
                 .exec();
-
-        appNetId = createNetworkResponse.getId();
+        } catch (Exception ex ){
+            LOG.error("Something went wrong: {}", ex.getMessage());
+            LOG.trace("Something went wrong: ", ex);
+        }
+        
+        if (createNetworkResponse != null){
+            appNetId = createNetworkResponse.getId();
+        } 
 
         return appNetId != null;
     }

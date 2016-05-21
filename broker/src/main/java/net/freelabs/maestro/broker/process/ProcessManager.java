@@ -16,6 +16,8 @@
  */
 package net.freelabs.maestro.broker.process;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.logging.Level;
 import net.freelabs.maestro.broker.process.start.StartGroupProcessHandler;
 import net.freelabs.maestro.broker.process.stop.StopGroupProcessHandler;
 import org.slf4j.Logger;
@@ -35,6 +37,14 @@ public final class ProcessManager {
      * Process manager for processes defined in stop section.
      */
     private StopGroupProcessHandler stopGroupHandler;
+    /**
+     * Flag to indicate if start group processes have executed.
+     */
+    private final CountDownLatch statrGroupExecutedSignal= new CountDownLatch(1);
+    /**
+     * Flag that indicates if start group processes have executed.
+     */
+    private boolean statrGroupExecuted;
     /**
      * A Logger object.
      */
@@ -75,22 +85,33 @@ public final class ProcessManager {
         } else {
             LOG.error("Start-group processes handler NOT INITIALIZED.");
         }
+        statrGroupExecutedSignal.countDown();
+        statrGroupExecuted = true;
     }
 
     /**
      * Executes processes defined in stop section.
      */
     public void exec_stop_procs() {
-        LOG.info("Executing stop-group processes.");
-        if (isStopHandlerInit()) {
-            boolean success = stopGroupHandler.exec_group_procs();
-            if (success) {
-                LOG.info("Stop-group processes executed SUCCESSFULLY.");
+        if (statrGroupExecuted) {
+            LOG.info("Executing stop-group processes.");
+            if (isStopHandlerInit()) {
+                boolean success = stopGroupHandler.exec_group_procs();
+                if (success) {
+                    LOG.info("Stop-group processes executed SUCCESSFULLY.");
+                } else {
+                    LOG.error("Stop-group processes executed WITH ERRORS.");
+                }
             } else {
-                LOG.error("Stop-group processes executed WITH ERRORS.");
+                LOG.error("Stop-group processes handler NOT INITIALIZED.");
             }
-        } else {
-            LOG.error("Stop-group processes handler NOT INITIALIZED.");
+        }else{
+            LOG.info("Stop-group processes queued. Waiting for start-group to finish...");
+            try {
+                statrGroupExecutedSignal.await();
+            } catch (InterruptedException ex) {
+                java.util.logging.Logger.getLogger(ProcessManager.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
     }
 
