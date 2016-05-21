@@ -306,8 +306,8 @@ public class LifecycleHandler {
     public void serviceAddedEvent() {
         LOG.info("Service Added EVENT.");
         synchronized (this) {
-        curEvent = EVENT.SRV_ADDED;
-        transition();
+            curEvent = EVENT.SRV_ADDED;
+            transition();
         }
         action();
     }
@@ -318,8 +318,8 @@ public class LifecycleHandler {
     public void serviceDeletedEvent() {
         LOG.info("Service deleted EVENT.");
         synchronized (this) {
-        curEvent = EVENT.SRV_DELETED;
-        transition();
+            curEvent = EVENT.SRV_DELETED;
+            transition();
         }
         action();
     }
@@ -330,8 +330,8 @@ public class LifecycleHandler {
     public void serviceUpdatedEvent() {
         LOG.info("Service updated EVENT.");
         synchronized (this) {
-        curEvent = EVENT.SRV_UPDATED;
-        transition();
+            curEvent = EVENT.SRV_UPDATED;
+            transition();
         }
         action();
     }
@@ -342,8 +342,8 @@ public class LifecycleHandler {
     public void serviceInitializedEvent() {
         LOG.info("Service initialized EVENT.");
         synchronized (this) {
-        curEvent = EVENT.SRV_INITIALIZED;
-        transition();
+            curEvent = EVENT.SRV_INITIALIZED;
+            transition();
         }
         action();
     }
@@ -353,8 +353,10 @@ public class LifecycleHandler {
      */
     public void serviceNotInitializedEvent() {
         LOG.info("Service not initialized EVENT.");
-        curEvent = EVENT.SRV_NOT_INITIALIZED;
-        transition();
+        synchronized (this) {
+            curEvent = EVENT.SRV_NOT_INITIALIZED;
+            transition();
+        }
         action();
     }
 
@@ -363,8 +365,10 @@ public class LifecycleHandler {
      */
     public void serviceNotRunnningEvent() {
         LOG.info("Service not running EVENT.");
-        curEvent = EVENT.SRV_NOT_RUNNING;
-        transition();
+        synchronized (this) {
+            curEvent = EVENT.SRV_NOT_RUNNING;
+            transition();
+        }
         action();
     }
 
@@ -373,8 +377,10 @@ public class LifecycleHandler {
      */
     public void serviceNoneEvent() {
         LOG.info("No service EVENT.");
-        curEvent = EVENT.SRV_NONE;
-        transition();
+        synchronized (this) {
+            curEvent = EVENT.SRV_NONE;
+            transition();
+        }
         action();
     }
 
@@ -383,8 +389,10 @@ public class LifecycleHandler {
      */
     public void errorEvent() {
         LOG.info("Error EVENT.");
-        curEvent = EVENT.ERROR;
-        transition();
+        synchronized (this) {
+            curEvent = EVENT.ERROR;
+            transition();
+        }
         action();
     }
 
@@ -393,8 +401,10 @@ public class LifecycleHandler {
      */
     public void containerUpdatedEvent() {
         LOG.info("Container updated EVENT.");
-        curEvent = EVENT.CON_UPDATED;
-        transition();
+        synchronized (this) {
+            curEvent = EVENT.CON_UPDATED;
+            transition();
+        }
         action();
     }
 
@@ -403,8 +413,10 @@ public class LifecycleHandler {
      */
     public void containerInitEvent() {
         LOG.info("Container init EVENT.");
-        curEvent = EVENT.CON_INIT;
-        transition();
+        synchronized (this) {
+            curEvent = EVENT.CON_INIT;
+            transition();
+        }
         action();
     }
 
