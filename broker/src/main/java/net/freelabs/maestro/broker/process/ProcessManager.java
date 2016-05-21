@@ -17,7 +17,6 @@
 package net.freelabs.maestro.broker.process;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.logging.Level;
 import net.freelabs.maestro.broker.process.start.StartGroupProcessHandler;
 import net.freelabs.maestro.broker.process.stop.StopGroupProcessHandler;
 import org.slf4j.Logger;
@@ -40,7 +39,7 @@ public final class ProcessManager {
     /**
      * Flag to indicate if start group processes have executed.
      */
-    private final CountDownLatch statrGroupExecutedSignal= new CountDownLatch(1);
+    private final CountDownLatch statrGroupExecutedSignal = new CountDownLatch(1);
     /**
      * Flag that indicates if start group processes have executed.
      */
@@ -105,12 +104,16 @@ public final class ProcessManager {
             } else {
                 LOG.error("Stop-group processes handler NOT INITIALIZED.");
             }
-        }else{
+        } else {
             LOG.info("Stop-group processes queued. Waiting for start-group to finish...");
             try {
                 statrGroupExecutedSignal.await();
+                exec_stop_procs();
             } catch (InterruptedException ex) {
-                java.util.logging.Logger.getLogger(ProcessManager.class.getName()).log(Level.SEVERE, null, ex);
+                // log the event
+                LOG.warn("Thread interrupted. Stopping.");
+                // set the interrupt status
+                Thread.currentThread().interrupt();
             }
         }
     }

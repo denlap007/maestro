@@ -210,6 +210,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     @Override
     public void boot() {
+        LOG.info("Starting program boot.");
         // connect to zookeeper
         boolean connected = connectToZk();
         // if succeeded
@@ -248,6 +249,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     @Override
     public void init() {
+        LOG.info("Starting container initialization.");
         // set watch for shutdown zNode
         setShutDownWatch();
         // create container zNode
@@ -769,6 +771,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     @Override
     public void start() {
+         LOG.info("Starting container processes initialization.");
         // create the process manager that will start processes
         procMngr = new ProcessManager();
         // create the environment for the container processes
@@ -1333,6 +1336,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
 
     @Override
     public void shutdown() {
+        LOG.info("Starting container shutdown.");
         shutdown(SHUTDOWN);
     }
 
@@ -1386,11 +1390,13 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
 
     @Override
     public void update() {
+        LOG.info("Starting container re-configuration.");
         throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
     public void error() {
+        LOG.error("Setting container into ERROR STATE.");
         throw new UnsupportedOperationException("Not supported yet.");
     }
 

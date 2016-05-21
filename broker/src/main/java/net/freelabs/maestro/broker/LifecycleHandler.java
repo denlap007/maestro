@@ -55,11 +55,11 @@ public class LifecycleHandler {
     /**
      * The current container life-cycle state.
      */
-    private volatile STATE curState;
+    private STATE curState;
     /**
      * The event that was triggered.
      */
-    private volatile EVENT curEvent;
+    private EVENT curEvent;
     /**
      * A Logger object.
      */
@@ -204,36 +204,30 @@ public class LifecycleHandler {
     private void action() {
         switch (curState) {
             case BOOT:
-                LOG.info("Starting container boot procedure.");
                 execContainerBootCycle.execute();
                 break;
             case INIT:
                 if (execCycle) {
-                    LOG.info("Starting container initialization.");
                     execCycle = false;
                     execContainerInitCycle.execute();
                 }
                 break;
             case START:
                 if (execCycle) {
-                    LOG.info("Starting container processes initialization.");
                     execCycle = false;
                     execContainerStartLifeCycle.execute();
                 }
                 break;
             case UPDATE:
                 if (execCycle) {
-                    LOG.info("Starting container re-configuration.");
                     execCycle = false;
                     execContainerUpdateLifeCycle.execute();
                 }
                 break;
             case SHUTDOWN:
-                LOG.info("Starting container shutdown.");
                 execContainerShutdownLifeCycle.execute();
                 break;
             case ERROR:
-                LOG.error("Setting container into ERROR STATE.");
                 execContainerErrorLifeCycle.execute();
                 break;
             default:
