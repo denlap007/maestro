@@ -156,7 +156,7 @@ public final class ServiceManager {
     public synchronized void setSrvConfStatusNotProc(String srvPath) {
         ServiceNode srvNode = srvNodes.get(srvPath);
         srvNode.setSrvConfStatus(SRV_CONF_STATUS.NOT_PROCESSED);
-        LOG.info("Configuration of service {} PROCESSED.", srvNode.getServiceName());
+        LOG.info("Configuration of service {} NOT_PROCESSED.", srvNode.getServiceName());
     }
 
     /**

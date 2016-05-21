@@ -37,7 +37,6 @@ import net.freelabs.maestro.broker.process.start.StartGroupProcessHandler;
 import net.freelabs.maestro.broker.process.stop.StopGroupProcessHandler;
 import net.freelabs.maestro.broker.process.stop.StopResMapper;
 import net.freelabs.maestro.broker.services.ServiceManager;
-import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
 import net.freelabs.maestro.broker.shutdown.Shutdown;
 import net.freelabs.maestro.broker.shutdown.ShutdownNotifier;
 import net.freelabs.maestro.broker.tasks.TaskHandler;
@@ -621,7 +620,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * {@link  #serviceExists(java.lang.String) serviceExists} method.
      */
     private final Watcher serviceWatcher = (WatchedEvent event) -> {
-        LOG.info("Watch TRIGGERED. Event {} for {}", event.getType(), event.getPath());
+        LOG.info("Watch TRIGGERED. Type {} for {}", event.getType(), event.getPath());
         if (event.getType() != null) {
             switch (event.getType()) {
                 case NodeCreated:
@@ -754,7 +753,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         srvMngr.setSrvNodeCon(zkConPath, srvCon);
         // set the service conf status of service-dependency to PROCESSED
         srvMngr.setSrvConfStatusProc(ns.resolveSrvName(conName));
-        LOG.info("Service: {}\tStatus: {}.", conName, SRV_CONF_STATUS.PROCESSED.toString());
         // check if container is initialized in order to start processes
         lifecycleHandler.serviceAddedEvent();
     }
@@ -1088,7 +1086,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * {@link  #setConWatch(java.lang.String) setConWatch(String)} method.
      */
     private final Watcher setConWatcher = (WatchedEvent event) -> {
-        LOG.info("Watch TRIGGERED {} for {}.", event.getType(), event.getPath());
+        LOG.info("Watch TRIGGERED. Type {} for {}.", event.getType(), event.getPath());
 
         if (event.getType() == NodeDataChanged) {
             /**

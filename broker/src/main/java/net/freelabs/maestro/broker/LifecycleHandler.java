@@ -286,7 +286,7 @@ public class LifecycleHandler {
      * Signals a shutdown event.
      */
     public void shutdownEvent() {
-        LOG.info("Shutdown EVENT.");
+        LOG.info("EVENT triggered: SHUTDOWN.");
         synchronized (this) {
             curEvent = EVENT.SHUTDOWN;
             transition();
@@ -298,7 +298,7 @@ public class LifecycleHandler {
      * Signals a service added event.
      */
     public void serviceAddedEvent() {
-        LOG.info("Service Added EVENT.");
+        LOG.info("EVENT triggered: SRV_ADDED.");
         synchronized (this) {
             curEvent = EVENT.SRV_ADDED;
             transition();
@@ -310,7 +310,7 @@ public class LifecycleHandler {
      * Signals a service delete event.
      */
     public void serviceDeletedEvent() {
-        LOG.info("Service deleted EVENT.");
+        LOG.info("EVENT triggered: SRV_DELETED.");
         synchronized (this) {
             curEvent = EVENT.SRV_DELETED;
             transition();
@@ -322,7 +322,7 @@ public class LifecycleHandler {
      * Signals a service update event.
      */
     public void serviceUpdatedEvent() {
-        LOG.info("Service updated EVENT.");
+        LOG.info("EVENT triggered: SRV_UPDATED.");
         synchronized (this) {
             curEvent = EVENT.SRV_UPDATED;
             transition();
@@ -334,7 +334,7 @@ public class LifecycleHandler {
      * Signals a service initialized event.
      */
     public void serviceInitializedEvent() {
-        LOG.info("Service initialized EVENT.");
+        LOG.info("EVENT triggered: SRV_INITIALIZED.");
         synchronized (this) {
             curEvent = EVENT.SRV_INITIALIZED;
             transition();
@@ -346,7 +346,7 @@ public class LifecycleHandler {
      * Signals a service not initialized event.
      */
     public void serviceNotInitializedEvent() {
-        LOG.info("Service not initialized EVENT.");
+        LOG.info("EVENT triggered: SRV_NOT_INITIALIZED.");
         synchronized (this) {
             curEvent = EVENT.SRV_NOT_INITIALIZED;
             transition();
@@ -358,7 +358,7 @@ public class LifecycleHandler {
      * Signals a service not running event.
      */
     public void serviceNotRunnningEvent() {
-        LOG.info("Service not running EVENT.");
+        LOG.info("EVENT triggered: SRV_NOT_RUNNING.");
         synchronized (this) {
             curEvent = EVENT.SRV_NOT_RUNNING;
             transition();
@@ -370,7 +370,7 @@ public class LifecycleHandler {
      * Signals a no service event.
      */
     public void serviceNoneEvent() {
-        LOG.info("No service EVENT.");
+        LOG.info("EVENT triggered: SRV_NONE.");
         synchronized (this) {
             curEvent = EVENT.SRV_NONE;
             transition();
@@ -382,7 +382,7 @@ public class LifecycleHandler {
      * Signals an errorEvent event.
      */
     public void errorEvent() {
-        LOG.info("Error EVENT.");
+        LOG.info("EVENT triggered: ERROR.");
         synchronized (this) {
             curEvent = EVENT.ERROR;
             transition();
@@ -394,7 +394,7 @@ public class LifecycleHandler {
      * Signals a container update event.
      */
     public void containerUpdatedEvent() {
-        LOG.info("Container updated EVENT.");
+        LOG.info("EVENT triggered: CON_UPDATED.");
         synchronized (this) {
             curEvent = EVENT.CON_UPDATED;
             transition();
@@ -406,7 +406,7 @@ public class LifecycleHandler {
      * Signals a container start initialization event.
      */
     public void containerInitEvent() {
-        LOG.info("Container init EVENT.");
+        LOG.info("EVENT triggered: CON_INIT.");
         synchronized (this) {
             curEvent = EVENT.CON_INIT;
             transition();
