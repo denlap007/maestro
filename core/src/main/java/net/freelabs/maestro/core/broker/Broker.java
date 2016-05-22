@@ -20,6 +20,7 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.exception.ConflictException;
+import com.github.dockerjava.api.exception.DockerException;
 import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.AccessMode;
 import com.github.dockerjava.api.model.Bind;
@@ -190,9 +191,14 @@ public abstract class Broker implements ContainerLifecycle {
             // check for errors
             if (cid != null) {
                 // copy data, if any, to container
-                boolean copied = copyToContainer(dcp, cid);
-                if (copied) {
-                    // get container IP
+                if (!dcp.getCopy().isEmpty()) {
+                    boolean copied = copyToContainer(dcp, cid);
+                    if (copied) {
+                        // get container IP
+                        success = onPostStart(cid);
+                    }
+                } else {
+                    // get container IP, update and write conf to zk
                     success = onPostStart(cid);
                 }
             } else {
@@ -628,6 +634,8 @@ public abstract class Broker implements ContainerLifecycle {
                     LOG.error("FAILED to pull image");
                     break;
                 }
+            } catch (DockerException ex) {
+                LOG.error("FAILED to create container. Something went wrong {}", ex.getMessage());
             }
         }
         return container;
@@ -659,44 +667,58 @@ public abstract class Broker implements ContainerLifecycle {
 
     @Override
     public boolean stopContainer(String con, String srv) {
+        boolean success = false;
         try {
             docker.stopContainerCmd(con).exec();
+            // confirm stop
+            InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
+            if (inspResp.getState().getRunning()) {
+                LOG.error("FAILED to stop container for service {}", srv);
+            } else {
+                LOG.info("Stopped container for service {}.", srv);
+                success = true;
+            }
         } catch (NotFoundException e) {
             LOG.error("FAILED to stop container for service {}. Container does NOT exist.", srv);
+        } catch (DockerException ex) {
+            LOG.error("FAILED to stop container. Something went wrong {}", ex.getMessage());
         }
-        // confirm stop
-        InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
-        if (inspResp.getState().getRunning()) {
-            LOG.error("FAILED to stop container for service {}", srv);
-            return false;
-        } else {
-            LOG.info("Stopped container for service {}.", srv);
-            return true;
-        }
+        return success;
     }
 
     @Override
     public boolean restartContainer(String con, String srv) {
         boolean success = false;
-        // get first start time
-        InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
-        String startTime1 = inspResp.getState().getStartedAt();
-        // restart
-        LOG.info("Restarting container for service {}...", srv);
+        String startTime1;
+        String startTime2;
         try {
+            // get first start time
+            InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
+            startTime1 = inspResp.getState().getStartedAt();
+            // restart
+            LOG.info("Restarting container for service {}...", srv);
             docker.restartContainerCmd(con).exec();
+            // get second start time of the container
+            InspectContainerResponse inspResp2 = docker.inspectContainerCmd(con).exec();
+            startTime2 = inspResp2.getState().getStartedAt();
+            // confirm restart
+            if (startTime1 != null && startTime2 != null) {
+                if (!startTime1.equals(startTime2)) {
+                    success = true;
+                } else {
+                    LOG.error("FAILED to restart container for service {}", srv);
+                }
+            } else {
+                success = true;
+                LOG.warn("Could not confirm restart of container for service {}. "
+                        + "Queried docker host but got an invalid response.", srv);
+            }
         } catch (NotFoundException e) {
             LOG.error("FAILED to restart container for service {}. Container does NOT exist.", srv);
+        } catch (DockerException ex) {
+            LOG.error("FAILED to restart container. Something went wrong {}", ex.getMessage());
         }
-        // get second start time of the container
-        InspectContainerResponse inspResp2 = docker.inspectContainerCmd(con).exec();
-        String startTime2 = inspResp2.getState().getStartedAt();
-        // confirm restart
-        if (!startTime1.equals(startTime2)) {
-            success = true;
-        } else {
-            LOG.error("FAILED to restart container for service {}", srv);
-        }
+
         return success;
     }
 
@@ -718,6 +740,8 @@ public abstract class Broker implements ContainerLifecycle {
                 // this is not an error so we need to re-set the flag to success
                 success = true;
             }
+        } catch (DockerException ex) {
+            LOG.error("FAILED to delete container. Something went wrong {}", ex.getMessage());
         }
 
         return success;
