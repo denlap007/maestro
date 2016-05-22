@@ -17,6 +17,7 @@
 package net.freelabs.maestro.core.broker;
 
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.exception.NotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import static net.freelabs.maestro.core.broker.Broker.LOG;
+import net.freelabs.maestro.core.generated.Container;
 import net.freelabs.maestro.core.handler.ContainerHandler;
 import net.freelabs.maestro.core.handler.NetworkHandler;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
@@ -127,6 +129,33 @@ public final class BrokerInit {
         return success;
     }
 
+    public void cleanupFromFailedStart() {
+        boolean removed = false;
+        
+        for (Container con : handler.listContainers()) {
+            String conSrvName = con.getConSrvName();
+            String deplConName = zkConf.getDeplCons().get(conSrvName);
+            try {
+                docker.removeContainerCmd(deplConName)
+                        .withForce(true)
+                        .withRemoveVolumes(true)
+                        .exec();
+                removed = true;
+                // confirm deletion
+                docker.inspectContainerCmd(deplConName).exec();
+                LOG.error("Container for service {} was NOT removed, despite trying!", conSrvName);
+            } catch (NotFoundException e) {
+                if (!removed) {
+                    // Container does NOT exist, not an error 
+                    LOG.info("Container for service {} NOT created.", conSrvName);
+                }else{
+                    LOG.info("Removed container for service {}", conSrvName);
+                    removed = false;
+                }
+            }
+        }
+    }
+
     private void runBroker(Broker cb, Predicate<Broker> pred, String logMsg, String conName) {
         if (!logMsg.isEmpty()) {
             LOG.info(logMsg);
@@ -198,7 +227,7 @@ public final class BrokerInit {
             // delete all but maintain success outcome in case of error
             success = broker.deleteContainer(deplname, defName) && success;
         }
-        if (!success){
+        if (!success) {
             LOG.warn("Could not remove all containers.");
         }
 

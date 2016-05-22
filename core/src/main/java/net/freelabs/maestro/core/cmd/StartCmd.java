@@ -86,7 +86,7 @@ public final class StartCmd extends Command {
             if (netCreated) {
                 // launch the CoreBrokers to boot containers, wait to finish
                 runBrokerInit(handler, zkConf, docker, netHandler);
-            }else{
+            } else {
                 //cleanup
                 master.cleanZkNamespace();
                 errExit();
@@ -176,14 +176,11 @@ public final class StartCmd extends Command {
         // check if operation was successful 
         if (!success) {
             LOG.info("Performing cleanup...");
-            // error occurred so stop any running services and containers
-            brokerInit.runStop();
-            // delete application namespace
-            master.cleanZkNamespace();
-            // remove containers
-            brokerInit.runDelete();
+            brokerInit.cleanupFromFailedStart();
             // remove default network
             netHandler.deleteNetwork(zkConf.getAppDefaultNetName());
+            // delete application namespace
+            master.cleanZkNamespace();
             // shutdown master
             shutdownMaster();
             errExit();

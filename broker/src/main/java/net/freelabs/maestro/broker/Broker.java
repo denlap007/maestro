@@ -200,7 +200,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         lifecycleHandler.setExecContainerErrorLifeCycle(() -> executorService.execute(() -> {
             this.error();
         }));
-        // bootEvent
+        // send the bootEvent
         lifecycleHandler.bootEvent();
     }
 

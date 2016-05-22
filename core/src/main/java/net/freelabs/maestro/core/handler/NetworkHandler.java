@@ -63,25 +63,33 @@ public final class NetworkHandler {
         // create default network for app. 
         LOG.info("Creating network {} with the default driver...", netName);
         CreateNetworkResponse createNetworkResponse = null;
-        try{
-        createNetworkResponse = docker.createNetworkCmd()
-                .withName(netName)
-                .exec();
-        } catch (Exception ex ){
+        try {
+            createNetworkResponse = docker.createNetworkCmd()
+                    .withName(netName)
+                    .exec();
+        } catch (Exception ex) {
             LOG.error("Something went wrong: {}", ex.getMessage());
             LOG.trace("Something went wrong: ", ex);
         }
-        
-        if (createNetworkResponse != null){
+
+        if (createNetworkResponse != null) {
             appNetId = createNetworkResponse.getId();
-        } 
+        }
 
         return appNetId != null;
     }
 
-    public void deleteNetwork(String netName) {
+    public boolean deleteNetwork(String netName) {
+        boolean success = false;
         LOG.info("Removing network {}...", netName);
-        docker.removeNetworkCmd(netName).exec();
+        try {
+            docker.removeNetworkCmd(netName).exec();
+            success = true;
+        } catch (Exception ex) {
+            LOG.error("Something went wrong: {}", ex.getMessage());
+            LOG.trace("Something went wrong: ", ex);
+        }
+        return success;
     }
 
     public String getAppNetId() {

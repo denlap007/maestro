@@ -36,8 +36,6 @@ public class CliOptions {
 
     private String dockerHost;
 
-    private Boolean dockerRemote;
-
     private Boolean dockerTls;
 
     private String dockerCertPath;
@@ -79,7 +77,6 @@ public class CliOptions {
     @Parameter(names = {"-d", "--dockerOpts[]"}, description = "Docker Options "
             + "in key:value pairs, comma delimited (no space): "
             + "host:<docker host uri, with tcp://ip or unix:///socker>,"
-            + "remote:<true for remote host>,"
             + "tls:<true to enable https>,"
             + "cert:<path to certs for tls>,"
             + "config:<path to config like .dockercfg>,"
@@ -349,13 +346,6 @@ public class CliOptions {
             case "host":
                 dockerHost = value;
                 break;
-            case "remote":
-                if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
-                    dockerRemote = Boolean.parseBoolean(value);
-                } else {
-                    set = false;
-                }
-                break;
             case "tls":
                 if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
                     dockerTls = Boolean.parseBoolean(value);
@@ -432,10 +422,6 @@ public class CliOptions {
 
     public String getDockerHost() {
         return dockerHost;
-    }
-
-    public Boolean getDockerRemote() {
-        return dockerRemote;
     }
 
     public Boolean getDockerTls() {

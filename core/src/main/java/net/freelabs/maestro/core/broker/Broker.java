@@ -40,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.generated.BindMnt;
 import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.generated.Copy;
 import net.freelabs.maestro.core.generated.Docker;
 import net.freelabs.maestro.core.generated.ExposePort;
 import net.freelabs.maestro.core.generated.Protocol;
@@ -123,10 +124,6 @@ public abstract class Broker implements ContainerLifecycle {
      */
     private boolean zkError;
     /**
-     * Data upload with download paths in case of data transfer.
-     */
-    private final Map<String, String> upDownPaths;
-    /**
      * Holds information about application networks.
      */
     private final NetworkHandler netHandler;
@@ -162,7 +159,6 @@ public abstract class Broker implements ContainerLifecycle {
         this.zkMaster = zkMaster;
         this.netHandler = netHandler;
         shutdownSignal = new CountDownLatch(1);
-        upDownPaths = new HashMap<>();
         if (con != null) {
             zNode = zkConf.getContainers().get(con.getConSrvName());
         } else {
@@ -180,18 +176,21 @@ public abstract class Broker implements ContainerLifecycle {
      */
     public boolean onStart() {
         boolean success = false;
+        String cid = null;
         // create configration to initialize parameters
         createContainerEnv();
+        // create a processor for declared docker configuration
+        DockerConfProcessor dcp = new DockerConfProcessor(con.getDocker());
         // create container instance
-        CreateContainerResponse container = createContainer();
+        CreateContainerResponse container = createContainer(dcp);
         // check if container was created 
         if (container != null) {
             // start the created container instance
-            String cid = startContainer(container, con.getConSrvName());
+            cid = startContainer(container, con.getConSrvName());
             // check for errors
             if (cid != null) {
                 // copy data, if any, to container
-                boolean copied = copyToContainer(cid);
+                boolean copied = copyToContainer(dcp, cid);
                 if (copied) {
                     // get container IP
                     success = onPostStart(cid);
@@ -199,9 +198,6 @@ public abstract class Broker implements ContainerLifecycle {
             } else {
                 LOG.error("FAILED to start container.");
             }
-        }
-        if (!success) {
-            shutdown();
         }
         return success;
     }
@@ -212,11 +208,11 @@ public abstract class Broker implements ContainerLifecycle {
      * @param cid the container id.
      * @return true if operation completed successfully.
      */
-    private boolean copyToContainer(String cid) {
+    private boolean copyToContainer(DockerConfProcessor dcp, String cid) {
         LOG.info("Copying files from host to container for service {}...", con.getConSrvName());
         boolean success = true;
 
-        for (Map.Entry<String, String> entry : upDownPaths.entrySet()) {
+        for (Map.Entry<String, String> entry : dcp.getCopy().entrySet()) {
             String hostPath = entry.getKey();
             String containerPath = entry.getValue();
 
@@ -317,7 +313,7 @@ public abstract class Broker implements ContainerLifecycle {
                 // if shutdown node was created without errors
                 if (!zkMaster.isMasterError()) {
                     // wait services to stop
-                    boolean  stoppedSrvsWithoutError = zkMaster.waitServicesToStop(services, SERVICES_TIMEOUT, SERVICES_TIMEOUT_UNIT);
+                    boolean stoppedSrvsWithoutError = zkMaster.waitServicesToStop(services, SERVICES_TIMEOUT, SERVICES_TIMEOUT_UNIT);
                     // check for running containers
                     Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
                     // if containers still running force stop
@@ -567,10 +563,8 @@ public abstract class Broker implements ContainerLifecycle {
     }
 
     @Override
-    public CreateContainerResponse createContainer() {
+    public CreateContainerResponse createContainer(DockerConfProcessor dcp) {
         LOG.info("Creating container for service {}...", con.getConSrvName());
-        // create object to process declared docker configuration
-        DockerConfProcessor dcp = new DockerConfProcessor(con.getDocker());
         // get the name with which to deploy the container 
         String conName = zkConf.getDeplCons().get(con.getConSrvName());
         // boot command
@@ -590,7 +584,7 @@ public abstract class Broker implements ContainerLifecycle {
         // process volumes from
         List<VolumesFrom> volsFromList = dcp.getVolumesFrom();
         // process mount bind volumes
-        List<Bind> bindList = dcp.getBindMounts(upDownPaths, zkConf);
+        List<Bind> bindList = dcp.getBindMounts();
         // process exposed ports
         List<ExposedPort> expPortList = dcp.getExosedPorts();
         // process published ports
@@ -841,39 +835,41 @@ public abstract class Broker implements ContainerLifecycle {
         }
 
         /**
-         *
-         * @param uploadDownloadMap map with the upload and download paths in
-         * case docker is a remote host, so data are uploaded to zookeeper and
-         * downloaded to containers instead of binding and mounting.
-         * @param zkConf the application zookeeper configuration.
-         * @return a list of initialized {@link BindMnt BindMnts}.
+         * @return a list of initialized {@link Bind Binds}. The Bind contains
+         * the host path to bind to the container path and the access mode to
+         * apply to the mounted bind to the container.
          */
-        public List<Bind> getBindMounts(Map<String, String> uploadDownloadMap, ZkConf zkConf) {
+        public List<Bind> getBindMounts() {
             // process mount bind volumes
             List<BindMnt> defBindMntList = dockerConf.getBindMnt();
             List<Bind> bindList = new ArrayList<>();
 
-            // if docker is a remote host CONVERT BIND MOUNT PATHS TO UPLOAD-DOWNLOAD
-            // DATA PATHS. Docker is not local to bind to host so data are uploaded
-            // to zk and then downloaded by the container to the paths defined.
-            // This is a transparent mechanism to handle bindMounts for remote hosts.
-            if (zkConf.getpConf().getDockerRemote()) {
-                // save upload and download paths to map for later use
-                for (BindMnt bindMnt : defBindMntList) {
-                    uploadDownloadMap.put(bindMnt.getHostPath(), bindMnt.getContainerPath());
-                }
-            } else {
-                for (BindMnt bindMnt : defBindMntList) {
-                    // create a new volume
-                    Volume vol = new Volume(bindMnt.getContainerPath());
-                    // create a new Bind
-                    AccessMode am = bindMnt.getAccessMode().equals(net.freelabs.maestro.core.generated.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
-                    Bind bind = new Bind(bindMnt.getHostPath(), vol, am);
-                    // add to list
-                    bindList.add(bind);
-                }
+            for (BindMnt bindMnt : defBindMntList) {
+                // create a new volume
+                Volume vol = new Volume(bindMnt.getContainerPath());
+                // create a new Bind
+                AccessMode am = bindMnt.getAccessMode().equals(net.freelabs.maestro.core.generated.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
+                Bind bind = new Bind(bindMnt.getHostPath(), vol, am);
+                // add to list
+                bindList.add(bind);
             }
             return bindList;
+        }
+
+        /**
+         *
+         * @return a Map with the host path to be copied as key and the
+         * container path to be copied to as value.
+         */
+        public Map<String, String> getCopy() {
+            // process copy tag from schema
+            List<Copy> defCopyList = dockerConf.getCopy();
+            Map<String, String> copyMap = new HashMap<>();
+
+            for (Copy cp : defCopyList) {
+                copyMap.put(cp.getHostPath(), cp.getContainerPath());
+            }
+            return copyMap;
         }
 
         /**

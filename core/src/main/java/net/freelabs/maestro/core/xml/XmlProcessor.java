@@ -108,7 +108,7 @@ public class XmlProcessor {
             LOG.error("Unable to validate due to the following error: \n" + se.getMessage());
             return unmarshalled;
         } catch (JAXBException ex) {
-            LOG.error("Something went wrong: \n" + ex.getMessage());
+            LOG.error("Something went wrong: " + ex.getMessage());
             LOG.trace("Something went wrong: ", ex);
             return unmarshalled;
         }

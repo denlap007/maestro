@@ -32,11 +32,13 @@ public interface ContainerLifecycle {
     /**
      * Creates a container.
      *
+     * @param dcp instance of a processor for declared docker configuration on 
+     * application description.
      * @return a {@link CreateContainerResponse CreateContainerResponse} object
      * that will be used to start the created container. NULL if could no create
      * the container.
      */
-    public CreateContainerResponse createContainer();
+    public CreateContainerResponse createContainer(Broker.DockerConfProcessor dcp);
 
     /**
      * Starts a container.

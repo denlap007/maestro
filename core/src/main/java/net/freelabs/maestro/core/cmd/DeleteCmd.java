@@ -94,7 +94,7 @@ public final class DeleteCmd extends Command {
                     // remove containers
                     success = brokerInit.runDelete() && success;
                     // remove default network
-                    netHandler.deleteNetwork(zkConf.getAppDefaultNetName());
+                    success = netHandler.deleteNetwork(zkConf.getAppDefaultNetName()) && success;
                 }
             } else {
                 LOG.error("Application with id {} does NOT exist.", appID);

@@ -43,7 +43,6 @@ public final class ProgramConf {
     private String xmlFilePath;
     // docker conf
     private String dockerHost;
-    private Boolean dockerRemote;
     private Boolean dockerTlsVerify;
     private String dockerCertPath;
     private String dockerConfigPath;
@@ -95,9 +94,6 @@ public final class ProgramConf {
             }
             if (dockerHost == null) {
                 dockerHost = prop.getProperty("docker.host");
-            }
-            if (dockerRemote == null) {
-                dockerRemote = Boolean.parseBoolean(prop.getProperty("docker.remote"));
             }
             if (dockerTlsVerify == null) {
                 dockerTlsVerify = Boolean.parseBoolean(prop.getProperty("docker.tls.verify"));
@@ -161,7 +157,6 @@ public final class ProgramConf {
             xmlSchemaPath = prop.getProperty("xml.schema.path");
             xmlFilePath = prop.getProperty("xml.file.path");
             dockerHost = prop.getProperty("docker.host");
-            dockerRemote = Boolean.getBoolean(prop.getProperty("docker.remote"));
             dockerTlsVerify = Boolean.parseBoolean(prop.getProperty("docker.tls.verify"));
             dockerCertPath = prop.getProperty("docker.cert.path");
             dockerConfigPath = prop.getProperty("docker.config");
@@ -204,7 +199,7 @@ public final class ProgramConf {
     public boolean isConfInit() {
         boolean init = zkHosts != null && zkSessionTimeout != 0 && xmlSchemaPath
                 != null && xmlFilePath != null && dockerHost != null
-                && dockerRemote != null && dockerTlsVerify != null;
+                && dockerTlsVerify != null;
         if (init) {
             if (dockerTlsVerify == true) {
                 if (dockerCertPath == null) {
@@ -315,17 +310,6 @@ public final class ProgramConf {
      */
     public String getDockerHost() {
         return dockerHost;
-    }
-
-    public Boolean getDockerRemote() {
-        if (dockerRemote == null) {
-            dockerRemote = false;
-        }
-        return dockerRemote;
-    }
-
-    public void setDockerRemote(Boolean dockerRemote) {
-        this.dockerRemote = dockerRemote;
     }
 
     /**

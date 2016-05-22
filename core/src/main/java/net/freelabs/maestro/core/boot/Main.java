@@ -117,7 +117,6 @@ public final class Main {
         pConf.setZkSessionTimeout(opts.getZkTimeout());
         // docker
         pConf.setDockerHost(opts.getDockerHost());
-        pConf.setDockerRemote(opts.getDockerRemote());
         pConf.setDockerTlsVerify(opts.getDockerTls());
         pConf.setDockerCertPath(opts.getDockerCertPath());
         pConf.setDockerConfigPath(opts.getDockerConfigPath());
