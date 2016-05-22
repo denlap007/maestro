@@ -99,24 +99,24 @@ public final class BrokerInit {
     }
 
     public boolean runStart() {
-        LOG.info("Starting application...");
+        LOG.info("Starting application deployment...");
         // execute Brokers for data containers
         handler.listDataContainers().stream().forEach((con) -> {
             Broker broker = new DataBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting handler for %s service...", con.getName());
-            runBroker(broker, Broker::onStart, logMsg, con.getName());
+            String logMsg = String.format("Starting handler for %s service...", con.getConSrvName());
+            runBroker(broker, Broker::onStart, logMsg, con.getConSrvName());
         });
         // execute Brokers for business containers
         handler.listBusinessContainers().stream().forEach((con) -> {
             Broker broker = new BusinessBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting handler for %s service...", con.getName());
-            runBroker(broker, Broker::onStart, logMsg, con.getName());
+            String logMsg = String.format("Starting handler for %s service...", con.getConSrvName());
+            runBroker(broker, Broker::onStart, logMsg, con.getConSrvName());
         });
         // execute Brokers for web containers
         handler.listWebContainers().stream().forEach((con) -> {
             Broker broker = new WebBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting handler for %s service...", con.getName());
-            runBroker(broker, Broker::onStart, logMsg, con.getName());
+            String logMsg = String.format("Starting handler for %s service...", con.getConSrvName());
+            runBroker(broker, Broker::onStart, logMsg, con.getConSrvName());
         });
         // do not allow new tasks wait for running to finish
         executor.shutdown();
@@ -151,8 +151,6 @@ public final class BrokerInit {
     public boolean runRestart() {
         boolean success;
         // stop application if necessary
-        LOG.info("Checking application state...");
-        // stop the application
         success = runStop();
         if (success) {
             // re-start application
@@ -160,17 +158,17 @@ public final class BrokerInit {
             // run Brokers with restart for data containers
             handler.listDataContainers().stream().forEach((con) -> {
                 Broker broker = new DataBroker(zkConf, con, docker, master, netHandler);
-                runBroker(broker, Broker::onRestart, "", con.getName());
+                runBroker(broker, Broker::onRestart, "", con.getConSrvName());
             });
             // run Brokers with restart Brokers for business containers
             handler.listBusinessContainers().stream().forEach((con) -> {
                 Broker broker = new BusinessBroker(zkConf, con, docker, master, netHandler);
-                runBroker(broker, Broker::onRestart, "", con.getName());
+                runBroker(broker, Broker::onRestart, "", con.getConSrvName());
             });
             // run Brokers with restart Brokers for web containers
             handler.listWebContainers().stream().forEach((con) -> {
                 Broker broker = new WebBroker(zkConf, con, docker, master, netHandler);
-                runBroker(broker, Broker::onRestart, "", con.getName());
+                runBroker(broker, Broker::onRestart, "", con.getConSrvName());
             });
             // do not allow new tasks wait for running to finish
             executor.shutdown();

@@ -2,7 +2,7 @@
 <webApp>
     <containers> 
         <webContainer>
-            <name>web</name>
+            <serviceName>web</serviceName>
             <requires>business</requires>
             <docker>
             	<image>dio/nginx_jre:v5</image>
@@ -33,7 +33,7 @@
             </env>
         </webContainer>
         <businessContainer>
-            <name>business</name> 
+            <serviceName>business</serviceName> 
             <requires>data</requires>
             <docker>
             	<image>dio/glassfish:v3</image>
@@ -67,7 +67,7 @@
             </env>
         </businessContainer> 
         <dataContainer>
-            <name>data</name>
+            <serviceName>data</serviceName>
             <docker>
             	<image>dio/mysql_jre:v7</image>
             	<bindMnt>

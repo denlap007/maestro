@@ -103,7 +103,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     /**
      * The name of the container associated with the broker.
      */
-    private String containerName;
+    private final String conSrvName;
     /**
      * The container associated with the broker. Holds the configuration.
      */
@@ -163,15 +163,15 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         this.zkContainerPath = zkContainerPath;
         this.shutdownNode = shutdownNode;
         this.conConfNode = conConfNode;
-        containerName = resolveConPath(zkContainerPath);
+        conSrvName = resolveConPath(zkContainerPath);
         brokerConf = new BrokerConf();
-        brokerConf.brokerDir = BrokerConf.SERVICES_DIR + File.separator + containerName + "-service";
+        brokerConf.brokerDir = BrokerConf.SERVICES_DIR + File.separator + conSrvName + "-service";
         // create a new naming service node
         conZkSrvNode = new ZkNamingServiceNode(zkContainerPath);
         // initialize the naming service object
         ns = new ZkNamingService(zkNamingService);
         // stores the context data of the particular thread for logging
-        MDC.put("id", containerName);
+        MDC.put("id", conSrvName);
     }
 
     /*
@@ -437,7 +437,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
 
                 executorService.execute(() -> {
                     // create conf file for container associated with the broker
-                    createConfFile(container, containerName);
+                    createConfFile(container, container.getConSrvName());
                 });
 
                 break;
@@ -510,7 +510,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     private void registerToServices() {
         // create the service path for the naming service
-        String path = ns.resolveSrvName(containerName);
+        String path = ns.resolveSrvName(conSrvName);
         // set service status to NOT_INITIALIZED
         conZkSrvNode.setStatusNotInitialized();
         // serialize the node to byte array
@@ -620,7 +620,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * {@link  #serviceExists(java.lang.String) serviceExists} method.
      */
     private final Watcher serviceWatcher = (WatchedEvent event) -> {
-        LOG.info("Watch TRIGGERED. Type {} for {}", event.getType(), event.getPath());
+        LOG.info("WATCH triggered. Type {} for {}", event.getType(), event.getPath());
         if (event.getType() != null) {
             switch (event.getType()) {
                 case NodeCreated:
@@ -636,13 +636,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     LOG.warn("A required service was REMOVED: {}", event.getPath());
                     srvMngr.deleteSrvNode(event.getPath());
                     lifecycleHandler.serviceDeletedEvent();
+                    // re-set watch in case the service comes online
                     break;
                 default:
                     break;
             }
         }
     };
-
+    
     /**
      * Gets data from the requested service zNode.
      *
@@ -769,7 +770,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     @Override
     public void start() {
-         LOG.info("Starting container processes initialization.");
+        LOG.info("Starting container processes initialization.");
         // create the process manager that will start processes
         procMngr = new ProcessManager();
         // create the environment for the container processes
@@ -902,14 +903,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // get container objs from dependencies
         srvMngr.getConsOfSrvs().stream().forEach((con) -> {
             // get container name
-            String name = con.getName();
+            String name = con.getConSrvName();
             // get the environment obj according to the container type
             ContainerEnvironment env = con.getEnv();
             // add to map
             depConEnvMap.put(name, env);
         });
         // create environment mapper to map declared environments to env objects
-        EnvironmentMapper envMap = new EnvironmentMapper(conEnv, container.getName(), depConEnvMap);
+        EnvironmentMapper envMap = new EnvironmentMapper(conEnv, conSrvName, depConEnvMap);
         // create handler to act on env objects
         envHandler = new EnvironmentHandler(envMap.getConEnv(), envMap.getDepConEnvMap());
         // create environment for processes
@@ -1043,7 +1044,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     private void updateZkSrvStatus(Updatable updatableObj) {
         // get the service path
-        String servicePath = ns.resolveSrvName(containerName);
+        String servicePath = ns.resolveSrvName(conSrvName);
         // update status
         updatableObj.updateStatus();
         LOG.info("Updating service status to {}: {}", conZkSrvNode.getStatus(), servicePath);
@@ -1086,7 +1087,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * {@link  #setConWatch(java.lang.String) setConWatch(String)} method.
      */
     private final Watcher setConWatcher = (WatchedEvent event) -> {
-        LOG.info("Watch TRIGGERED. Type {} for {}.", event.getType(), event.getPath());
+        LOG.info("WATCH triggered. Type {} for {}.", event.getType(), event.getPath());
 
         if (event.getType() == NodeDataChanged) {
             /**
@@ -1389,13 +1390,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     @Override
     public void update() {
         LOG.info("Starting container re-configuration.");
-        throw new UnsupportedOperationException("Not supported yet.");
     }
 
     @Override
     public void error() {
         LOG.error("Setting container into ERROR STATE.");
-        throw new UnsupportedOperationException("Not supported yet.");
     }
-
 }

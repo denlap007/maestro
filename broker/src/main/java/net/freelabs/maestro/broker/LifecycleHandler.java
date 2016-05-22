@@ -71,25 +71,25 @@ public class LifecycleHandler {
      */
     private void transition() {
         if (curEvent == EVENT.BOOT) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             curState = STATE.BOOT;
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curEvent == EVENT.SHUTDOWN) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             curState = STATE.SHUTDOWN;
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curEvent == EVENT.ERROR) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             curState = STATE.ERROR;
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.BOOT && curEvent == EVENT.CON_INIT) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             execCycle = true;
             curState = STATE.INIT;
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.INIT
                 && (curEvent == EVENT.SRV_ADDED || curEvent == EVENT.SRV_INITIALIZED)) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             if (srvsProcessed) {
                 // check if srvs are initialized
                 boolean initialized = srvMngr.areSrvInitialized();
@@ -111,14 +111,14 @@ public class LifecycleHandler {
                     execCycle = false;
                 }
             }
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.INIT && curEvent == EVENT.SRV_NONE) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             execCycle = true;
             curState = STATE.START;
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.INIT && curEvent == EVENT.SRV_UPDATED) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             // check if srvs are processed
             srvsProcessed = srvMngr.areSrvProcessed();
             if (srvsProcessed) {
@@ -133,21 +133,21 @@ public class LifecycleHandler {
             } else {
                 execCycle = false;
             }
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.INIT
                 && (curEvent == EVENT.SRV_DELETED || curEvent == EVENT.SRV_NOT_RUNNING
                 || curEvent == EVENT.CON_UPDATED)) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             curState = STATE.ERROR;
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.START
                 && (curEvent == EVENT.SRV_DELETED || curEvent == EVENT.SRV_NOT_RUNNING
                 || curEvent == EVENT.SRV_NOT_INITIALIZED)) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             curState = STATE.ERROR;
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.START && curEvent == EVENT.SRV_UPDATED) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             // check if srvs are processed
             srvsProcessed = srvMngr.areSrvProcessed();
             if (srvsProcessed) {
@@ -162,19 +162,19 @@ public class LifecycleHandler {
             } else {
                 execCycle = false;
             }
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.START && curEvent == EVENT.CON_UPDATED) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             execCycle = true;
             curState = STATE.UPDATE;
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.UPDATE && (curEvent == EVENT.SRV_DELETED || curEvent == EVENT.SRV_NOT_RUNNING
                 || curEvent == EVENT.SRV_NOT_INITIALIZED)) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             curState = STATE.ERROR;
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.UPDATE && curEvent == EVENT.SRV_UPDATED) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             // check if srvs are processed
             srvsProcessed = srvMngr.areSrvProcessed();
             if (srvsProcessed) {
@@ -189,12 +189,12 @@ public class LifecycleHandler {
             } else {
                 execCycle = false;
             }
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.UPDATE && curEvent == EVENT.CON_UPDATED) {
-            LOG.info("Current State: {}", curState.toString());
+            LOG.debug("Current State: {}", curState.toString());
             execCycle = true;
             curState = STATE.UPDATE;
-            LOG.info("Next State: {}", curState.toString());
+            LOG.debug("Next State: {}", curState.toString());
         }
     }
 
@@ -231,7 +231,7 @@ public class LifecycleHandler {
                 execContainerErrorLifeCycle.execute();
                 break;
             default:
-                LOG.error("An UNEXPECTED event has occured!");
+                LOG.error("An UNEXPECTED state has occured!");
                 break;
         }
     }

@@ -157,15 +157,15 @@ public final class MainProcMon implements Shutdown {
         switch (curState) {
             case NOT_RUNNING:
                 if (_proc.exitValue() == 0) {
-                    LOG.warn("Main process STOPPED. Exit code: {}", _proc.exitValue());
+                    LOG.warn("MAIN process STOPPED. Exit code: {}", _proc.exitValue());
                 } else {
-                    LOG.error("Main process STOPPED. Exit code: {}", _proc.exitValue());
+                    LOG.error("MAIN process STOPPED. Exit code: {}", _proc.exitValue());
                 }
                 runningSignal.countDown();
                 initSignal.countDown();
                 break;
             case RUNNING:
-                LOG.info("STARTED main process.");
+                LOG.info("Started MAIN process.");
                 runningSignal = new CountDownLatch(1);
                 initSignal = new CountDownLatch(1);
                 LOG.info("Waiting for the process to initialize...");

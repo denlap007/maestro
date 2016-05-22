@@ -298,13 +298,13 @@ public final class StartCmd extends Command {
         for (Container con : handler.listContainers()) {
             // generate JSON from container and return the generated JSON as a byte array
             byte[] data = JAXBSerializer.serialize(con);
-            LOG.debug("Serialized container description of service {}: {}", con.getName(), JAXBSerializer.deserializeToString(data));
+            LOG.debug("Serialized container description of service {}: {}", con.getConSrvName(), JAXBSerializer.deserializeToString(data));
             // get the name for the child node
-            String name = con.getName();
+            String name = con.getConSrvName();
             // get the container type
             String type = Utils.getType(con);
             // initialize child node
-            LOG.debug("Initializing zkConf node for service {} of type {} with data {} bytes", con.getName(), type, data.length);
+            LOG.debug("Initializing zkConf node for service {} of type {} with data {} bytes", con.getConSrvName(), type, data.length);
             zkConf.initZkContainer(name, type, data);
         }
 

@@ -18,6 +18,7 @@ package net.freelabs.maestro.core.zookeeper;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.Watcher.Event.KeeperState;
@@ -74,7 +75,7 @@ public class ZkConnectionWatcher implements Watcher {
      */
     public void connect() throws IOException, InterruptedException {
         zk = new ZooKeeper(zkHosts, zkSessionTimeout, this);
-        connectedSignal.await();
+        connectedSignal.await(30, TimeUnit.SECONDS);
     }
 
     /**

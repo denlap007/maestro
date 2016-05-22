@@ -64,7 +64,7 @@ public class DependencyAnalyzer {
         Map<String, List<String>> conDepMap = new HashMap<>();
 
         containers.stream().forEach((con) -> {
-            String key = con.getName();
+            String key = con.getConSrvName();
             List<String> value = con.getRequires();
             conDepMap.put(key, value);
         });
@@ -72,7 +72,7 @@ public class DependencyAnalyzer {
         for (Container con : containers) {
             // if container has no dependencies skip it
             if (!con.getRequires().isEmpty()) {
-                found = detectCircular(con.getName(), new ArrayList<>(), conDepMap);
+                found = detectCircular(con.getConSrvName(), new ArrayList<>(), conDepMap);
                 if (found) {
                     break;
                 }

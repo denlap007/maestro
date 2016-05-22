@@ -164,7 +164,7 @@ public abstract class Broker implements ContainerLifecycle {
         shutdownSignal = new CountDownLatch(1);
         upDownPaths = new HashMap<>();
         if (con != null) {
-            zNode = zkConf.getContainers().get(con.getName());
+            zNode = zkConf.getContainers().get(con.getConSrvName());
         } else {
             zNode = null;
         }
@@ -187,7 +187,7 @@ public abstract class Broker implements ContainerLifecycle {
         // check if container was created 
         if (container != null) {
             // start the created container instance
-            String cid = startContainer(container, con.getName());
+            String cid = startContainer(container, con.getConSrvName());
             // check for errors
             if (cid != null) {
                 // copy data, if any, to container
@@ -213,7 +213,7 @@ public abstract class Broker implements ContainerLifecycle {
      * @return true if operation completed successfully.
      */
     private boolean copyToContainer(String cid) {
-        LOG.info("Copying files from host to container for service {}...", con.getName());
+        LOG.info("Copying files from host to container for service {}...", con.getConSrvName());
         boolean success = true;
 
         for (Map.Entry<String, String> entry : upDownPaths.entrySet()) {
@@ -244,7 +244,7 @@ public abstract class Broker implements ContainerLifecycle {
      * successfully.
      */
     private boolean attachToNetwork(String cid, String netId) {
-        LOG.info("Attaching container for service {} to network...", con.getName());
+        LOG.info("Attaching container for service {} to network...", con.getConSrvName());
         boolean success = false;
         if (netId != null) {
             try {
@@ -294,8 +294,8 @@ public abstract class Broker implements ContainerLifecycle {
     public boolean onRestart() {
         boolean success = false;
         // restart the container with the deployed name
-        String deplName = zkConf.getDeplCons().get(con.getName());
-        boolean restarted = restartContainer(deplName, con.getName());
+        String deplName = zkConf.getDeplCons().get(con.getConSrvName());
+        boolean restarted = restartContainer(deplName, con.getConSrvName());
 
         if (restarted) {
             // run post start state
@@ -344,7 +344,7 @@ public abstract class Broker implements ContainerLifecycle {
                     }
                 } else {
                     success = true;
-                    LOG.warn("No Containers-Services running.");
+                    LOG.info("No Containers-Services running.");
                 }
             }
         }
@@ -558,7 +558,7 @@ public abstract class Broker implements ContainerLifecycle {
         // create the boot command
 
         // FOR TESTING
-        conBootCmd = "wget maestro.freelabs.net/maestroBroker.zip || curl maestro.freelabs.net/maestroBroker.zip; "
+        conBootCmd = "wget http://maestro.freelabs.net/maestroBroker.zip || curl http://maestro.freelabs.net/maestroBroker.zip; "
                 + "rm -r /opt/maestro; "
                 + "unzip maestroBroker.zip -d /opt; "
                 + "exec java -jar /opt/maestro/bin/broker.jar " + conBootArgs;
@@ -568,11 +568,11 @@ public abstract class Broker implements ContainerLifecycle {
 
     @Override
     public CreateContainerResponse createContainer() {
-        LOG.info("Creating container for service {}...", con.getName());
+        LOG.info("Creating container for service {}...", con.getConSrvName());
         // create object to process declared docker configuration
         DockerConfProcessor dcp = new DockerConfProcessor(con.getDocker());
         // get the name with which to deploy the container 
-        String conName = zkConf.getDeplCons().get(con.getName());
+        String conName = zkConf.getDeplCons().get(con.getConSrvName());
         // boot command
         String conCmd = conBootCmd;
         // env var passed
@@ -580,7 +580,7 @@ public abstract class Broker implements ContainerLifecycle {
         // get network
         String netName = zkConf.getAppDefaultNetName();
         // get hostName
-        String hostName = con.getName();
+        String hostName = con.getConSrvName();
         // get container image
         String conImg = dcp.getImage();
         // get privileged flag

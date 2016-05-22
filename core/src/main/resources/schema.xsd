@@ -152,11 +152,17 @@
 
     <xs:complexType name="container" abstract="true">
         <xs:sequence>
-            <xs:element name="name" type="xs:token"/>
+            <xs:element name="serviceName" type="xs:token">
+                <xs:annotation>
+                    <xs:appinfo>
+                          <jxb:property name="conSrvName"/>
+                    </xs:appinfo>
+              </xs:annotation>
+            </xs:element>
             <xs:element name="requires" type="stringList" minOccurs="0"/>
             <xs:element name="docker" type="docker"/>
             <xs:element name="start" type="startRes"/>
-            <xs:element name="stop" type="stopRes" minOccurs="0"/>
+            <xs:element name="stop" type="stopRes"/>
             <xs:element name="tasks" type="tasks" minOccurs="0"/>
             <xs:element name="env" type="containerEnvironment"/>
         </xs:sequence>

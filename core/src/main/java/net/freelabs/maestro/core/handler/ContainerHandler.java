@@ -103,7 +103,7 @@ public class ContainerHandler {
         if (containersList.isEmpty() == false) {
             for (Container con : containersList) {
                 // Get container name 
-                String name = con.getName();
+                String name = con.getConSrvName();
                 // Get container type
                 String type = Utils.getType(con);
                 // create a NameType object
@@ -130,7 +130,7 @@ public class ContainerHandler {
         if (containersList.isEmpty() == false) {
             // Get the container name 
             for (Container con : containersList) {
-                containerName = con.getName();
+                containerName = con.getConSrvName();
                 names.add(containerName);
             }
         }

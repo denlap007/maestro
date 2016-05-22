@@ -72,10 +72,12 @@ public final class ServiceManager {
     /**
      * Add a service node to the service manager.
      *
+     * @param srvName the service name
      * @param srvPath the zNode path of the service to the naming service.
-     * @param srvNode the service node.
+     * @param zkContPath the path of the container znode offering this service
      */
-    public void addSrvNode(String srvPath, ServiceNode srvNode) {
+    public void createSrvNode(String srvName, String srvPath, String zkContPath) {
+        ServiceNode srvNode = new ServiceNode(srvName, srvPath, zkContPath);
         srvNodes.put(srvPath, srvNode);
     }
 
@@ -116,8 +118,8 @@ public final class ServiceManager {
 
         srvNodes.entrySet().stream().map((entry) -> entry.getValue()).forEach((srvNode) -> {
             SRV_STATE_STATUS srvStateStatus = srvNode.getSrvStateStatus();
-            if (srvStateStatus != SRV_STATE_STATUS.INITIALIZED && 
-                    srvStateStatus != SRV_STATE_STATUS.UPDATED) {
+            if (srvStateStatus != SRV_STATE_STATUS.INITIALIZED
+                    && srvStateStatus != SRV_STATE_STATUS.UPDATED) {
                 waitingServices.append(srvNode.getServiceName()).append(" ");
             }
         });

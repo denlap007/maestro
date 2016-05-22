@@ -59,7 +59,7 @@ public class ContainerNameAnalyzer {
         // add container names to list and check for repeating names
         for (Container con : containers) {
             // get the container name
-            String name = con.getName();
+            String name = con.getConSrvName();
             // check if name is already in name list
             if (nameList.contains(name)) {
                 LOG.error("DUPLICATE container name found: {}", name);
