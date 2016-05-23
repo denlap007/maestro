@@ -68,6 +68,9 @@ public final class StartCmd extends Command {
         try {
             // unmarshall xml file into a top-level object
             WebApp webApp = unmarshalXml(pConf.getXmlSchemaPath(), pConf.getXmlFilePath());
+            if (webApp == null){
+                errExit();
+            }
             // create a handler to query for container information
             ContainerHandler handler = createConHandler(webApp);
             // analyze restrictions and check if apply on schema
@@ -369,6 +372,6 @@ public final class StartCmd extends Command {
     protected void errExit() {
         // log 
         LOG.error("FAILED to deploy application.");
-        System.exit(1);
+        System.exit(-1);
     }
 }

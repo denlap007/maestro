@@ -56,7 +56,7 @@ public class CliOptions {
 
     private static final int ZK_OPTS_NUM = 2;
 
-    private static final String TOKEN_SPLITTER = ":";
+    private static final String TOKEN_SPLITTER = "=";
 
     // --------------------------- Command Line Options ---------------------------
     @Parameter(names = {"-h", "--help"}, description = "Show this help message :).", help = true)
@@ -65,26 +65,24 @@ public class CliOptions {
     @Parameter(names = {"-v", "--version"}, description = "Show program version.")
     private Boolean version;
 
-    @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path to .properties file with program's configuration.", required = false)
+    @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path to .properties file with program configuration.", required = false)
     private String conf;
 
-    @Parameter(names = {"-z", "--zkOpts[]"}, description = "Zookeeper Options "
-            + "in key:value pairs, comma delimited (no space): "
-            + "hosts:<zk host>,"
-            + "timeout:<zk client session timeout>", splitter = CommaParameterSplitter.class, required = false)
+    @Parameter(names = {"-z", "--zkOpts[]"}, description = "Zookeeper options "
+            + "[hosts=<host1:port1,host2:port2...>,"
+            + "timeout=<zk client session timeout>]", splitter = CommaParameterSplitter.class, required = false)
     private List<String> zkOptions;
 
-    @Parameter(names = {"-d", "--dockerOpts[]"}, description = "Docker Options "
-            + "in key:value pairs, comma delimited (no space): "
-            + "host:<docker host uri, with tcp://ip or unix:///socker>,"
-            + "tls:<true to enable https>,"
-            + "cert:<path to certs for tls>,"
-            + "config:<path to config like .dockercfg>,"
-            + "api:<api version>,"
-            + "regUrl:<registry url>,"
-            + "regUser:<regisrty username>,"
-            + "regPass:<registry password>,"
-            + "regEmail:<registry email>", splitter = CommaParameterSplitter.class, required = false)
+    @Parameter(names = {"-d", "--dockerOpts[]"}, description = "Docker options "
+            + "[host=<tcp://ip or unix:///socket>,"
+            + "tls=<true to enable https>,"
+            + "cert=<path to certs for tls>,"
+            + "config=<path to config like .dockercfg>,"
+            + "api=<api version>,"
+            + "regUrl=<registry url>,"
+            + "regUser=<regisrty username>,"
+            + "regPass=<registry password>,"
+            + "regEmail=<registry email>]", splitter = CommaParameterSplitter.class, required = false)
     private List<String> dockerOptions;
 
     @Parameter(names = {"-l", "--log"}, description = "<log4j properties> Path to log4j.properties file with log configuration.", required = false)
@@ -128,7 +126,7 @@ public class CliOptions {
         @Parameter(names = {"-h", "--help"}, description = "Help for stop command.", help = true)
         private Boolean help;
 
-        @Parameter(description = "<appId> The Id of the deployed application to stop.", required = true)
+        @Parameter(description = "<app id> The id of the deployed application to stop.", required = true)
         private List<String> args;
 
         // Getters
@@ -151,7 +149,7 @@ public class CliOptions {
         @Parameter(names = {"-h", "--help"}, description = "Help for restart command.", help = true)
         private Boolean help;
 
-        @Parameter(description = "<appId> The Id of the deployed application to restart.", required = true)
+        @Parameter(description = "<app id> The id of the deployed application to restart.", required = true)
         private List<String> args;
 
         // Getters
@@ -174,7 +172,7 @@ public class CliOptions {
         @Parameter(names = {"-h", "--help"}, description = "Help for delete command.", help = true)
         private Boolean help;
 
-        @Parameter(description = "<appId> The Id of the deployed application to delete.", required = true)
+        @Parameter(description = "<app id> The id of the deployed application to delete.", required = true)
         private List<String> args;
 
         // Getters
@@ -380,7 +378,7 @@ public class CliOptions {
         }
         return set;
     }
-
+    
     // ---------------------- Command Line Options Getters ----------------------
     public boolean isVersion() {
         if (version == null) {

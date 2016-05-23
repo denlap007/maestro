@@ -105,7 +105,7 @@ public class XmlProcessor {
             // Do the unmarshalling
             unmarshalled = u.unmarshal(new File(xmlFilePath));
         } catch (org.xml.sax.SAXException se) {
-            LOG.error("Unable to validate due to the following error: \n" + se.getMessage());
+            LOG.error("Unable to validate due to the following error: " + se.getMessage());
             return unmarshalled;
         } catch (JAXBException ex) {
             LOG.error("Something went wrong: " + ex.getMessage());

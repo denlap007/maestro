@@ -17,6 +17,8 @@
 package net.freelabs.maestro.core.broker;
 
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.command.InspectContainerResponse;
+import com.github.dockerjava.api.exception.DockerException;
 import com.github.dockerjava.api.exception.NotFoundException;
 import java.util.ArrayList;
 import java.util.List;
@@ -131,7 +133,7 @@ public final class BrokerInit {
 
     public void cleanupFromFailedStart() {
         boolean removed = false;
-        
+
         for (Container con : handler.listContainers()) {
             String conSrvName = con.getConSrvName();
             String deplConName = zkConf.getDeplCons().get(conSrvName);
@@ -148,7 +150,7 @@ public final class BrokerInit {
                 if (!removed) {
                     // Container does NOT exist, not an error 
                     LOG.info("Container for service {} NOT created.", conSrvName);
-                }else{
+                } else {
                     LOG.info("Removed container for service {}", conSrvName);
                     removed = false;
                 }
@@ -170,17 +172,43 @@ public final class BrokerInit {
     }
 
     public boolean runStop() {
-        LOG.info("Stopping application...");
-        // create a broker of any type
-        Broker broker = new DataBroker(zkConf, null, docker, master, netHandler);
-        // runStop services and containers
-        return broker.onStop();
+        boolean success = true;
+        if (!isStopped()) {
+            LOG.info("Stopping application...");
+            // create a broker of any type
+            Broker broker = new DataBroker(zkConf, null, docker, master, netHandler);
+            // runStop services and containers
+            success = broker.onStop();
+        }
+        return success;
+    }
+
+    private boolean isStopped() {
+        boolean stopped = false;
+        LOG.info("Checking application state...");
+        List<String> runningContainers = checkContainersRunning();
+        List<String> deplCons = new ArrayList<>(zkConf.getDeplCons().values());
+
+        if (runningContainers == null) {
+            LOG.warn("State of application containers could not be determined.");
+        } else if (runningContainers.isEmpty()) {
+            LOG.info("Application is stopped.");
+            stopped = true;
+        } else if (deplCons.removeAll(runningContainers)) {
+            if (deplCons.isEmpty()) {
+                LOG.info("Application containers are running...");
+            } else {
+                LOG.warn("Some (not all) application containers are running...");
+            }
+        }
+        return stopped;
     }
 
     public boolean runRestart() {
         boolean success;
-        // stop application if necessary
+        // stop if necessary
         success = runStop();
+
         if (success) {
             // re-start application
             LOG.info("Restarting application...");
@@ -208,6 +236,46 @@ public final class BrokerInit {
         }
 
         return success;
+    }
+
+    /**
+     *
+     * @return a list with the currently running application services. If no
+     * services are found an empty list is returned. In case of error while
+     * communicating with zookeeper NULL is returned.
+     */
+    private List<String> getRunningServices() {
+        List<String> runningServices = master.getRunningServices();
+        return runningServices;
+    }
+
+    /**
+     * Checks if any containers are running. If a running container is found
+     * then an one element list is returned. If no containers are running then
+     * an empty list is returned. In case of error NULL is returned.
+     *
+     * @return a list with one element of a container is found running, empty if
+     * no running containers found and NULL in case of any error.
+     */
+    private List<String> checkContainersRunning() {
+        List<String> deplConNames = new ArrayList<>(zkConf.getDeplCons().values());
+        List<String> runningContainers = new ArrayList<>();
+
+        for (String deplConName : deplConNames) {
+            try {
+                InspectContainerResponse inspResp = docker.inspectContainerCmd(deplConName).exec();
+                // if container running add to list
+                if (inspResp.getState().getRunning()) {
+                    runningContainers.add(deplConName);
+                }
+            } catch (NotFoundException ex) {
+                // catch exception and check if other containers are running
+            } catch (DockerException ex) {
+                runningContainers = null;
+                break;
+            }
+        }
+        return runningContainers;
     }
 
     public void runUpdate() {

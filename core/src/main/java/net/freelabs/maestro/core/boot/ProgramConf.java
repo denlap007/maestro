@@ -18,9 +18,12 @@ package net.freelabs.maestro.core.boot;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.Properties;
+import java.util.logging.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -58,6 +61,34 @@ public final class ProgramConf {
     private static final String PROGRAM_NAME = "maestro";
     private static final String VERSION = "0.1.0";
 
+    public boolean isProgramPropertiesInRunningDir() {
+        try {
+            String filePath = getClass().getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+            if (filePath != null) {
+                String runningFolder = new File(filePath).getParent();
+                File propertiesFile = new File(runningFolder + "/" + PROPERTIES_FILE_NAME);
+                return propertiesFile.isFile();
+            }
+        } catch (URISyntaxException ex) {
+        }
+        return false;
+    }
+
+    private String getProgramPropertiesInRunningDir() {
+        String path = null;
+        try {
+            path = getClass().getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+            if (path != null) {
+                String runningFolder = new File(path).getParent();
+                path = runningFolder + File.separator + PROPERTIES_FILE_NAME;
+            }
+        } catch (URISyntaxException ex) {
+            java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
+                    "Something went wrong {0}", ex.getMessage());
+        }
+        return path;
+    }
+
     /**
      * Loads the configuration parameters from the properties file that were not
      * set by the user input. If the path is empty, it defaults to the directory
@@ -72,8 +103,11 @@ public final class ProgramConf {
         Properties prop = new Properties();
         // check if path is set
         if (path.isEmpty()) {
-            // if empty search to the current dir for the default properties file
-            path = PROPERTIES_FILE_NAME;
+            // if empty search to the running dir for the default properties file
+            path = getProgramPropertiesInRunningDir();
+            if (path == null) {
+                return false;
+            }
         }
         // read .properties file
         try (FileInputStream input = new FileInputStream(path)) {
@@ -123,6 +157,8 @@ public final class ProgramConf {
                 log4jPropertiesPath = prop.getProperty("log4j.properties.path");
             }
         } catch (IOException ex) {
+            java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
+                    "FAILED to load file {0}: {1}", new Object[]{path, ex.getMessage()});
             loaded = false;
         }
 
@@ -144,8 +180,11 @@ public final class ProgramConf {
         Properties prop = new Properties();
         // check if path is set
         if (path.isEmpty()) {
-            // if empty search to the current dir for the default properties file
-            path = PROPERTIES_FILE_NAME;
+            // if empty search to the running dir for the default properties file
+            path = getProgramPropertiesInRunningDir();
+            if (path == null) {
+                return false;
+            }
         }
         // read .properties file
         try (FileInputStream input = new FileInputStream(path)) {
@@ -167,6 +206,8 @@ public final class ProgramConf {
             dockerRegistryMail = prop.getProperty("docker.registry.email");
             log4jPropertiesPath = prop.getProperty("log4j.properties.path");
         } catch (IOException ex) {
+            java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
+                    "FAILED to load file {0}: {1}", new Object[]{path, ex.getMessage()});
             loaded = false;
         }
         return loaded;

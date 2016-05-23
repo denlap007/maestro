@@ -350,7 +350,6 @@ public abstract class Broker implements ContainerLifecycle {
                 }
             }
         }
-
         return success;
     }
 
@@ -381,6 +380,8 @@ public abstract class Broker implements ContainerLifecycle {
                 }
             } catch (NotFoundException ex) {
                 LOG.error("Container for service {} does not exist.", defName);
+            } catch (DockerException ex) {
+                LOG.error("FAILED to get container state for service {}. Something went wrong: {}", defName, ex);
             }
         }
         return runningCons;
@@ -394,20 +395,21 @@ public abstract class Broker implements ContainerLifecycle {
      */
     private boolean stopRunningCons(Map<String, String> runningCons) {
         boolean success = true;
-        boolean threwExeception = false;
         for (Map.Entry<String, String> entry : runningCons.entrySet()) {
             String defName = entry.getKey();
             String deplname = entry.getValue();
             try {
                 LOG.warn("Container for service {} is still running. Forcing stop...", defName);
-                success = stopContainer(deplname, defName);
+                success = stopContainer(deplname, defName) && success;
             } catch (NotFoundException ex) {
                 LOG.error("Container for service {} does not exist.", defName);
                 success = false;
-                threwExeception = true;
+            } catch (DockerException ex) {
+                LOG.error("FAILED to stop container for service {}. Something went wrong: {}", defName, ex);
+                success = false;
             }
         }
-        return success && !threwExeception;
+        return success;
     }
 
     /**
@@ -635,7 +637,7 @@ public abstract class Broker implements ContainerLifecycle {
                     break;
                 }
             } catch (DockerException ex) {
-                LOG.error("FAILED to create container. Something went wrong {}", ex.getMessage());
+                LOG.error("FAILED to create container. Something went wrong: {}", ex.getMessage());
             }
         }
         return container;
@@ -681,7 +683,7 @@ public abstract class Broker implements ContainerLifecycle {
         } catch (NotFoundException e) {
             LOG.error("FAILED to stop container for service {}. Container does NOT exist.", srv);
         } catch (DockerException ex) {
-            LOG.error("FAILED to stop container. Something went wrong {}", ex.getMessage());
+            LOG.error("FAILED to stop container for service {}. Something went wrong: {}", srv, ex);
         }
         return success;
     }
@@ -716,7 +718,7 @@ public abstract class Broker implements ContainerLifecycle {
         } catch (NotFoundException e) {
             LOG.error("FAILED to restart container for service {}. Container does NOT exist.", srv);
         } catch (DockerException ex) {
-            LOG.error("FAILED to restart container. Something went wrong {}", ex.getMessage());
+            LOG.error("FAILED to restart container for service {}. Something went wrong: {}",srv, ex);
         }
 
         return success;
@@ -741,7 +743,7 @@ public abstract class Broker implements ContainerLifecycle {
                 success = true;
             }
         } catch (DockerException ex) {
-            LOG.error("FAILED to delete container. Something went wrong {}", ex.getMessage());
+            LOG.error("FAILED to delete container for service {}. Something went wrong: {}",srv, ex);
         }
 
         return success;

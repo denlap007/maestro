@@ -95,7 +95,6 @@ public final class RestartCmd extends Command {
             } else {
                 LOG.error("Application with id {} does NOT exist.", appID);
             }
-
         }
 
         master.shutdownMaster();
