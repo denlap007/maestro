@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Properties;
-import java.util.logging.Level;
 import net.freelabs.maestro.core.boot.cl.CliOptions;
 import net.freelabs.maestro.core.boot.cl.CliOptions.StartCmdOpt;
 import org.apache.log4j.PropertyConfigurator;
@@ -93,7 +92,7 @@ public final class Main {
             cl.parse(args);
         } catch (ParameterException e) {
             // show error msg
-            System.err.print(e.getMessage() + ". See \'maestro --help\'\n");
+            System.err.print(e.getMessage() + ". See \'maestro --help\'.\n");
             // exit
             errExit();
         }
@@ -115,7 +114,7 @@ public final class Main {
                 errExit();
             }
         }
-        
+
         boolean error = true;
 
         if (opts.isHelp()) {
@@ -228,10 +227,10 @@ public final class Main {
         if (opts.getConf() == null) {
             // check for program's propetries file
             if (pConf.isProgramPropertiesInRunningDir() == false) {
-                java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
-                        "Cannot locate maestro.properties file. Place the file in your running dir, or "
+                System.err.println("ERROR: Cannot locate maestro.properties file. "
+                        + "Place the file in your running dir, or "
                         + "specify a custom path with -c command line option. "
-                        + "See \'maestro --help\'");
+                        + "See \'maestro --help\'.");
                 exists = false;
             }
         }
@@ -308,11 +307,11 @@ public final class Main {
             LOG.debug("Loaded log4j properties file: {}", file);
         } catch (IOException ex) {
             if (file.isEmpty()) {
-                java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.WARNING,
-                        "No log4j.properties file specified. Checking running directory.");
+                System.out.println("WARNING: No log4j.properties file specified. Checking running directory.");
             } else {
-                java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.WARNING,
-                        "Could not load log4j.properties file: {0}. Checking running directory. ", ex.getMessage());
+                System.out.println("WARNING: Could not load log4j.properties file: "
+                        + file
+                        + ". Checking running directory. " + ex.getMessage());
             }
         }
 
@@ -329,8 +328,9 @@ public final class Main {
                     loaded = true;
                 }
             } catch (IOException | URISyntaxException ex1) {
-                java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.WARNING,
-                        "Could not load log4j.properties file: {0} {1}. Checking classpath.", new Object[]{file, ex1.getMessage()});
+                System.out.println("WARNING: Could not load log4j.properties file from running directory: "
+                        + ex1.getMessage()
+                        + ". Checking classpath.");
             }
         }
 
@@ -343,10 +343,9 @@ public final class Main {
                 loaded = true;
                 LOG.info("Loaded log4j.properties file: {}", url.toString());
             } else {
-                java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
-                        "FAILED to locate a valid log4j.properties file. Put the file in your running dirextory, classpath "
-                        + "\n"
-                        + "\tor declare its path to program's .properties file or through command line!");
+                 System.out.println("ERROR: FAILED to locate a valid log4j.properties file. "
+                         + "Put the file in your running dirextory, classpath or declare its "
+                         + "path to program's .properties file or through command line!");
             }
         }
         return loaded;

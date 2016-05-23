@@ -23,7 +23,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.Properties;
-import java.util.logging.Level;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,8 +82,7 @@ public final class ProgramConf {
                 path = runningFolder + File.separator + PROPERTIES_FILE_NAME;
             }
         } catch (URISyntaxException ex) {
-            java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
-                    "Something went wrong {0}", ex.getMessage());
+            System.err.println("ERROR: Something went wrong: " + ex.getMessage());
         }
         return path;
     }
@@ -157,8 +155,8 @@ public final class ProgramConf {
                 log4jPropertiesPath = prop.getProperty("log4j.properties.path");
             }
         } catch (IOException ex) {
-            java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
-                    "FAILED to load file {0}: {1}", new Object[]{path, ex.getMessage()});
+            System.err.println("ERROR: FAILED to load file: "
+                    + ex.getMessage());
             loaded = false;
         }
 
@@ -206,8 +204,8 @@ public final class ProgramConf {
             dockerRegistryMail = prop.getProperty("docker.registry.email");
             log4jPropertiesPath = prop.getProperty("log4j.properties.path");
         } catch (IOException ex) {
-            java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
-                    "FAILED to load file {0}: {1}", new Object[]{path, ex.getMessage()});
+            System.err.println("ERROR: FAILED to load file: "
+                    + ex.getMessage());
             loaded = false;
         }
         return loaded;

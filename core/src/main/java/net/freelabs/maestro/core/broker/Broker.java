@@ -229,7 +229,7 @@ public abstract class Broker implements ContainerLifecycle {
                         .withHostResource(hostPath)
                         .exec();
             } catch (Exception ex) {
-                LOG.error("Something went wrong: {}", ex);
+                LOG.error("Something went wrong: {}", ex.getMessage());
                 success = false;
                 break;
             }

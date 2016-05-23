@@ -20,8 +20,6 @@ import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
 import com.beust.jcommander.converters.CommaParameterSplitter;
 import java.util.List;
-import java.util.logging.Level;
-import net.freelabs.maestro.core.boot.Main;
 
 /**
  *
@@ -192,21 +190,20 @@ public class CliOptions {
     public boolean parseZkOpts() {
         boolean parsedOptions = true;
         if (zkOptions.size() > ZK_OPTS_NUM) {
-            java.util.logging.Logger.getLogger(Main.class.getName())
-                    .log(Level.SEVERE, "Too many zookeeper options defined. See \'maestro --help\'.");
+            System.err.println("ERROR: Too many zookeeper options defined. See \'maestro --help\'.");
         } else if (!zkOptions.isEmpty()) {
             for (int i = 0; i < zkOptions.size(); i++) {
                 boolean parsed = parseAndSetZkOption(zkOptions.get(i));
                 if (!parsed) {
                     parsedOptions = false;
-                    java.util.logging.Logger.getLogger(Main.class.getName())
-                            .log(Level.SEVERE, "Invalid zookeeper option: {0}. See \'maestro --help\'.", zkOptions.get(i));
+                    System.err.println("ERROR: Invalid zookeeper option: "
+                            + zkOptions.get(i)
+                            + ". See \'maestro --help\'.");
                     break;
                 }
             }
         } else {
-            java.util.logging.Logger.getLogger(Main.class.getName())
-                    .log(Level.SEVERE, "No zookeeper option defined. See \'maestro --help\'.");
+            System.err.println("ERROR: No zookeeper option defined. See \'maestro --help\'.");
         }
 
         return parsedOptions;
@@ -274,21 +271,20 @@ public class CliOptions {
     public boolean parseDockerOpts() {
         boolean parsedOptions = true;
         if (dockerOptions.size() > DOCKER_OPTS_NUM) {
-            java.util.logging.Logger.getLogger(Main.class.getName())
-                    .log(Level.SEVERE, "Too many docker options defined. See \'maestro --help\'.");
+            System.err.println("ERROR: Too many docker options defined. See \'maestro --help\'.");
         } else if (!dockerOptions.isEmpty()) {
             for (int i = 0; i < dockerOptions.size(); i++) {
                 boolean parsed = parseAndSetDockerOption(dockerOptions.get(i));
                 if (!parsed) {
                     parsedOptions = false;
-                    java.util.logging.Logger.getLogger(Main.class.getName())
-                            .log(Level.SEVERE, "Invalid docker option: {0}. See \'maestro --help\'.", dockerOptions.get(i));
+                    System.err.println("ERROR: Invalid docker option: "
+                            + dockerOptions.get(i)
+                            + ". See \'maestro --help\'.");
                     break;
                 }
             }
         } else {
-            java.util.logging.Logger.getLogger(Main.class.getName())
-                    .log(Level.SEVERE, "No docker option defined. See \'maestro --help\'.");
+            System.err.println("ERROR: No docker option defined. See \'maestro --help\'.");
         }
         return parsedOptions;
     }
@@ -378,7 +374,7 @@ public class CliOptions {
         }
         return set;
     }
-    
+
     // ---------------------- Command Line Options Getters ----------------------
     public boolean isVersion() {
         if (version == null) {

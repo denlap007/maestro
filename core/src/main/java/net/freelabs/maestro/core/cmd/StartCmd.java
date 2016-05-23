@@ -317,7 +317,7 @@ public final class StartCmd extends Command {
         // initialize zkConf node with data
         byte[] data = JAXBSerializer.serialize(zkConf);
         zkConf.getZkConf().setData(data);
-        LOG.debug("Serialized zkConf: {}", JAXBSerializer.deserializeToString(data));
+        // LOG.debug("Serialized zkConf: {}", JAXBSerializer.deserializeToString(data));
 
         return zkConf;
     }
@@ -358,7 +358,7 @@ public final class StartCmd extends Command {
      * Terminates the program due to some error printing the cause.
      */
     private void exitProgram(Exception ex) {
-        LOG.error("Something went wrong: ", ex);
+        LOG.error("Something went wrong: ", ex.getMessage());
         if (master != null) {
             master.shutdown();
         }
