@@ -136,7 +136,9 @@ public abstract class Broker implements ContainerLifecycle {
      * Time that services are waited to stop.
      */
     private static final long SERVICES_TIMEOUT = 2;
-
+    /**
+     * Time unit for the timeout value set to wait for services.
+     */
     private static final TimeUnit SERVICES_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
     /**
@@ -177,7 +179,7 @@ public abstract class Broker implements ContainerLifecycle {
      */
     public boolean onStart() {
         boolean success = false;
-        String cid = null;
+        String cid;
         // create configration to initialize parameters
         createContainerEnv();
         // create a processor for declared docker configuration
@@ -293,6 +295,12 @@ public abstract class Broker implements ContainerLifecycle {
         return success;
     }
 
+    /**
+     * Runs the restart state for the Broker.Restarts a container then the
+     * postStart state is run where the zookeeper configuration is updated.
+     *
+     * @return true if resatrt of container succeeded.
+     */
     public boolean onRestart() {
         boolean success = false;
         // restart the container with the deployed name
@@ -306,6 +314,15 @@ public abstract class Broker implements ContainerLifecycle {
         return success;
     }
 
+    /**
+     * Runs the stop state for the Broker. In the stop state, services are
+     * queried first to determine if they are running. Then, shutdown is
+     * signaled for the application and services are waited to stop. After all
+     * services have stopped, the state of the containers is checked. If any
+     * container is still running it is forced to stop.
+     *
+     * @return true if operation completed without errors.
+     */
     public boolean onStop() {
         boolean success = false;
         // register watch to services
@@ -718,7 +735,7 @@ public abstract class Broker implements ContainerLifecycle {
         } catch (NotFoundException e) {
             LOG.error("FAILED to restart container for service {}. Container does NOT exist.", srv);
         } catch (DockerException ex) {
-            LOG.error("FAILED to restart container for service {}. Something went wrong: {}",srv, ex);
+            LOG.error("FAILED to restart container for service {}. Something went wrong: {}", srv, ex);
         }
 
         return success;
@@ -743,7 +760,7 @@ public abstract class Broker implements ContainerLifecycle {
                 success = true;
             }
         } catch (DockerException ex) {
-            LOG.error("FAILED to delete container for service {}. Something went wrong: {}",srv, ex);
+            LOG.error("FAILED to delete container for service {}. Something went wrong: {}", srv, ex);
         }
 
         return success;

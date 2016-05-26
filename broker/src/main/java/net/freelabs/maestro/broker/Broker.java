@@ -30,7 +30,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.broker.process.*;
 import net.freelabs.maestro.broker.process.start.StartGroupProcessHandler;
@@ -192,10 +191,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             this.start();
         }));
         lifecycleHandler.setExecContainerShutdownLifeCycle(() -> executorService.execute(() -> {
-            this.shutdown();
+            this.update();
         }));
         lifecycleHandler.setExecContainerUpdateLifeCycle(() -> executorService.execute(() -> {
-            this.update();
+            this.shutdown();
         }));
         lifecycleHandler.setExecContainerErrorLifeCycle(() -> executorService.execute(() -> {
             this.error();
@@ -643,7 +642,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             }
         }
     };
-    
+
     /**
      * Gets data from the requested service zNode.
      *
@@ -1340,20 +1339,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     }
 
     private void shutdownExecutor() {
-        try {
-            executorService.shutdown();
-            executorService.awaitTermination(2, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // log the event
-            LOG.warn("Tasks interrupted.");
-            // set the interrupt status
-            Thread.currentThread().interrupt();
-        } finally {
-            if (!executorService.isTerminated()) {
-                LOG.warn("Canceling non-finished tasks.");
-            }
-            executorService.shutdownNow();
-        }
+        executorService.shutdownNow();
     }
 
     /**
