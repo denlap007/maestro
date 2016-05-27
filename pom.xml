@@ -39,7 +39,7 @@
                 <version>3.4.8</version>
             </dependency>
             <dependency>
-                <groupId>com.github.docker-java</groupId>
+                <groupId>com.github.docker-java</groupId> 
                 <artifactId>docker-java</artifactId>
                 <version>3.0.0-DIO</version>
             </dependency>

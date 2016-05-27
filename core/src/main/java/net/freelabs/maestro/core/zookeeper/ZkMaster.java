@@ -495,7 +495,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
 
         return !masterError && stopped;
     }
-
+    
     /**
      * Gets data from a zNode.
      *

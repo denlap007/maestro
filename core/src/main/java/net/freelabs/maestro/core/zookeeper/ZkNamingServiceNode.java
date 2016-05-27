@@ -71,44 +71,60 @@ public class ZkNamingServiceNode {
      * Sets node {@link #status status} to INITIALIZED.
      */
     public void setStatusInitialized() {
-        this.status = SRV_STATE_STATUS.INITIALIZED;
+        synchronized (this) {
+            status = SRV_STATE_STATUS.INITIALIZED;
+        }
     }
 
     /**
      * Sets node {@link #status status} to NOT_INITIALIZED.
      */
     public void setStatusNotInitialized() {
-        this.status = SRV_STATE_STATUS.NOT_INITIALIZED;
+        synchronized (this) {
+            status = SRV_STATE_STATUS.NOT_INITIALIZED;
+        }
     }
 
     /**
      * Sets node {@link #status status} to NOT_RUNNING.
      */
     public void setStatusNotRunning() {
-        this.status = SRV_STATE_STATUS.NOT_RUNNING;
+        synchronized (this) {
+            status = SRV_STATE_STATUS.NOT_RUNNING;
+        }
     }
 
     /**
      * Sets node {@link #status status} to UPDATED.
      */
     public void setStatusUpdasted() {
-        this.status = SRV_STATE_STATUS.UPDATED;
+        synchronized (this) {
+            status = SRV_STATE_STATUS.UPDATED;
+        }
     }
 
     public boolean isStatusSetToUpdated() {
-        return this.status == SRV_STATE_STATUS.UPDATED;
+        synchronized (this) {
+            return status == SRV_STATE_STATUS.UPDATED;
+        }
     }
 
     public boolean isStatusSetToInitialized() {
-        return this.status == SRV_STATE_STATUS.INITIALIZED;
+        synchronized (this) {
+            return status == SRV_STATE_STATUS.INITIALIZED;
+        }
     }
 
     public boolean isStatusSetToNotInitialized() {
-        return this.status == SRV_STATE_STATUS.NOT_INITIALIZED;
+        synchronized (this) {
+            return status == SRV_STATE_STATUS.NOT_INITIALIZED;
+        }
     }
 
     public boolean isStatusSetToNotRunning() {
-        return this.status == SRV_STATE_STATUS.NOT_RUNNING;
+        synchronized (this) {
+            return status == SRV_STATE_STATUS.NOT_RUNNING;
+        }
     }
 
     /**

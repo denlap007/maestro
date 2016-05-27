@@ -47,12 +47,10 @@ public final class ServiceManager {
      * The service nodes of the required services.
      */
     private final Map<String, ServiceNode> srvNodes = new HashMap<>();
-
     /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(ServiceManager.class);
-
     /**
      * Constructor.
      *

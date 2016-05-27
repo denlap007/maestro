@@ -178,26 +178,25 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * BOOTSTRAPPING
      * **************************************************************************
      */
-    public void preBootInitialization() {
+    public void entrypoint() {
         // initialize lifecycle handler
         lifecycleHandler.setExecContainerBootCycle(() -> executorService.execute(() -> {
-            this.boot();
-        })
-        );
+            boot();
+        }));
         lifecycleHandler.setExecContainerInitCycle(() -> executorService.execute(() -> {
-            this.init();
+            init();
         }));
         lifecycleHandler.setExecContainerStartLifeCycle(() -> executorService.execute(() -> {
-            this.start();
+            start();
         }));
         lifecycleHandler.setExecContainerShutdownLifeCycle(() -> executorService.execute(() -> {
-            this.shutdown();
+            shutdown();
         }));
         lifecycleHandler.setExecContainerUpdateLifeCycle(() -> executorService.execute(() -> {
-            this.update();
+            update();
         }));
         lifecycleHandler.setExecContainerErrorLifeCycle(() -> executorService.execute(() -> {
-            this.error();
+            error();
         }));
         // send the bootEvent
         lifecycleHandler.bootEvent();
@@ -217,7 +216,12 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             lifecycleHandler.containerInitEvent();
         } else {
             LOG.error("FAILED to start broker. Terminating.");
+            errExit();
         }
+    }
+
+    private void errExit() {
+        System.exit(-1);
     }
 
     /**
@@ -254,8 +258,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         createZkNodeEphemeral(zkContainerPath, BROKER_ID.getBytes());
         // set watch for the container description
         waitForConDescription();
-        // wait for shutdown
-        waitForShutdown(SHUTDOWN);
     }
 
     /**
@@ -460,10 +462,23 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
          */
         List<String> srvNames = container.getRequires();
         Map<String, String> srvsNamePath = ns.getSrvsNamePath(srvNames);
-        srvMngr = new ServiceManager(srvsNamePath);
+        createServiceManager(srvsNamePath);
         lifecycleHandler.setSrvMngr(srvMngr);
         // set data to the container zNode 
         setZkConNodeData(data);
+    }
+
+    /**
+     * Creates the {@link #srvMngr service manager}. Guarantees thread
+     * visibility.
+     *
+     * @param srvsNamePath map with service name as key and service path as
+     * value.
+     */
+    private void createServiceManager(Map<String, String> srvsNamePath) {
+        synchronized (Broker.class) {
+            srvMngr = new ServiceManager(srvsNamePath);
+        }
     }
 
     /**
@@ -632,7 +647,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     break;
                 case NodeDeleted:
                     /* ACTION TO TAKE IF SERVICE NODE IS REMOVED */
-                    LOG.warn("A required service was REMOVED: {}", event.getPath());
+                    LOG.warn("A required service shutdown unexpectedly: {}", event.getPath());
                     srvMngr.deleteSrvNode(event.getPath());
                     lifecycleHandler.serviceDeletedEvent();
                     // re-set watch in case the service comes online
@@ -771,17 +786,27 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     public void start() {
         LOG.info("Starting container processes initialization.");
         // create the process manager that will start processes
-        procMngr = new ProcessManager();
+        createProcessManager();
         // create the environment for the container processes
         initProcsEnv();
         // initialization of process groups
         initProcGroups();
-        // initialize tasks
-        taskHandler = initTaskHandler();
+        // initialize handler for tasks
+        initTaskHandler();
         // execute tasks
         taskHandler.execPreStartTasks();
         // execute START processes
         procMngr.exec_start_procs();
+    }
+
+    /**
+     * Creates the {@link #procMngr process manager}. Guarantees thread
+     * visibility.
+     */
+    private void createProcessManager() {
+        synchronized (Broker.class) {
+            procMngr = new ProcessManager();
+        }
     }
 
     /**
@@ -918,16 +943,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
 
     /**
      * <p>
-     * Creates and initializes an executor for tasks.
+     * Creates and initializes an executor for tasks, the {@link #taskHandler 
+     * taskHandler}. Guarantees thread visibility.
      * <p>
      * A task is a function of some type for the application.
-     *
-     * @return an object that will handle task execution.
      */
-    private TaskHandler initTaskHandler() {
+    private void initTaskHandler() {
         Tasks tasks = container.getTasks();
         Map<String, String> env;
-        TaskHandler th;
         // if there are tasks defined
         if (tasks != null) {
             // create Task Mapper
@@ -939,11 +962,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             }
             TaskMapper tm = new TaskMapper(tasks, env);
             // init Task Handler
-            th = new TaskHandler(tm.getPreStartTasks(), tm.getPostStopTasks());
+            synchronized (Broker.class) {
+                taskHandler = new TaskHandler(tm.getPreStartTasks(), tm.getPostStopTasks());
+            }
         } else {
-            th = new TaskHandler();
+            synchronized (Broker.class) {
+                taskHandler = new TaskHandler();
+            }
         }
-        return th;
     }
 
     /**
@@ -1303,22 +1329,20 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     // run stop group procs
                     stop();
                 } else {
-                    taskHandler = initTaskHandler();
+                    initTaskHandler();
                     stop();
                 }
             } else {
                 initProcsEnv();
                 initStopGroup();
-                taskHandler = initTaskHandler();
+                initTaskHandler();
                 stop();
             }
         }
-        // delete persistent zNode with container description to support restart
-        deleteNode(conConfNode, -1);
         // notify for shutdown objects implementing shutdown interface
         notifier.shutDown();
-        // shut down the executorService to stop any still running threads
-        shutdownExecutor();
+        // delete persistent zNode with container description to support restart
+        deleteNode(conConfNode, -1);
         try {
             // close zk client session
             closeSession();
@@ -1330,6 +1354,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         }
         // log event
         LOG.info("Initiating Broker shutdown " + zkContainerPath);
+        // shut down the executorService to stop any still running threads
+        shutdownExecutor();
     }
 
     @Override
@@ -1349,7 +1375,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * @param path the zNode to delete.
      * @param version the data version of the zNode.
      */
-    public void deleteNode(String path, int version) {
+    private void deleteNode(String path, int version) {
         while (true) {
             try {
                 zk.delete(path, version);

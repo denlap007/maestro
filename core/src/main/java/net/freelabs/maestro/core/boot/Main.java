@@ -120,11 +120,11 @@ public final class Main {
         if (opts.isHelp()) {
             // program help
             cl.usage();
-            exit();
+            error = false;
         } else if (opts.isVersion()) {
             // program version
             System.out.println("Maestro  v" + ProgramConf.getVERSION());
-            exit();
+            error = false;
         } else if (parsedCmd.equals(start)) {
             // start command
             if (startCmdOpt.isHelp()) {
@@ -282,13 +282,6 @@ public final class Main {
     }
 
     /**
-     * Exits program.
-     */
-    private static void exit() {
-        System.exit(0);
-    }
-
-    /**
      * Loads the log4j properties file.
      *
      * @param file the path of the log4j properties file.
@@ -343,9 +336,9 @@ public final class Main {
                 loaded = true;
                 LOG.info("Loaded log4j.properties file: {}", url.toString());
             } else {
-                 System.out.println("ERROR: FAILED to locate a valid log4j.properties file. "
-                         + "Put the file in your running dirextory, classpath or declare its "
-                         + "path to program's .properties file or through command line!");
+                System.out.println("ERROR: FAILED to locate a valid log4j.properties file. "
+                        + "Put the file in your running dirextory, classpath or declare its "
+                        + "path to program's .properties file or through command line!");
             }
         }
         return loaded;

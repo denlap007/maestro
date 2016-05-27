@@ -43,7 +43,8 @@ public final class ProcessManager {
     /**
      * Flag that indicates if start group processes have executed.
      */
-    private boolean statrGroupExecuted;
+    private volatile boolean statrGroupExecuted;
+
     /**
      * A Logger object.
      */
@@ -57,7 +58,9 @@ public final class ProcessManager {
      * startGroupHandler).
      */
     public void setStartGroupHandler(StartGroupProcessHandler startGroupHandler) {
-        this.startGroupHandler = startGroupHandler;
+        synchronized (this) {
+            this.startGroupHandler = startGroupHandler;
+        }
     }
 
     /**
@@ -68,7 +71,9 @@ public final class ProcessManager {
      * stopGroupHandler}.
      */
     public void setStopGroupHandler(StopGroupProcessHandler stopGroupHandler) {
-        this.stopGroupHandler = stopGroupHandler;
+        synchronized (this) {
+            this.stopGroupHandler = stopGroupHandler;
+        }
     }
 
     /**
@@ -140,7 +145,9 @@ public final class ProcessManager {
      * @return true if handler for stop process group is initialized.
      */
     public boolean isStopHandlerInit() {
-        return stopGroupHandler != null;
+        synchronized (this) {
+            return stopGroupHandler != null;
+        }
     }
 
     /**
@@ -149,6 +156,8 @@ public final class ProcessManager {
      * @return true if handler for start process group is initialized.
      */
     public boolean isStartHandlerInit() {
-        return startGroupHandler != null;
+        synchronized (this) {
+            return startGroupHandler != null;
+        }
     }
 }

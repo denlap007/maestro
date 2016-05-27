@@ -135,7 +135,7 @@ public abstract class Broker implements ContainerLifecycle {
     /**
      * Time that services are waited to stop.
      */
-    private static final long SERVICES_TIMEOUT = 2;
+    private static final long SERVICES_TIMEOUT = 5;
     /**
      * Time unit for the timeout value set to wait for services.
      */
