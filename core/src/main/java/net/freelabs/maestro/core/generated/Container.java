@@ -54,7 +54,8 @@ import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
     "start",
     "stop",
     "tasks",
-    "env"
+    "env",
+    "isRequiredFrom"
 })
 @XmlSeeAlso({
     BusinessContainer.class,
@@ -78,6 +79,18 @@ public abstract class Container {
     protected Tasks tasks;
     @XmlElement(required = true)
     protected ContainerEnvironment env;
+    private List<String> isRequiredFrom;
+
+    public List<String> getIsRequiredFrom() {
+        if (isRequiredFrom == null){
+            isRequiredFrom = new ArrayList<>();
+        }
+        return isRequiredFrom;
+    }
+
+    public void setIsRequiredFrom(List<String> isRequiredFrom) {
+        this.isRequiredFrom = isRequiredFrom;
+    }
 
     @Override
     public String toString() {

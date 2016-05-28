@@ -91,6 +91,14 @@ public class Bootstrap {
             broker.entrypoint();
         } else {
             LOG.error("FAILED to initialize broker!");
+            errExit();
         }
+    }
+
+    /**
+     * Exits with error code -1.
+     */
+    private static void errExit() {
+        System.exit(-1);
     }
 }

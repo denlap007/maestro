@@ -77,10 +77,12 @@ public class LifecycleHandler {
         } else if (curEvent == EVENT.SHUTDOWN) {
             LOG.debug("Current State: {}", curState.toString());
             curState = STATE.SHUTDOWN;
+            execCycle = true;
             LOG.debug("Next State: {}", curState.toString());
         } else if (curEvent == EVENT.ERROR) {
             LOG.debug("Current State: {}", curState.toString());
             curState = STATE.ERROR;
+            execCycle = true;
             LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.BOOT && curEvent == EVENT.CON_INIT) {
             LOG.debug("Current State: {}", curState.toString());
@@ -225,10 +227,16 @@ public class LifecycleHandler {
                 }
                 break;
             case SHUTDOWN:
-                execContainerShutdownLifeCycle.execute();
+                if (execCycle) {
+                    execContainerShutdownLifeCycle.execute();
+                    execCycle = false;
+                }
                 break;
             case ERROR:
-                execContainerErrorLifeCycle.execute();
+                if (execCycle) {
+                    execContainerErrorLifeCycle.execute();
+                    execCycle = false;
+                }
                 break;
             default:
                 LOG.error("An UNEXPECTED state has occured!");

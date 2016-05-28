@@ -24,7 +24,7 @@ import net.freelabs.maestro.core.generated.Container;
  * Class that provides methods to analyze restrictions applied to application
  * schema.
  */
-public class RestrictionAnalyzer {
+public class Analyzer {
 
     /**
      * Analyzes restrictions on dependencies.
@@ -40,7 +40,7 @@ public class RestrictionAnalyzer {
      *
      * @param containers list of containers declared on schema.
      */
-    public RestrictionAnalyzer(List<Container> containers) {
+    public Analyzer(List<Container> containers) {
         this.containers = containers;
     }
 
@@ -66,6 +66,23 @@ public class RestrictionAnalyzer {
         ContainerNameAnalyzer nameAnalyzer = new ContainerNameAnalyzer(containers);
         // check for duplicate contaier names
         return nameAnalyzer.detectDuplicateNames();
+    }
+
+    /**
+     * Finds for every container which services depend on it and adds them to 
+     * {@link Container#isRequiredFrom isRequiredFrom} list.
+     */
+    public void populateIsRequiredFromLists() {
+        for (Container con : containers) {
+            // get a container service
+            String conSrvName = con.getConSrvName();
+            // iterate through all other containers
+            for (Container otherCon : containers) {
+                if (otherCon.getRequires().contains(conSrvName)) {
+                    con.getIsRequiredFrom().add(otherCon.getConSrvName());
+                }
+            }
+        }
     }
 
 }

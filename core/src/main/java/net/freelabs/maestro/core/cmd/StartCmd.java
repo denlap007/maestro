@@ -20,7 +20,7 @@ import com.github.dockerjava.api.DockerClient;
 import java.io.IOException;
 import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.broker.Broker;
-import net.freelabs.maestro.core.analyze.RestrictionAnalyzer;
+import net.freelabs.maestro.core.analyze.Analyzer;
 import net.freelabs.maestro.core.boot.ProgramConf;
 import net.freelabs.maestro.core.broker.BrokerInit;
 import net.freelabs.maestro.core.xml.XmlProcessor;
@@ -74,7 +74,7 @@ public final class StartCmd extends Command {
             // create a handler to query for container information
             ContainerHandler handler = createConHandler(webApp);
             // analyze restrictions and check if apply on schema
-            analyzeRestrictions(handler);
+            analyze(handler);
             // create zk configuration
             ZkConf zkConf = createZkConf(webApp, pConf.getZkHosts(), pConf.getZkSessionTimeout(), handler, pConf);
             // initialize zk and start master process
@@ -120,22 +120,26 @@ public final class StartCmd extends Command {
 
     /**
      * <p>
-     * Analyzes the restrictions that must apply on the schema.
+     * Analyzes the restrictions that must apply on the schema and applies any 
+     * necessary processing.
      * <p>
      * No circular dependencies are allowed.
      * <p>
      * No duplicate container names are allowed.
+     * <p>
+     * Populates {@link Container#isRequiredFrom isRequiredFrom} list for every 
+     * container.
      *
      * @param handler object to query for containers.
      */
-    private void analyzeRestrictions(ContainerHandler handler) {
+    private void analyze(ContainerHandler handler) {
         // create analyzer to check restrictions on schema
-        RestrictionAnalyzer ra = new RestrictionAnalyzer(handler.listContainers());
+        Analyzer analyzer = new Analyzer(handler.listContainers());
 
         // analyze dependencies
         LOG.info("Checking service dependencies...");
         // search for circular dependencies
-        boolean found = ra.detectCircularDependencies();
+        boolean found = analyzer.detectCircularDependencies();
         // if circular dependencies found exit
         if (found) {
             errExit();
@@ -143,11 +147,14 @@ public final class StartCmd extends Command {
 
         // analyze container names 
         LOG.info("Checking service names...");
-        found = ra.detectDuplicateNames();
+        found = analyzer.detectDuplicateNames();
         // if duplicate contianer names found exit
         if (found) {
             errExit();
         }
+        
+        // populate isRequiredFrom lists
+        analyzer.populateIsRequiredFromLists();
     }
 
     /**
@@ -318,7 +325,6 @@ public final class StartCmd extends Command {
         byte[] data = JAXBSerializer.serialize(zkConf);
         zkConf.getZkConf().setData(data);
         // LOG.debug("Serialized zkConf: {}", JAXBSerializer.deserializeToString(data));
-
         return zkConf;
     }
 

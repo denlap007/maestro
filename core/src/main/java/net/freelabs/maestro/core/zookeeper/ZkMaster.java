@@ -374,8 +374,8 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     /**
      * Gets all running services of an application.
      *
-     * @return a list of running services of an application. An empty list
-     * in case there are no services, NULL if an error occurred.
+     * @return a list of running services of an application. An empty list in
+     * case there are no services, NULL if an error occurred.
      */
     public List<String> getRunningServices() {
         // make a get children call to leave watch for node's children
@@ -477,6 +477,11 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                     stopped = servicesStopped.await(timeout, timeUnit);
                     if (!stopped) {
                         LOG.warn("Some services are still running!");
+                    } else {
+                        // sleep for 1s cause if containers's state is checked immediately
+                        // state of the last one may be found running but it will have terminated
+                        // as soon as the stop request is posted
+                        Thread.sleep(1000);
                     }
                 } catch (InterruptedException ex) {
                     masterError = true;
@@ -495,7 +500,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
 
         return !masterError && stopped;
     }
-    
+
     /**
      * Gets data from a zNode.
      *

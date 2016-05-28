@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import javax.xml.bind.JAXBException;
@@ -144,6 +145,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * Handles execution of container life-cycles based on events.
      */
     private final LifecycleHandler lifecycleHandler = new LifecycleHandler();
+    /**
+     * Defines an action to execute when a dependent service shuts down.
+     */
+    private Executable execOnDependentSrvShutdown;
 
     /**
      * Constructor
@@ -220,6 +225,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         }
     }
 
+    /**
+     * Exits with error code -1.
+     */
     private void errExit() {
         System.exit(-1);
     }
@@ -404,9 +412,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * A watcher to process a watch notification for configuration node.
      */
     private final Watcher waitForConDescriptionWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
-
         if (event.getType() == NodeCreated) {
+            LOG.info("WATCH triggered. Type {} for {}", event.getType(), event.getPath());
             getConDescription();
         }
     };
@@ -943,7 +950,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
 
     /**
      * <p>
-     * Creates and initializes an executor for tasks, the {@link #taskHandler 
+     * Creates and initializes an executor for tasks, the {@link #taskHandler
      * taskHandler}. Guarantees thread visibility.
      * <p>
      * A task is a function of some type for the application.
@@ -1361,12 +1368,102 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     @Override
     public void shutdown() {
         LOG.info("Starting container shutdown.");
+        // wait services dependent on the service provided by this container
+        waitDependentSrvsShutdown();
+        // initiate container shutdown
         shutdown(SHUTDOWN);
     }
 
     private void shutdownExecutor() {
         executorService.shutdownNow();
     }
+
+    /**
+     * Waits for any services that depend on the service provides by this
+     * container to finish shutdown and then initiates container shutdown.
+     */
+    private void waitDependentSrvsShutdown() {
+        if (container != null) {
+            if (!container.getIsRequiredFrom().isEmpty()) {
+                LOG.info("Waiting dependent services shutdown.");
+                int numOfDependentSrvs = container.getIsRequiredFrom().size();
+                CountDownLatch dependentSrvShutdownSignal = new CountDownLatch(numOfDependentSrvs);
+                execOnDependentSrvShutdown = () -> {
+                    dependentSrvShutdownSignal.countDown();
+                };
+                // register watches for dependent services
+                container.getIsRequiredFrom().stream().forEach((dependentSrv) -> {
+                    setWatchOnDependentSrv(ns.resolveSrvName(dependentSrv));
+                });
+                // wait dependent services shutdown
+                try {
+                    dependentSrvShutdownSignal.await();
+                } catch (InterruptedException ex) {
+                    // log the event
+                    LOG.warn("Thread Interruped. Stopping.");
+                    // set the interrupt status
+                    Thread.currentThread().interrupt();
+                }
+            }else{
+                LOG.info("No dependent services.");
+            }
+        }
+    }
+
+    /**
+     * Checks if service exists.
+     *
+     * @param servicePath the path of the service under the naming service
+     * namespace.
+     */
+    private void setWatchOnDependentSrv(String servicePath) {
+        zk.exists(servicePath, setWatchOnDependentSrvWatcher, setWatchOnDependentSrvCallback, null);
+    }
+
+    /**
+     * Callback to be used with
+     * {@link  #setWatchOnDependentSrv(java.lang.String) setWatchOnDependentSrv}
+     * method.
+     */
+    private final StatCallback setWatchOnDependentSrvCallback = (int rc, String path, Object ctx, Stat stat) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                LOG.warn("Connection loss was detected. Retrying...");
+                setWatchOnDependentSrv(path);
+                break;
+            case NONODE:
+                LOG.warn("Dependent service does not exist: " + path);
+                execOnDependentSrvShutdown.execute();
+                break;
+            case OK:
+                LOG.info("Watch set for shutdown of dependent service: " + path);
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
+        }
+    };
+
+    /**
+     * Watcher to be used with
+     * {@link  #setWatchOnDependentSrv(java.lang.String) setWatchOnDependentSrv}
+     * method.
+     */
+    private final Watcher setWatchOnDependentSrvWatcher = (WatchedEvent event) -> {
+        LOG.info("WATCH triggered. Type {} for {}", event.getType(), event.getPath());
+        if (event.getType() != null) {
+            switch (event.getType()) {
+                case NodeDeleted:
+                    LOG.info("Dependent service shutdown completed: {}", event.getPath());
+                    execOnDependentSrvShutdown.execute();
+                    break;
+                case NodeDataChanged:
+                    // re-set watch
+                    setWatchOnDependentSrv(event.getPath());
+                    break;
+            }
+        }
+    };
 
     /**
      * Deletes the specified zNode. The zNode mustn't have any children. This

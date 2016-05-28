@@ -337,13 +337,9 @@ public abstract class Broker implements ContainerLifecycle {
                 if (!zkMaster.isMasterError()) {
                     // wait services to stop
                     boolean stoppedSrvsWithoutError = zkMaster.waitServicesToStop(services, SERVICES_TIMEOUT, SERVICES_TIMEOUT_UNIT);
-                    // check for running containers
-                    Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
                     // if containers still running force stop
-                    boolean stoppedContainersWithoutError = true;
-                    if (!runningCons.isEmpty()) {
-                        stoppedContainersWithoutError = stopRunningCons(runningCons);
-                    }
+                    boolean stoppedContainersWithoutError;
+                    stoppedContainersWithoutError = stopRunningCons(zkConf.getDeplCons());
                     // check that running cons stopped successfully
                     if (stoppedContainersWithoutError) {
                         LOG.info("All Containers stopped.");
@@ -353,17 +349,16 @@ public abstract class Broker implements ContainerLifecycle {
             } else {
                 LOG.info("All Services stopped.");
                 // check for running containers even though services are not running
-                Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
                 // if there are containers still running force stop
-                if (!runningCons.isEmpty()) {
-                    success = stopRunningCons(runningCons);
+                if (areContainersRunning(zkConf.getDeplCons())) {
+                    success = stopRunningCons(zkConf.getDeplCons());
                     // check that running cons stopped successfully
                     if (success) {
                         LOG.info("All Containers stopped.");
                     }
                 } else {
+                    LOG.info("All Containers stopped.");
                     success = true;
-                    LOG.info("No Containers-Services running.");
                 }
             }
         }
@@ -371,19 +366,16 @@ public abstract class Broker implements ContainerLifecycle {
     }
 
     /**
-     * Gets a map with the defined-deployed container names of the containers
-     * that are running.
+     * Checks if there are any containers running.
      *
      * @param deplCons map with the defined-deployed container names of the
      * deployed containers.
-     * @return map of the defined-deployed container names of the containers at
-     * running state.
+     * @return true if there is at least a container at running state.
      */
-    private Map<String, String> getRunningCons(Map<String, String> deplCons) {
+    private boolean areContainersRunning(Map<String, String> deplCons) {
         // map with found running containers if any
-        Map<String, String> runningCons = new HashMap<>();
+        boolean running = false;
         // iterate and check running state
-        LOG.info("Querying state of containers...");
         for (Map.Entry<String, String> entry : deplCons.entrySet()) {
             String defName = entry.getKey();
             String deplname = entry.getValue();
@@ -391,17 +383,16 @@ public abstract class Broker implements ContainerLifecycle {
                 InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
                 // if container running add to map
                 if (inspResp.getState().getRunning()) {
-                    runningCons.put(defName, deplname);
-                } else {
-                    LOG.info("Container for service {} has stopped.", defName);
-                }
+                    running = true;
+                    break;
+                } 
             } catch (NotFoundException ex) {
                 LOG.error("Container for service {} does not exist.", defName);
             } catch (DockerException ex) {
                 LOG.error("FAILED to get container state for service {}. Something went wrong: {}", defName, ex);
             }
         }
-        return runningCons;
+        return running;
     }
 
     /**
@@ -412,17 +403,25 @@ public abstract class Broker implements ContainerLifecycle {
      */
     private boolean stopRunningCons(Map<String, String> runningCons) {
         boolean success = true;
+        // iterate and check running state
+        LOG.info("Querying state of containers...");
         for (Map.Entry<String, String> entry : runningCons.entrySet()) {
             String defName = entry.getKey();
             String deplname = entry.getValue();
             try {
-                LOG.warn("Container for service {} is still running. Forcing stop...", defName);
-                success = stopContainer(deplname, defName) && success;
+                InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
+                // if container running stop
+                if (inspResp.getState().getRunning()) {
+                    LOG.warn("Container for service {} is still running. Forcing stop...", defName);
+                    success = stopContainer(deplname, defName) && success;
+                } else {
+                    LOG.info("Container for service {} has stopped.", defName);
+                }
             } catch (NotFoundException ex) {
                 LOG.error("Container for service {} does not exist.", defName);
                 success = false;
             } catch (DockerException ex) {
-                LOG.error("FAILED to stop container for service {}. Something went wrong: {}", defName, ex);
+                LOG.error("FAILED to stop container for service {}. Something went wrong: {}", defName, ex.getMessage());
                 success = false;
             }
         }

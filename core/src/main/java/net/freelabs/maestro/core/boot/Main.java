@@ -52,7 +52,8 @@ public final class Main {
         Scanner sc = new Scanner(System.in);
         String input = sc.nextLine();
         String[] inputArgs = input.split(" ");
-        args = inputArgs;*/
+        args = inputArgs;
+        */
         //-------------------------------------------------------------------- 
 
         // create object that holds program's configuration
