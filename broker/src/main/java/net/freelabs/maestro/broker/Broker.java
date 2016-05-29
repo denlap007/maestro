@@ -301,7 +301,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * A watcher to process a watch notification for shutdown node.
      */
     private final Watcher shutDownWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
+        LOG.info("WATCH triggered. Type {} for {}", event.getType(), event.getPath());
 
         if (event.getType() == NodeCreated) {
             lifecycleHandler.shutdownEvent();
@@ -326,7 +326,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final StringCallback createZkNodeEphemeralCallback = (int rc, String path, Object ctx, String name) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 checkContainerNode(path, (byte[]) ctx);
                 break;
             case NODEEXISTS:
@@ -355,7 +355,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final DataCallback checkContainerNodeCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 checkContainerNode(path, (byte[]) ctx);
                 break;
             case NONODE:
@@ -432,7 +432,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final DataCallback getConDescriptionCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 getConDescription();
                 break;
             case NONODE:
@@ -558,7 +558,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final StringCallback createZkConSrvNodeCallback = (int rc, String path, Object ctx, String name) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 checkContainerNode(path, (byte[]) ctx);
                 break;
             case NODEEXISTS:
@@ -619,7 +619,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final StatCallback serviceExistsCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 serviceExists(path);
                 break;
             case NONODE:
@@ -681,7 +681,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final DataCallback getServiceDataCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 getZkSrvData(path);
                 break;
             case NONODE:
@@ -736,7 +736,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final DataCallback getConDataDataCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 getConData(path);
                 break;
             case NONODE:
@@ -860,7 +860,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         startGroupHandler.setExecOnSuccess(() -> {
             // change service status to INITIALIZED
             updateZkSrvStatus(conZkSrvNode::setStatusInitialized);
-            // monitor service and update status accordingly for zk service node
+            // monitor service in case it crashes
             monService();
         });
         // code to execute on failure
@@ -1040,8 +1040,11 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     }
 
     /**
-     * Monitors the running service and updates the zk service node status
-     * accordingly in case it stops.
+     * <p>
+     * Monitors the main process in case it stops abnormally and updates 
+     * the service status.
+     * <p>
+     * The method blocks.
      *
      * @param procHandler the {@link MainProcessHandler MainProcessHandler}
      * object.
@@ -1149,7 +1152,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final DataCallback getZkSrvUpdatedDataDataCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 getZkSrvUpdatedData(path);
                 break;
             case NONODE:
@@ -1404,7 +1407,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     // set the interrupt status
                     Thread.currentThread().interrupt();
                 }
-            }else{
+            } else {
                 LOG.info("No dependent services.");
             }
         }

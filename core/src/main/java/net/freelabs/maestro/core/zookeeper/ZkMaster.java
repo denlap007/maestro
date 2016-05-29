@@ -426,6 +426,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 servicesCache = children;
             }
         } else {
+            LOG.error("Received INVALID list of running services.");
             servicesStopped.countDown();
         }
     };

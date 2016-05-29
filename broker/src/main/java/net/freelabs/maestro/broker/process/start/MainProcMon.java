@@ -94,7 +94,7 @@ public final class MainProcMon implements Shutdown {
      * @param procPort the port at which the process is listening.
      */
     public MainProcMon(int procPort) {
-        // cerate interrupted thread list and add current thread 
+        // create interrupted thread list and add current thread 
         interruptThreads = new ArrayList<>();
         interruptThreads.add(Thread.currentThread());
         // set initial process state 

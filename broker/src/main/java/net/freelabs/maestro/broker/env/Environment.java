@@ -82,6 +82,23 @@ public class Environment {
         return envMap;
     }
 
+    public Map<String, String> getEnvMappings(String prefix) {
+        Map<String, String> envMappings = new HashMap<>();
+
+        for (Map.Entry<String, String> entry : conEnv.createEnvMappings().entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            if (!prefix.isEmpty()) {
+                key = (prefix + "_" + key).toUpperCase();
+            } else {
+                key = key.toUpperCase();
+            }
+            // add entry for new key to map 
+            envMappings.put(key, value);
+        }
+        return envMappings;
+    }
+
     // Getters
     public ContainerEnvironment getConEnv() {
         return conEnv;

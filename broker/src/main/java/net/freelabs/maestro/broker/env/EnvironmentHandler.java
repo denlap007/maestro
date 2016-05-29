@@ -99,12 +99,14 @@ public final class EnvironmentHandler {
      */
     public final Map<String, String> createProcsEnv() {
         // get environment from the container obj associated with the broker
-        Map<String, String> env = conEnv.getEnvMap("");
+        Map<String, String> envOfProcs = conEnv.getEnvMap("");
         // get environment from dependencies and add to environment
-        env.putAll(getDependenciesEnv());
+        envOfProcs.putAll(getDependenciesEnv());
+        // process mappings of env vars to other env var names
+        envOfProcs.putAll(processEnvMappings(envOfProcs, conEnv, ""));
         // initialize var with procs environment
-        procsEnv = env;
-        return env;
+        procsEnv = envOfProcs;
+        return envOfProcs;
     }
 
     /**
@@ -142,8 +144,28 @@ public final class EnvironmentHandler {
         return dependenciesEnv;
     }
 
+    private Map<String, String> processEnvMappings(Map<String, String> envOfProcs, Environment conEnv, String prefix) {
+        Map<String, String> newMappings = new HashMap<>();
+        Map<String, String> envMappings = conEnv.getEnvMappings(prefix);
+        LOG.info("Checking for env var mappings.");
+        for (Map.Entry<String, String> entry : envMappings.entrySet()) {
+            String newEnvVar = entry.getKey();
+            String mappedEnvVar = entry.getValue();
+            // serch env for a key that matches the target
+            if (envOfProcs.containsKey(mappedEnvVar)) {
+                String mappedEnvVarValue = envOfProcs.get(mappedEnvVar);
+                // add the mapping to the environment
+                newMappings.put(newEnvVar, mappedEnvVarValue);
+                LOG.info("Mapping {}:{} to {}:{}", newEnvVar,  mappedEnvVar, newEnvVar, mappedEnvVarValue);
+            }else{
+                LOG.warn("CANNOT complete mapping {}:{}. Env var {} does NOT exist.", newEnvVar, mappedEnvVar, mappedEnvVar);
+            }
+        }
+        return newMappings;
+    }
+
     /**
-     * 
+     *
      * @return the environment with which processes are initialized.
      */
     public Map<String, String> getProcsEnv() {

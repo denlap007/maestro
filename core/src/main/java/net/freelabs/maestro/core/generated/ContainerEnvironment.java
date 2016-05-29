@@ -14,10 +14,7 @@ import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlAnyElement;
 import javax.xml.bind.annotation.XmlElement;
-import javax.xml.bind.annotation.XmlTransient;
 import javax.xml.bind.annotation.XmlType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.w3c.dom.*;
 
 /**
@@ -57,11 +54,6 @@ public class ContainerEnvironment {
     protected List<Element> any;
     @XmlElement
     protected String host_IP;
-    /**
-     * A Logger object.
-     */
-    @XmlTransient
-    private static final Logger LOG = LoggerFactory.getLogger(ContainerEnvironment.class);
 
     public String getHost_IP() {
         return host_IP;
@@ -71,15 +63,33 @@ public class ContainerEnvironment {
         this.host_IP = host_IP;
     }
 
-    private Map<String, String> getAnyElems() {
+    private Map<String, String> getAnyElemsExceptEnvMappings() {
         Map<String, String> elemsMap = new HashMap<>();
         for (Element elem : getAny()) {
             String elemName = elem.getTagName();
-            String elemValue = elem.getTextContent();
-            // add elem to map
-            elemsMap.put(elemName, elemValue);
+            String elemValue = elem.getTextContent().trim();
+            // check if this is not a mapping from one env var to another
+            if (!isEnvMapping(elemValue)) {
+                // add elem to map
+                elemsMap.put(elemName, elemValue);
+            }
         }
+        return elemsMap;
+    }
 
+    private Map<String, String> getAnyElemsOnlyEnvMappings() {
+        Map<String, String> elemsMap = new HashMap<>();
+        for (Element elem : getAny()) {
+            String elemName = elem.getTagName();
+            String elemValue = elem.getTextContent().trim().toUpperCase();
+            // check if this is not a mapping from one env var to another
+            if (isEnvMapping(elemValue)) {
+                // extract value
+                elemValue = elemValue.substring(elemValue.indexOf("{")+1, elemValue.indexOf("}"));
+                // add elem to map
+                elemsMap.put(elemName, elemValue);
+            }
+        }
         return elemsMap;
     }
 
@@ -95,8 +105,23 @@ public class ContainerEnvironment {
         envMap.put("host_port", String.valueOf(host_port));
         envMap.put("host_ip", host_IP);
         // add any elements to map
-        envMap.putAll(getAnyElems());
+        envMap.putAll(getAnyElemsExceptEnvMappings());
 
+        return envMap;
+    }
+
+    private boolean isEnvMapping(String value) {
+        return value.startsWith("${") && value.endsWith("}");
+    }
+
+    /**
+     *
+     * @return a map with the declared environment variable mappings, that is
+     * mappings of environment variable names to other env var names.
+     */
+    public Map<String, String> createEnvMappings() {
+        Map<String, String> envMap = new HashMap<>();
+        envMap.putAll(getAnyElemsOnlyEnvMappings());
         return envMap;
     }
 

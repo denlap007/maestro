@@ -44,7 +44,7 @@ public class LifecycleHandler {
      */
     private ServiceManager srvMngr;
     /**
-     * Flag indicating if
+     * Flag indicating if services are processed.
      */
     private boolean srvsProcessed;
     /**
