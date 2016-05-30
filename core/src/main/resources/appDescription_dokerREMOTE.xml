@@ -6,10 +6,14 @@
             <requires>business</requires>
             <docker>
             	<image>dio/nginx_jre:v5</image>
-            	<copy>
+            	<copy withRootDir="false">
             		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
             		<containerPath>/home</containerPath>
             	</copy>
+                <copy withRootDir="true">
+                    <hostPath>/home/dio/THESIS/maestro/core/src/main/resources/maestro</hostPath>
+                    <containerPath>/opt</containerPath>
+                </copy>
                 <publishPort protocol="tcp">
                     <containerPort>80</containerPort>
                 </publishPort>
@@ -41,6 +45,10 @@
             		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
             		<containerPath>/home</containerPath>
             	</copy>
+                <copy withRootDir="true">
+                    <hostPath>/home/dio/THESIS/maestro/core/src/main/resources/maestro</hostPath>
+                    <containerPath>/opt</containerPath>
+                </copy>
         		<publishPort protocol="tcp">
             		<containerPort>8080</containerPort>
             	</publishPort>
@@ -64,6 +72,7 @@
             <env>
                 <host_port>8080</host_port>
                 <app_name>ConsultingAgency</app_name>
+                <custom_db_name>${data_db_name}</custom_db_name>
             </env>
         </businessContainer> 
         <dataContainer>
@@ -74,6 +83,10 @@
             		<hostPath>/home/dio/THESIS/maestro/core/src/main/resources</hostPath>
             		<containerPath>/home</containerPath>
             	</copy>
+                <copy withRootDir="true">
+                    <hostPath>/home/dio/THESIS/maestro/core/src/main/resources/maestro</hostPath>
+                    <containerPath>/opt</containerPath>
+                </copy>
             	<privileged>false</privileged>
             </docker>
             <start>

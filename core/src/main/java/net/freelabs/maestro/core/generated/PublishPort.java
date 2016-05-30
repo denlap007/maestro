@@ -24,7 +24,7 @@ import javax.xml.bind.annotation.XmlType;
  *   &lt;complexContent>
  *     &lt;restriction base="{http://www.w3.org/2001/XMLSchema}anyType">
  *       &lt;sequence>
- *         &lt;element name="ip" type="{http://www.w3.org/2001/XMLSchema}string" minOccurs="0"/>
+ *         &lt;element name="hostIp" type="{http://www.w3.org/2001/XMLSchema}string" minOccurs="0"/>
  *         &lt;element name="hostPort" type="{}port" minOccurs="0"/>
  *         &lt;element name="containerPort" type="{}port"/>
  *       &lt;/sequence>
@@ -38,40 +38,40 @@ import javax.xml.bind.annotation.XmlType;
  */
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "publishPort", propOrder = {
-    "ip",
+    "hostIp",
     "hostPort",
     "containerPort"
 })
 public class PublishPort {
 
-    protected String ip;
+    protected String hostIp;
     protected Integer hostPort;
     protected int containerPort;
     @XmlAttribute(name = "protocol")
     protected Protocol protocol;
 
     /**
-     * Gets the value of the ip property.
+     * Gets the value of the hostIp property.
      * 
      * @return
      *     possible object is
      *     {@link String }
      *     
      */
-    public String getIp() {
-        return ip;
+    public String getHostIp() {
+        return hostIp;
     }
 
     /**
-     * Sets the value of the ip property.
+     * Sets the value of the hostIp property.
      * 
      * @param value
      *     allowed object is
      *     {@link String }
      *     
      */
-    public void setIp(String value) {
-        this.ip = value;
+    public void setHostIp(String value) {
+        this.hostIp = value;
     }
 
     /**

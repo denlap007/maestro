@@ -91,11 +91,12 @@
             <xs:element name="hostPath" type="xs:string"/>
             <xs:element name="containerPath" type="xs:string"/>
         </xs:sequence>
+        <xs:attribute name="withRootDir" type="xs:boolean" default="false"/>
     </xs:complexType>
 
       <xs:complexType name="publishPort">
         <xs:sequence>
-            <xs:element name="ip" type="xs:string" minOccurs="0"/>
+            <xs:element name="hostIp" type="xs:string" minOccurs="0"/>
             <xs:element name="hostPort" type="port" minOccurs="0"/>
             <xs:element name="containerPort" type="port"/>
         </xs:sequence>

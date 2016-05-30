@@ -33,7 +33,6 @@ import com.github.dockerjava.api.model.VolumesFrom;
 import com.github.dockerjava.core.command.PullImageResultCallback;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -188,23 +187,18 @@ public abstract class Broker implements ContainerLifecycle {
         CreateContainerResponse container = createContainer(dcp);
         // check if container was created 
         if (container != null) {
-            // start the created container instance
-            cid = startContainer(container, con.getConSrvName());
-            // check for errors
-            if (cid != null) {
-                // copy data, if any, to container
-                if (!dcp.getCopy().isEmpty()) {
-                    boolean copied = copyToContainer(dcp, cid);
-                    if (copied) {
-                        // get container IP
-                        success = onPostStart(cid);
-                    }
-                } else {
-                    // get container IP, update and write conf to zk
+            // copy data, if any, to container
+            boolean copied = copyToContainer(dcp, container.getId());
+            if (copied) {
+                // start the created container instance
+                cid = startContainer(container, con.getConSrvName());
+                // check for errors
+                if (cid != null) {
+                    // get container IP
                     success = onPostStart(cid);
+                } else {
+                    LOG.error("FAILED to start container.");
                 }
-            } else {
-                LOG.error("FAILED to start container.");
             }
         }
         return success;
@@ -217,23 +211,26 @@ public abstract class Broker implements ContainerLifecycle {
      * @return true if operation completed successfully.
      */
     private boolean copyToContainer(DockerConfProcessor dcp, String cid) {
-        LOG.info("Copying files from host to container for service {}...", con.getConSrvName());
         boolean success = true;
+        if (!dcp.getCopy().isEmpty()) {
+            LOG.info("Copying files from host to container for service {}...", con.getConSrvName());
 
-        for (Map.Entry<String, String> entry : dcp.getCopy().entrySet()) {
-            String hostPath = entry.getKey();
-            String containerPath = entry.getValue();
+            for (Copy entry : dcp.getCopy()) {
+                String hostPath = entry.getHostPath();
+                String containerPath = entry.getContainerPath();
+                boolean withDirChildrenOnly = !entry.isWithRootDir();
 
-            try {
-                docker.copyArchiveToContainerCmd(cid)
-                        .withDirChildrenOnly(true)
-                        .withRemotePath(containerPath)
-                        .withHostResource(hostPath)
-                        .exec();
-            } catch (Exception ex) {
-                LOG.error("Something went wrong: {}", ex.getMessage());
-                success = false;
-                break;
+                try {
+                    docker.copyArchiveToContainerCmd(cid)
+                            .withDirChildrenOnly(withDirChildrenOnly)
+                            .withRemotePath(containerPath)
+                            .withHostResource(hostPath)
+                            .exec();
+                } catch (Exception ex) {
+                    LOG.error("Something went wrong: {}", ex.getMessage());
+                    success = false;
+                    break;
+                }
             }
         }
         return success;
@@ -385,7 +382,7 @@ public abstract class Broker implements ContainerLifecycle {
                 if (inspResp.getState().getRunning()) {
                     running = true;
                     break;
-                } 
+                }
             } catch (NotFoundException ex) {
                 LOG.error("Container for service {} does not exist.", defName);
             } catch (DockerException ex) {
@@ -577,13 +574,7 @@ public abstract class Broker implements ContainerLifecycle {
                 ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
         // create the boot command
 
-        // FOR TESTING
-        conBootCmd = "wget http://maestro.freelabs.net/maestroBroker.zip || curl http://maestro.freelabs.net/maestroBroker.zip; "
-                + "rm -r /opt/maestro; "
-                + "unzip maestroBroker.zip -d /opt; "
-                + "exec java -jar /opt/maestro/bin/broker.jar " + conBootArgs;
-
-        //  conBootCmd =  "java -jar " + BROKER_JAR_IN_CONTAINER + " " + conBootArgs;
+        conBootCmd =  "java -jar " + BROKER_JAR_IN_CONTAINER + " " + conBootArgs;
     }
 
     @Override
@@ -592,7 +583,7 @@ public abstract class Broker implements ContainerLifecycle {
         // get the name with which to deploy the container 
         String conName = zkConf.getDeplCons().get(con.getConSrvName());
         // boot command
-        String conCmd = conBootCmd;
+        String[] conCmd = conBootCmd.split(" ");
         // env var passed
         String[] conEnvArr = conBootEnv.split(",");
         // get network
@@ -630,7 +621,7 @@ public abstract class Broker implements ContainerLifecycle {
                         .withPortBindings(portBindings)
                         .withPublishAllPorts(publishAllPorts)
                         .withName(conName)
-                        .withCmd("/bin/sh", "-c", conCmd)
+                        .withCmd(conCmd)
                         .withEnv(conEnvArr)
                         .withPrivileged(privileged)
                         .exec();
@@ -847,7 +838,7 @@ public abstract class Broker implements ContainerLifecycle {
                 }
                 // create port binding
                 String hostPort = (defPubPort.getHostPort() == null) ? null : String.valueOf(defPubPort.getHostPort());
-                Binding bind = new Ports.Binding(defPubPort.getIp(), hostPort);
+                Binding bind = new Ports.Binding(defPubPort.getHostIp(), hostPort);
                 portBindings.bind(expPort, bind);
             }
             return portBindings;
@@ -903,15 +894,9 @@ public abstract class Broker implements ContainerLifecycle {
          * @return a Map with the host path to be copied as key and the
          * container path to be copied to as value.
          */
-        public Map<String, String> getCopy() {
+        public List<Copy> getCopy() {
             // process copy tag from schema
-            List<Copy> defCopyList = dockerConf.getCopy();
-            Map<String, String> copyMap = new HashMap<>();
-
-            for (Copy cp : defCopyList) {
-                copyMap.put(cp.getHostPath(), cp.getContainerPath());
-            }
-            return copyMap;
+            return dockerConf.getCopy();
         }
 
         /**
