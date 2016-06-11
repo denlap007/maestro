@@ -38,14 +38,14 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import javax.xml.bind.JAXBException;
-import net.freelabs.maestro.core.generated.BindMnt;
-import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.generated.Copy;
-import net.freelabs.maestro.core.generated.Docker;
-import net.freelabs.maestro.core.generated.ExposePort;
-import net.freelabs.maestro.core.generated.Protocol;
-import net.freelabs.maestro.core.generated.PublishPort;
-import net.freelabs.maestro.core.handler.NetworkHandler;
+import net.freelabs.maestro.core.schema.BindMnt;
+import net.freelabs.maestro.core.schema.Container;
+import net.freelabs.maestro.core.schema.Copy;
+import net.freelabs.maestro.core.schema.Docker;
+import net.freelabs.maestro.core.schema.ExposePort;
+import net.freelabs.maestro.core.schema.Protocol;
+import net.freelabs.maestro.core.schema.PublishPort;
+import net.freelabs.maestro.core.handlers.NetworkHandler;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
@@ -911,7 +911,7 @@ public abstract class Broker implements ContainerLifecycle {
                 // create a new volume
                 Volume vol = new Volume(bindMnt.getContainerPath());
                 // create a new Bind
-                AccessMode am = bindMnt.getAccessMode().equals(net.freelabs.maestro.core.generated.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
+                AccessMode am = bindMnt.getAccessMode().equals(net.freelabs.maestro.core.schema.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
                 Bind bind = new Bind(bindMnt.getHostPath(), vol, am);
                 // add to list
                 bindList.add(bind);

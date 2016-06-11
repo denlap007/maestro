@@ -21,7 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
-import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.schema.Container;
 import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode.SRV_STATE_STATUS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

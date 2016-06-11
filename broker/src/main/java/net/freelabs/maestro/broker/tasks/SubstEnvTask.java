@@ -28,8 +28,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import net.freelabs.maestro.broker.BrokerConf;
-import net.freelabs.maestro.core.generated.SubstEnv;
-import net.freelabs.maestro.core.generated.SubstEnvElem;
+import net.freelabs.maestro.core.schema.SubstEnv;
+import net.freelabs.maestro.core.schema.SubstEnvElem;
 import org.slf4j.LoggerFactory;
 
 /**

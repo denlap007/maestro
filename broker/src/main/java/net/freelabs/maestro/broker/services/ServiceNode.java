@@ -16,7 +16,7 @@
  */
 package net.freelabs.maestro.broker.services;
 
-import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.schema.Container;
 import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode.SRV_STATE_STATUS;
 
 /**

@@ -17,8 +17,8 @@
 package net.freelabs.maestro.core.broker;
 
 import com.github.dockerjava.api.DockerClient;
-import net.freelabs.maestro.core.generated.DataContainer;
-import net.freelabs.maestro.core.handler.NetworkHandler;
+import net.freelabs.maestro.core.schema.DataContainer;
+import net.freelabs.maestro.core.handlers.NetworkHandler;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
 

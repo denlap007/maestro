@@ -18,7 +18,7 @@ package net.freelabs.maestro.broker.env;
 
 import java.util.HashMap;
 import java.util.Map;
-import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.schema.Container;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

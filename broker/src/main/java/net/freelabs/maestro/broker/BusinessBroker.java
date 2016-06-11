@@ -17,8 +17,8 @@
 package net.freelabs.maestro.broker;
 
 import javax.xml.bind.JAXBException;
-import net.freelabs.maestro.core.generated.BusinessContainer;
-import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.schema.BusinessContainer;
+import net.freelabs.maestro.core.schema.Container;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

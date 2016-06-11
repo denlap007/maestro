@@ -27,7 +27,7 @@ import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlTransient;
 import net.freelabs.maestro.core.boot.ProgramConf;
-import net.freelabs.maestro.core.generated.WebApp;
+import net.freelabs.maestro.core.schema.WebApp;
 
 /**
  *

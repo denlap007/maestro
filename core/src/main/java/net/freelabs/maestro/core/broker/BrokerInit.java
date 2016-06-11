@@ -31,9 +31,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import static net.freelabs.maestro.core.broker.Broker.LOG;
-import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.handler.ContainerHandler;
-import net.freelabs.maestro.core.handler.NetworkHandler;
+import net.freelabs.maestro.core.schema.Container;
+import net.freelabs.maestro.core.handlers.ContainerHandler;
+import net.freelabs.maestro.core.handlers.NetworkHandler;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
 
