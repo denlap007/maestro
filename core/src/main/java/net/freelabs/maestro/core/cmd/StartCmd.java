@@ -364,7 +364,7 @@ public final class StartCmd extends Command {
      * Terminates the program due to some error printing the cause.
      */
     private void exitProgram(Exception ex) {
-        LOG.error("Something went wrong: ", ex.getMessage());
+        LOG.error("Something went wrong: {}", ex.getMessage());
         if (master != null) {
             master.shutdown();
         }

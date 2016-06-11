@@ -574,7 +574,7 @@ public abstract class Broker implements ContainerLifecycle {
                 ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
         // create the boot command
 
-        conBootCmd =  "java -jar " + BROKER_JAR_IN_CONTAINER + " " + conBootArgs;
+        conBootCmd = "java -jar " + BROKER_JAR_IN_CONTAINER + " " + conBootArgs;
     }
 
     @Override
@@ -633,7 +633,7 @@ public abstract class Broker implements ContainerLifecycle {
                 // image not found locally
                 LOG.warn("Image {} does not exist locally. Pulling from docker hub...", conImg);
                 // pull image from docker hub
-                boolean runSuccess = runAndRetry(() -> {
+                boolean runSuccess = pullAndRetry(() -> {
                     pullContainerImg(conImg);
                 }, PULL_ATTEMPTS);
                 // check if code executed successfully
@@ -786,6 +786,36 @@ public abstract class Broker implements ContainerLifecycle {
             try {
                 cmd.run();
                 success = true;
+                break;
+            } catch (InterruptedException ex) {
+                LOG.warn("Interrupted. Stopping task.");
+                Thread.currentThread().interrupt();
+                success = false;
+                break;
+            } catch (Exception ex) {
+                LOG.warn("{}. Retrying.", ex);
+            }
+            maxAttempts--;
+        }
+        return success;
+    }
+
+    protected boolean pullAndRetry(RunCmd cmd, int maxAttempts) {
+        boolean success = false;
+
+        while (maxAttempts > 0) {
+            try {
+                cmd.run();
+                success = true;
+                break;
+            } catch (NotFoundException ex) {
+                LOG.error("Image does NOT exist.");
+                success = false;
+                break;
+            } catch (InterruptedException ex) {
+                LOG.warn("Interrupted. Stopping task.");
+                Thread.currentThread().interrupt();
+                success = false;
                 break;
             } catch (Exception ex) {
                 LOG.warn("{}. Retrying.", ex.getMessage());
