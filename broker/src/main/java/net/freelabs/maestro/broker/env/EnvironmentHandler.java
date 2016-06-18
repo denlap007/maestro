@@ -90,9 +90,9 @@ public final class EnvironmentHandler {
      * </ul>
      * Now, the created env vars in every container are as follows:
      * <ul>
-     * <li>data: DB_NAME, BUSINESS_APP_NAME, WEB_HOST_PORT</li>
-     * <li>business: APP_NAME, DATA_DB_NAME, WEB_HOST_PORT</li>
-     * <li>web: HOST_PORT, BUSINESS_APP_NAME, DATA_DB_NAME</li>
+     * <li>data: DB_NAME</li>
+     * <li>business: APP_NAME, DATA_DB_NAME</li>
+     * <li>web: HOST_PORT, BUSINESS_APP_NAME</li>
      * </ul>
      *
      * @return the environment for container processes.

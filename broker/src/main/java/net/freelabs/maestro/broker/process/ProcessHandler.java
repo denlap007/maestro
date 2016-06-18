@@ -102,9 +102,8 @@ public abstract class ProcessHandler {
         env.putAll(pData.getEnvironment());
         // get a list with cmd and args
         List<String> procCmdArgs = pData.getCmdArgs();
-        if (procCmdArgs.isEmpty()) {
-            LOG.error("NO resource for execution.");
-        } else {
+        // if there were no errors
+        if (!procCmdArgs.isEmpty()) {
             // set command and arguments
             pb.command(procCmdArgs);
             // set initialization flag to true
@@ -163,8 +162,9 @@ public abstract class ProcessHandler {
                 }
                 // cleanup
                 cleanup();
+            } else {
+                LOG.error("Process start FAILED: {}. NOT INITIALIZED properly.", pData.getResDescription());
             }
-
         } else {
             LOG.error("Process Handler NOT INITIALIZED properly.");
         }

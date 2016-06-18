@@ -16,9 +16,13 @@
  */
 package net.freelabs.maestro.broker.process;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -44,6 +48,11 @@ public class ProcessData {
     private final Map<String, String> environment;
 
     /**
+     * A Logger object.
+     */
+    private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(ProcessData.class);
+
+    /**
      * Constructor.
      *
      * @param res a resource to execute.
@@ -51,9 +60,9 @@ public class ProcessData {
      */
     public ProcessData(Resource res, Map<String, String> env) {
         this.res = res;
-        if (env == null){
-             environment = new HashMap<>();
-        }else{
+        if (env == null) {
+            environment = new HashMap<>();
+        } else {
             environment = env;
         }
     }
@@ -68,13 +77,34 @@ public class ProcessData {
     }
 
     /**
-     * Gets the command and arguments of a resource, in order to be used for a
-     * new process initialization.
+     * <p>
+     * Gets the command and arguments of an execution resource, in order to be
+     * used for a new process initialization.
+     * <p>
+     * First, if there are any environmnet variables in the execution resource
+     * they are expanded.
+     * <p>
+     * Second, the execution resource is split into tokens.
+     * <p>
+     * If any errors occur, an empty list is returned.
      *
      * @return a list with the command and arguments of the resource.
      */
     public List<String> getCmdArgs() {
-        return res.getResCmdArgs();
+        List<String> cmdArgs = new ArrayList<>();
+
+        LOG.info("Resource BEFORE processing: {}", res.getRes());
+        // expands the environment variables found in the execution resource, if any
+        boolean expandedEnvVars = substEnvVarsToRes();
+        // if no errors split into tokens
+        if (expandedEnvVars) {
+            cmdArgs = res.getResCmdArgs();
+            if (cmdArgs.isEmpty()) {
+                LOG.error("NO resource for execution.");
+            }
+        }
+        LOG.info("Resource AFTER processing: {}", res.getRes());
+        return cmdArgs;
     }
 
     /**
@@ -89,5 +119,41 @@ public class ProcessData {
      */
     public String getResDescription() {
         return res.getDescription();
+    }
+
+    /**
+     * Substitutes environment variables of the format ${ENV_VAR} to an
+     * execution resource.
+     *
+     * @param resource the execution resource to expand environment variables.
+     * @return the execution resource with expanded environment variables. NULL
+     * in case an environment variable cannot be expanded.
+     */
+    private boolean substEnvVarsToRes() {
+        boolean success = true;
+        String resource = res.getRes();
+        final Pattern regex = Pattern.compile("\\$\\{([A-Za-z0-9_]+)\\}");
+
+        // create object to match pattern
+        Matcher regexMatcher = regex.matcher(resource);
+        while (regexMatcher.find()) {
+            // get the name of the environment variable matched, eg: $test->test
+            String envVarName = regexMatcher.group(1);
+            // search the environment for the variable name and get value
+            String envVarValue = environment.get(envVarName);
+            // check if there was such variable
+            if (envVarValue != null) {
+                // expand environment variabe
+                String envVar = regexMatcher.group();
+                resource = resource.replace(envVar, envVarValue);
+                res.setRes(resource);
+                LOG.info("AFTER SUBST_ENV: {}", res.getRes());
+            } else {
+                LOG.error("FAILED to expand environment variable {}. Variable NOT DECLARED.", regexMatcher.group());
+                success = false;
+            }
+        }
+
+        return success;
     }
 }

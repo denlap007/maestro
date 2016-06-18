@@ -211,10 +211,10 @@ public final class StartCmd extends Command {
     public WebApp unmarshalXml(String schemaPath, String xmlFilePath) {
         // create an object that processes initial configuration
         XmlProcessor proc = new XmlProcessor();
+        // define the name of the package that contains the classes for binding
+        String packageName = "net.freelabs.maestro.core.schema";
         // Get root Object 
-        WebApp webApp = (WebApp) proc.unmarshal("net.freelabs.maestro.core.generated", schemaPath, xmlFilePath);
-
-        return webApp;
+        return (WebApp) proc.unmarshal(packageName, schemaPath, xmlFilePath);
     }
 
     /**
@@ -230,8 +230,8 @@ public final class StartCmd extends Command {
      */
     public ContainerHandler createConHandler(WebApp webApp) {
         // Get a handler for containers
-        ContainerHandler handler = new ContainerHandler(webApp.getContainers());
-        return handler;
+        return (new ContainerHandler(webApp.getContainers()));
+
     }
 
     /**

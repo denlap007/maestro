@@ -140,12 +140,14 @@ public class LifecycleHandler {
                 && (curEvent == EVENT.SRV_DELETED || curEvent == EVENT.SRV_NOT_RUNNING
                 || curEvent == EVENT.CON_UPDATED)) {
             LOG.debug("Current State: {}", curState.toString());
+             execCycle = true;
             curState = STATE.ERROR;
             LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.START
                 && (curEvent == EVENT.SRV_DELETED || curEvent == EVENT.SRV_NOT_RUNNING
                 || curEvent == EVENT.SRV_NOT_INITIALIZED)) {
             LOG.debug("Current State: {}", curState.toString());
+             execCycle = true;
             curState = STATE.ERROR;
             LOG.debug("Next State: {}", curState.toString());
         } else if (curState == STATE.START && curEvent == EVENT.SRV_UPDATED) {
