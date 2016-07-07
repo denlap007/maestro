@@ -20,15 +20,15 @@ import com.github.dockerjava.api.DockerClient;
 import java.io.IOException;
 import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.broker.Broker;
-import net.freelabs.maestro.core.analyze.RestrictionAnalyzer;
+import net.freelabs.maestro.core.analyzers.Analyzer;
 import net.freelabs.maestro.core.boot.ProgramConf;
 import net.freelabs.maestro.core.broker.BrokerInit;
 import net.freelabs.maestro.core.xml.XmlProcessor;
 import net.freelabs.maestro.core.docker.DockerInitializer;
-import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.generated.WebApp;
-import net.freelabs.maestro.core.handler.ContainerHandler;
-import net.freelabs.maestro.core.handler.NetworkHandler;
+import net.freelabs.maestro.core.schema.Container;
+import net.freelabs.maestro.core.schema.WebApp;
+import net.freelabs.maestro.core.handlers.ContainerHandler;
+import net.freelabs.maestro.core.handlers.NetworkHandler;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.utils.Utils;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
@@ -68,10 +68,13 @@ public final class StartCmd extends Command {
         try {
             // unmarshall xml file into a top-level object
             WebApp webApp = unmarshalXml(pConf.getXmlSchemaPath(), pConf.getXmlFilePath());
+            if (webApp == null){
+                errExit();
+            }
             // create a handler to query for container information
             ContainerHandler handler = createConHandler(webApp);
             // analyze restrictions and check if apply on schema
-            analyzeRestrictions(handler);
+            analyze(handler);
             // create zk configuration
             ZkConf zkConf = createZkConf(webApp, pConf.getZkHosts(), pConf.getZkSessionTimeout(), handler, pConf);
             // initialize zk and start master process
@@ -82,9 +85,15 @@ public final class StartCmd extends Command {
             // creaet application network handler
             NetworkHandler netHandler = new NetworkHandler(docker);
             // create network for application
-            netHandler.createNetwork(zkConf.getAppDefaultNetName());
-            // launch the CoreBrokers to boot containers, wait to finish
-            runBrokerInit(handler, zkConf, docker, netHandler);
+            boolean netCreated = netHandler.createNetwork(zkConf.getAppDefaultNetName());
+            if (netCreated) {
+                // launch the CoreBrokers to boot containers, wait to finish
+                runBrokerInit(handler, zkConf, docker, netHandler);
+            } else {
+                //cleanup
+                master.cleanZkNamespace();
+                errExit();
+            }
         } catch (Exception ex) {
             exitProgram(ex);
         }
@@ -111,22 +120,26 @@ public final class StartCmd extends Command {
 
     /**
      * <p>
-     * Analyzes the restrictions that must apply on the schema.
+     * Analyzes the restrictions that must apply on the schema and applies any 
+     * necessary processing.
      * <p>
      * No circular dependencies are allowed.
      * <p>
      * No duplicate container names are allowed.
+     * <p>
+     * Populates {@link Container#isRequiredFrom isRequiredFrom} list for every 
+     * container.
      *
      * @param handler object to query for containers.
      */
-    private void analyzeRestrictions(ContainerHandler handler) {
+    private void analyze(ContainerHandler handler) {
         // create analyzer to check restrictions on schema
-        RestrictionAnalyzer ra = new RestrictionAnalyzer(handler.listContainers());
+        Analyzer analyzer = new Analyzer(handler.listContainers());
 
         // analyze dependencies
         LOG.info("Checking service dependencies...");
         // search for circular dependencies
-        boolean found = ra.detectCircularDependencies();
+        boolean found = analyzer.detectCircularDependencies();
         // if circular dependencies found exit
         if (found) {
             errExit();
@@ -134,11 +147,14 @@ public final class StartCmd extends Command {
 
         // analyze container names 
         LOG.info("Checking service names...");
-        found = ra.detectDuplicateNames();
+        found = analyzer.detectDuplicateNames();
         // if duplicate contianer names found exit
         if (found) {
             errExit();
         }
+        
+        // populate isRequiredFrom lists
+        analyzer.populateIsRequiredFromLists();
     }
 
     /**
@@ -170,14 +186,11 @@ public final class StartCmd extends Command {
         // check if operation was successful 
         if (!success) {
             LOG.info("Performing cleanup...");
-            // error occurred so stop any running services and containers
-            brokerInit.runStop();
-            // delete application namespace
-            master.cleanZkNamespace();
-            // remove containers
-            brokerInit.runDelete();
+            brokerInit.cleanupFromFailedStart();
             // remove default network
             netHandler.deleteNetwork(zkConf.getAppDefaultNetName());
+            // delete application namespace
+            master.cleanZkNamespace();
             // shutdown master
             shutdownMaster();
             errExit();
@@ -198,10 +211,10 @@ public final class StartCmd extends Command {
     public WebApp unmarshalXml(String schemaPath, String xmlFilePath) {
         // create an object that processes initial configuration
         XmlProcessor proc = new XmlProcessor();
+        // define the name of the package that contains the classes for binding
+        String packageName = "net.freelabs.maestro.core.schema";
         // Get root Object 
-        WebApp webApp = (WebApp) proc.unmarshal("net.freelabs.maestro.core.generated", schemaPath, xmlFilePath);
-
-        return webApp;
+        return (WebApp) proc.unmarshal(packageName, schemaPath, xmlFilePath);
     }
 
     /**
@@ -217,8 +230,8 @@ public final class StartCmd extends Command {
      */
     public ContainerHandler createConHandler(WebApp webApp) {
         // Get a handler for containers
-        ContainerHandler handler = new ContainerHandler(webApp.getContainers());
-        return handler;
+        return (new ContainerHandler(webApp.getContainers()));
+
     }
 
     /**
@@ -292,13 +305,13 @@ public final class StartCmd extends Command {
         for (Container con : handler.listContainers()) {
             // generate JSON from container and return the generated JSON as a byte array
             byte[] data = JAXBSerializer.serialize(con);
-            LOG.debug("Serialized container description of service {}: {}", con.getName(), JAXBSerializer.deserializeToString(data));
+            LOG.debug("Serialized container description of service {}: {}", con.getConSrvName(), JAXBSerializer.deserializeToString(data));
             // get the name for the child node
-            String name = con.getName();
+            String name = con.getConSrvName();
             // get the container type
             String type = Utils.getType(con);
             // initialize child node
-            LOG.debug("Initializing zkConf node for service {} of type {} with data {} bytes", con.getName(), type, data.length);
+            LOG.debug("Initializing zkConf node for service {} of type {} with data {} bytes", con.getConSrvName(), type, data.length);
             zkConf.initZkContainer(name, type, data);
         }
 
@@ -311,8 +324,7 @@ public final class StartCmd extends Command {
         // initialize zkConf node with data
         byte[] data = JAXBSerializer.serialize(zkConf);
         zkConf.getZkConf().setData(data);
-        LOG.debug("Serialized zkConf: {}", JAXBSerializer.deserializeToString(data));
-
+        // LOG.debug("Serialized zkConf: {}", JAXBSerializer.deserializeToString(data));
         return zkConf;
     }
 
@@ -352,7 +364,7 @@ public final class StartCmd extends Command {
      * Terminates the program due to some error printing the cause.
      */
     private void exitProgram(Exception ex) {
-        LOG.error("Something went wrong: ", ex);
+        LOG.error("Something went wrong: {}", ex.getMessage());
         if (master != null) {
             master.shutdown();
         }
@@ -366,6 +378,6 @@ public final class StartCmd extends Command {
     protected void errExit() {
         // log 
         LOG.error("FAILED to deploy application.");
-        System.exit(1);
+        System.exit(-1);
     }
 }

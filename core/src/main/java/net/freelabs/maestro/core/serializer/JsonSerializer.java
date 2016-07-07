@@ -21,10 +21,10 @@ import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Map;
 import net.freelabs.maestro.core.boot.ProgramConf;
-import net.freelabs.maestro.core.generated.BusinessContainer;
-import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.generated.DataContainer;
-import net.freelabs.maestro.core.generated.WebContainer;
+import net.freelabs.maestro.core.schema.BusinessContainer;
+import net.freelabs.maestro.core.schema.Container;
+import net.freelabs.maestro.core.schema.DataContainer;
+import net.freelabs.maestro.core.schema.WebContainer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode;
 

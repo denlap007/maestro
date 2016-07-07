@@ -20,6 +20,7 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.exception.ConflictException;
+import com.github.dockerjava.api.exception.DockerException;
 import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.AccessMode;
 import com.github.dockerjava.api.model.Bind;
@@ -32,19 +33,19 @@ import com.github.dockerjava.api.model.VolumesFrom;
 import com.github.dockerjava.core.command.PullImageResultCallback;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import javax.xml.bind.JAXBException;
-import net.freelabs.maestro.core.generated.BindMnt;
-import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.generated.Docker;
-import net.freelabs.maestro.core.generated.ExposePort;
-import net.freelabs.maestro.core.generated.Protocol;
-import net.freelabs.maestro.core.generated.PublishPort;
-import net.freelabs.maestro.core.handler.NetworkHandler;
+import net.freelabs.maestro.core.schema.BindMnt;
+import net.freelabs.maestro.core.schema.Container;
+import net.freelabs.maestro.core.schema.Copy;
+import net.freelabs.maestro.core.schema.Docker;
+import net.freelabs.maestro.core.schema.ExposePort;
+import net.freelabs.maestro.core.schema.Protocol;
+import net.freelabs.maestro.core.schema.PublishPort;
+import net.freelabs.maestro.core.handlers.NetworkHandler;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
@@ -123,10 +124,6 @@ public abstract class Broker implements ContainerLifecycle {
      */
     private boolean zkError;
     /**
-     * Data upload with download paths in case of data transfer.
-     */
-    private final Map<String, String> upDownPaths;
-    /**
      * Holds information about application networks.
      */
     private final NetworkHandler netHandler;
@@ -137,8 +134,10 @@ public abstract class Broker implements ContainerLifecycle {
     /**
      * Time that services are waited to stop.
      */
-    private static final long SERVICES_TIMEOUT = 2;
-
+    private static final long SERVICES_TIMEOUT = 5;
+    /**
+     * Time unit for the timeout value set to wait for services.
+     */
     private static final TimeUnit SERVICES_TIMEOUT_UNIT = TimeUnit.MINUTES;
 
     /**
@@ -162,9 +161,8 @@ public abstract class Broker implements ContainerLifecycle {
         this.zkMaster = zkMaster;
         this.netHandler = netHandler;
         shutdownSignal = new CountDownLatch(1);
-        upDownPaths = new HashMap<>();
         if (con != null) {
-            zNode = zkConf.getContainers().get(con.getName());
+            zNode = zkConf.getContainers().get(con.getConSrvName());
         } else {
             zNode = null;
         }
@@ -180,28 +178,28 @@ public abstract class Broker implements ContainerLifecycle {
      */
     public boolean onStart() {
         boolean success = false;
+        String cid;
         // create configration to initialize parameters
         createContainerEnv();
+        // create a processor for declared docker configuration
+        DockerConfProcessor dcp = new DockerConfProcessor(con.getDocker());
         // create container instance
-        CreateContainerResponse container = createContainer();
+        CreateContainerResponse container = createContainer(dcp);
         // check if container was created 
         if (container != null) {
-            // start the created container instance
-            String cid = startContainer(container, con.getName());
-            // check for errors
-            if (cid != null) {
-                // copy data, if any, to container
-                boolean copied = copyToContainer(cid);
-                if (copied) {
+            // copy data, if any, to container
+            boolean copied = copyToContainer(dcp, container.getId());
+            if (copied) {
+                // start the created container instance
+                cid = startContainer(container, con.getConSrvName());
+                // check for errors
+                if (cid != null) {
                     // get container IP
                     success = onPostStart(cid);
+                } else {
+                    LOG.error("FAILED to start container.");
                 }
-            } else {
-                LOG.error("FAILED to start container.");
             }
-        }
-        if (!success) {
-            shutdown();
         }
         return success;
     }
@@ -212,24 +210,27 @@ public abstract class Broker implements ContainerLifecycle {
      * @param cid the container id.
      * @return true if operation completed successfully.
      */
-    private boolean copyToContainer(String cid) {
-        LOG.info("Copying files from host to container for service {}...", con.getName());
+    private boolean copyToContainer(DockerConfProcessor dcp, String cid) {
         boolean success = true;
+        if (!dcp.getCopy().isEmpty()) {
+            LOG.info("Copying files from host to container for service {}...", con.getConSrvName());
 
-        for (Map.Entry<String, String> entry : upDownPaths.entrySet()) {
-            String hostPath = entry.getKey();
-            String containerPath = entry.getValue();
+            for (Copy entry : dcp.getCopy()) {
+                String hostPath = entry.getHostPath();
+                String containerPath = entry.getContainerPath();
+                boolean withDirChildrenOnly = !entry.isWithRootDir();
 
-            try {
-                docker.copyArchiveToContainerCmd(cid)
-                        .withDirChildrenOnly(true)
-                        .withRemotePath(containerPath)
-                        .withHostResource(hostPath)
-                        .exec();
-            } catch (Exception ex) {
-                LOG.error("Something went wrong: {}", ex);
-                success = false;
-                break;
+                try {
+                    docker.copyArchiveToContainerCmd(cid)
+                            .withDirChildrenOnly(withDirChildrenOnly)
+                            .withRemotePath(containerPath)
+                            .withHostResource(hostPath)
+                            .exec();
+                } catch (Exception ex) {
+                    LOG.error("Something went wrong: {}", ex.getMessage());
+                    success = false;
+                    break;
+                }
             }
         }
         return success;
@@ -244,7 +245,7 @@ public abstract class Broker implements ContainerLifecycle {
      * successfully.
      */
     private boolean attachToNetwork(String cid, String netId) {
-        LOG.info("Attaching container for service {} to network...", con.getName());
+        LOG.info("Attaching container for service {} to network...", con.getConSrvName());
         boolean success = false;
         if (netId != null) {
             try {
@@ -291,11 +292,17 @@ public abstract class Broker implements ContainerLifecycle {
         return success;
     }
 
+    /**
+     * Runs the restart state for the Broker.Restarts a container then the
+     * postStart state is run where the zookeeper configuration is updated.
+     *
+     * @return true if resatrt of container succeeded.
+     */
     public boolean onRestart() {
         boolean success = false;
         // restart the container with the deployed name
-        String deplName = zkConf.getDeplCons().get(con.getName());
-        boolean restarted = restartContainer(deplName, con.getName());
+        String deplName = zkConf.getDeplCons().get(con.getConSrvName());
+        boolean restarted = restartContainer(deplName, con.getConSrvName());
 
         if (restarted) {
             // run post start state
@@ -304,6 +311,15 @@ public abstract class Broker implements ContainerLifecycle {
         return success;
     }
 
+    /**
+     * Runs the stop state for the Broker. In the stop state, services are
+     * queried first to determine if they are running. Then, shutdown is
+     * signaled for the application and services are waited to stop. After all
+     * services have stopped, the state of the containers is checked. If any
+     * container is still running it is forced to stop.
+     *
+     * @return true if operation completed without errors.
+     */
     public boolean onStop() {
         boolean success = false;
         // register watch to services
@@ -317,14 +333,10 @@ public abstract class Broker implements ContainerLifecycle {
                 // if shutdown node was created without errors
                 if (!zkMaster.isMasterError()) {
                     // wait services to stop
-                    boolean  stoppedSrvsWithoutError = zkMaster.waitServicesToStop(services, SERVICES_TIMEOUT, SERVICES_TIMEOUT_UNIT);
-                    // check for running containers
-                    Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
+                    boolean stoppedSrvsWithoutError = zkMaster.waitServicesToStop(services, SERVICES_TIMEOUT, SERVICES_TIMEOUT_UNIT);
                     // if containers still running force stop
-                    boolean stoppedContainersWithoutError = true;
-                    if (!runningCons.isEmpty()) {
-                        stoppedContainersWithoutError = stopRunningCons(runningCons);
-                    }
+                    boolean stoppedContainersWithoutError;
+                    stoppedContainersWithoutError = stopRunningCons(zkConf.getDeplCons());
                     // check that running cons stopped successfully
                     if (stoppedContainersWithoutError) {
                         LOG.info("All Containers stopped.");
@@ -334,38 +346,33 @@ public abstract class Broker implements ContainerLifecycle {
             } else {
                 LOG.info("All Services stopped.");
                 // check for running containers even though services are not running
-                Map<String, String> runningCons = getRunningCons(zkConf.getDeplCons());
                 // if there are containers still running force stop
-                if (!runningCons.isEmpty()) {
-                    success = stopRunningCons(runningCons);
+                if (areContainersRunning(zkConf.getDeplCons())) {
+                    success = stopRunningCons(zkConf.getDeplCons());
                     // check that running cons stopped successfully
                     if (success) {
                         LOG.info("All Containers stopped.");
                     }
                 } else {
+                    LOG.info("All Containers stopped.");
                     success = true;
-                    LOG.warn("No Containers-Services running.");
                 }
             }
         }
-
         return success;
     }
 
     /**
-     * Gets a map with the defined-deployed container names of the containers
-     * that are running.
+     * Checks if there are any containers running.
      *
      * @param deplCons map with the defined-deployed container names of the
      * deployed containers.
-     * @return map of the defined-deployed container names of the containers at
-     * running state.
+     * @return true if there is at least a container at running state.
      */
-    private Map<String, String> getRunningCons(Map<String, String> deplCons) {
+    private boolean areContainersRunning(Map<String, String> deplCons) {
         // map with found running containers if any
-        Map<String, String> runningCons = new HashMap<>();
+        boolean running = false;
         // iterate and check running state
-        LOG.info("Querying state of containers...");
         for (Map.Entry<String, String> entry : deplCons.entrySet()) {
             String defName = entry.getKey();
             String deplname = entry.getValue();
@@ -373,15 +380,16 @@ public abstract class Broker implements ContainerLifecycle {
                 InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
                 // if container running add to map
                 if (inspResp.getState().getRunning()) {
-                    runningCons.put(defName, deplname);
-                } else {
-                    LOG.info("Container for service {} has stopped.", defName);
+                    running = true;
+                    break;
                 }
             } catch (NotFoundException ex) {
                 LOG.error("Container for service {} does not exist.", defName);
+            } catch (DockerException ex) {
+                LOG.error("FAILED to get container state for service {}. Something went wrong: {}", defName, ex);
             }
         }
-        return runningCons;
+        return running;
     }
 
     /**
@@ -392,20 +400,29 @@ public abstract class Broker implements ContainerLifecycle {
      */
     private boolean stopRunningCons(Map<String, String> runningCons) {
         boolean success = true;
-        boolean threwExeception = false;
+        // iterate and check running state
+        LOG.info("Querying state of containers...");
         for (Map.Entry<String, String> entry : runningCons.entrySet()) {
             String defName = entry.getKey();
             String deplname = entry.getValue();
             try {
-                LOG.warn("Container for service {} is still running. Forcing stop...", defName);
-                success = stopContainer(deplname, defName);
+                InspectContainerResponse inspResp = docker.inspectContainerCmd(deplname).exec();
+                // if container running stop
+                if (inspResp.getState().getRunning()) {
+                    LOG.warn("Container for service {} is still running. Forcing stop...", defName);
+                    success = stopContainer(deplname, defName) && success;
+                } else {
+                    LOG.info("Container for service {} has stopped.", defName);
+                }
             } catch (NotFoundException ex) {
                 LOG.error("Container for service {} does not exist.", defName);
                 success = false;
-                threwExeception = true;
+            } catch (DockerException ex) {
+                LOG.error("FAILED to stop container for service {}. Something went wrong: {}", defName, ex.getMessage());
+                success = false;
             }
         }
-        return success && !threwExeception;
+        return success;
     }
 
     /**
@@ -458,8 +475,7 @@ public abstract class Broker implements ContainerLifecycle {
                     checkNode(path, (byte[]) ctx);
                     break;
                 case NODEEXISTS:
-                    LOG.error("Node already exists: " + path);
-                    zkError = true;
+                    LOG.warn("Node already exists. Overwriting: " + path);
                     shutdown();
                     break;
                 case OK:
@@ -557,30 +573,22 @@ public abstract class Broker implements ContainerLifecycle {
                 ZK_CONTAINER_PATH, ZK_NAMING_SERVICE, SHUTDOWN_NODE, CONF_NODE);
         // create the boot command
 
-        // FOR TESTING
-        conBootCmd = "wget maestro.freelabs.net/maestroBroker.zip || curl maestro.freelabs.net/maestroBroker.zip; "
-                + "rm -r /opt/maestro; "
-                + "unzip maestroBroker.zip -d /opt; "
-                + "exec java -jar /opt/maestro/bin/broker.jar " + conBootArgs;
-
-        //  conBootCmd =  "java -jar " + BROKER_JAR_IN_CONTAINER + " " + conBootArgs;
+        conBootCmd = "java -jar " + BROKER_JAR_IN_CONTAINER + " " + conBootArgs;
     }
 
     @Override
-    public CreateContainerResponse createContainer() {
-        LOG.info("Creating container for service {}...", con.getName());
-        // create object to process declared docker configuration
-        DockerConfProcessor dcp = new DockerConfProcessor(con.getDocker());
+    public CreateContainerResponse createContainer(DockerConfProcessor dcp) {
+        LOG.info("Creating container for service {}...", con.getConSrvName());
         // get the name with which to deploy the container 
-        String conName = zkConf.getDeplCons().get(con.getName());
+        String conName = zkConf.getDeplCons().get(con.getConSrvName());
         // boot command
-        String conCmd = conBootCmd;
+        String[] conCmd = conBootCmd.split(" ");
         // env var passed
         String[] conEnvArr = conBootEnv.split(",");
         // get network
         String netName = zkConf.getAppDefaultNetName();
         // get hostName
-        String hostName = con.getName();
+        String hostName = con.getConSrvName();
         // get container image
         String conImg = dcp.getImage();
         // get privileged flag
@@ -590,7 +598,7 @@ public abstract class Broker implements ContainerLifecycle {
         // process volumes from
         List<VolumesFrom> volsFromList = dcp.getVolumesFrom();
         // process mount bind volumes
-        List<Bind> bindList = dcp.getBindMounts(upDownPaths, zkConf);
+        List<Bind> bindList = dcp.getBindMounts();
         // process exposed ports
         List<ExposedPort> expPortList = dcp.getExosedPorts();
         // process published ports
@@ -612,7 +620,7 @@ public abstract class Broker implements ContainerLifecycle {
                         .withPortBindings(portBindings)
                         .withPublishAllPorts(publishAllPorts)
                         .withName(conName)
-                        .withCmd("/bin/sh", "-c", conCmd)
+                        .withCmd(conCmd)
                         .withEnv(conEnvArr)
                         .withPrivileged(privileged)
                         .exec();
@@ -624,7 +632,7 @@ public abstract class Broker implements ContainerLifecycle {
                 // image not found locally
                 LOG.warn("Image {} does not exist locally. Pulling from docker hub...", conImg);
                 // pull image from docker hub
-                boolean runSuccess = runAndRetry(() -> {
+                boolean runSuccess = pullAndRetry(() -> {
                     pullContainerImg(conImg);
                 }, PULL_ATTEMPTS);
                 // check if code executed successfully
@@ -634,6 +642,8 @@ public abstract class Broker implements ContainerLifecycle {
                     LOG.error("FAILED to pull image");
                     break;
                 }
+            } catch (DockerException ex) {
+                LOG.error("FAILED to create container. Something went wrong: {}", ex.getMessage());
             }
         }
         return container;
@@ -665,44 +675,58 @@ public abstract class Broker implements ContainerLifecycle {
 
     @Override
     public boolean stopContainer(String con, String srv) {
+        boolean success = false;
         try {
             docker.stopContainerCmd(con).exec();
+            // confirm stop
+            InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
+            if (inspResp.getState().getRunning()) {
+                LOG.error("FAILED to stop container for service {}", srv);
+            } else {
+                LOG.info("Stopped container for service {}.", srv);
+                success = true;
+            }
         } catch (NotFoundException e) {
             LOG.error("FAILED to stop container for service {}. Container does NOT exist.", srv);
+        } catch (DockerException ex) {
+            LOG.error("FAILED to stop container for service {}. Something went wrong: {}", srv, ex.getMessage());
         }
-        // confirm stop
-        InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
-        if (inspResp.getState().getRunning()) {
-            LOG.error("FAILED to stop container for service {}", srv);
-            return false;
-        } else {
-            LOG.info("Stopped container for service {}.", srv);
-            return true;
-        }
+        return success;
     }
 
     @Override
     public boolean restartContainer(String con, String srv) {
         boolean success = false;
-        // get first start time
-        InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
-        String startTime1 = inspResp.getState().getStartedAt();
-        // restart
-        LOG.info("Restarting container for service {}...", srv);
+        String startTime1;
+        String startTime2;
         try {
+            // get first start time
+            InspectContainerResponse inspResp = docker.inspectContainerCmd(con).exec();
+            startTime1 = inspResp.getState().getStartedAt();
+            // restart
+            LOG.info("Restarting container for service {}...", srv);
             docker.restartContainerCmd(con).exec();
+            // get second start time of the container
+            InspectContainerResponse inspResp2 = docker.inspectContainerCmd(con).exec();
+            startTime2 = inspResp2.getState().getStartedAt();
+            // confirm restart
+            if (startTime1 != null && startTime2 != null) {
+                if (!startTime1.equals(startTime2)) {
+                    success = true;
+                } else {
+                    LOG.error("FAILED to restart container for service {}", srv);
+                }
+            } else {
+                success = true;
+                LOG.warn("Could not confirm restart of container for service {}. "
+                        + "Queried docker host but got an invalid response.", srv);
+            }
         } catch (NotFoundException e) {
             LOG.error("FAILED to restart container for service {}. Container does NOT exist.", srv);
+        } catch (DockerException ex) {
+            LOG.error("FAILED to restart container for service {}. Something went wrong: {}", srv, ex);
         }
-        // get second start time of the container
-        InspectContainerResponse inspResp2 = docker.inspectContainerCmd(con).exec();
-        String startTime2 = inspResp2.getState().getStartedAt();
-        // confirm restart
-        if (!startTime1.equals(startTime2)) {
-            success = true;
-        } else {
-            LOG.error("FAILED to restart container for service {}", srv);
-        }
+
         return success;
     }
 
@@ -724,6 +748,8 @@ public abstract class Broker implements ContainerLifecycle {
                 // this is not an error so we need to re-set the flag to success
                 success = true;
             }
+        } catch (DockerException ex) {
+            LOG.error("FAILED to delete container for service {}. Something went wrong: {}", srv, ex);
         }
 
         return success;
@@ -759,6 +785,36 @@ public abstract class Broker implements ContainerLifecycle {
             try {
                 cmd.run();
                 success = true;
+                break;
+            } catch (InterruptedException ex) {
+                LOG.warn("Interrupted. Stopping task.");
+                Thread.currentThread().interrupt();
+                success = false;
+                break;
+            } catch (Exception ex) {
+                LOG.warn("{}. Retrying.", ex);
+            }
+            maxAttempts--;
+        }
+        return success;
+    }
+
+    protected boolean pullAndRetry(RunCmd cmd, int maxAttempts) {
+        boolean success = false;
+
+        while (maxAttempts > 0) {
+            try {
+                cmd.run();
+                success = true;
+                break;
+            } catch (NotFoundException ex) {
+                LOG.error("Image does NOT exist.");
+                success = false;
+                break;
+            } catch (InterruptedException ex) {
+                LOG.warn("Interrupted. Stopping task.");
+                Thread.currentThread().interrupt();
+                success = false;
                 break;
             } catch (Exception ex) {
                 LOG.warn("{}. Retrying.", ex.getMessage());
@@ -811,7 +867,7 @@ public abstract class Broker implements ContainerLifecycle {
                 }
                 // create port binding
                 String hostPort = (defPubPort.getHostPort() == null) ? null : String.valueOf(defPubPort.getHostPort());
-                Binding bind = new Ports.Binding(defPubPort.getIp(), hostPort);
+                Binding bind = new Ports.Binding(defPubPort.getHostIp(), hostPort);
                 portBindings.bind(expPort, bind);
             }
             return portBindings;
@@ -841,39 +897,35 @@ public abstract class Broker implements ContainerLifecycle {
         }
 
         /**
-         *
-         * @param uploadDownloadMap map with the upload and download paths in
-         * case docker is a remote host, so data are uploaded to zookeeper and
-         * downloaded to containers instead of binding and mounting.
-         * @param zkConf the application zookeeper configuration.
-         * @return a list of initialized {@link BindMnt BindMnts}.
+         * @return a list of initialized {@link Bind Binds}. The Bind contains
+         * the host path to bind to the container path and the access mode to
+         * apply to the mounted bind to the container.
          */
-        public List<Bind> getBindMounts(Map<String, String> uploadDownloadMap, ZkConf zkConf) {
+        public List<Bind> getBindMounts() {
             // process mount bind volumes
             List<BindMnt> defBindMntList = dockerConf.getBindMnt();
             List<Bind> bindList = new ArrayList<>();
 
-            // if docker is a remote host CONVERT BIND MOUNT PATHS TO UPLOAD-DOWNLOAD
-            // DATA PATHS. Docker is not local to bind to host so data are uploaded
-            // to zk and then downloaded by the container to the paths defined.
-            // This is a transparent mechanism to handle bindMounts for remote hosts.
-            if (zkConf.getpConf().getDockerRemote()) {
-                // save upload and download paths to map for later use
-                for (BindMnt bindMnt : defBindMntList) {
-                    uploadDownloadMap.put(bindMnt.getHostPath(), bindMnt.getContainerPath());
-                }
-            } else {
-                for (BindMnt bindMnt : defBindMntList) {
-                    // create a new volume
-                    Volume vol = new Volume(bindMnt.getContainerPath());
-                    // create a new Bind
-                    AccessMode am = bindMnt.getAccessMode().equals(net.freelabs.maestro.core.generated.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
-                    Bind bind = new Bind(bindMnt.getHostPath(), vol, am);
-                    // add to list
-                    bindList.add(bind);
-                }
+            for (BindMnt bindMnt : defBindMntList) {
+                // create a new volume
+                Volume vol = new Volume(bindMnt.getContainerPath());
+                // create a new Bind
+                AccessMode am = bindMnt.getAccessMode().equals(net.freelabs.maestro.core.schema.AccessMode.RO) ? AccessMode.ro : AccessMode.rw;
+                Bind bind = new Bind(bindMnt.getHostPath(), vol, am);
+                // add to list
+                bindList.add(bind);
             }
             return bindList;
+        }
+
+        /**
+         *
+         * @return a Map with the host path to be copied as key and the
+         * container path to be copied to as value.
+         */
+        public List<Copy> getCopy() {
+            // process copy tag from schema
+            return dockerConf.getCopy();
         }
 
         /**

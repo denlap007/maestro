@@ -32,11 +32,13 @@ public interface ContainerLifecycle {
     /**
      * Creates a container.
      *
+     * @param dcp instance of a processor for declared docker configuration on
+     * application description.
      * @return a {@link CreateContainerResponse CreateContainerResponse} object
      * that will be used to start the created container. NULL if could no create
      * the container.
      */
-    public CreateContainerResponse createContainer();
+    public CreateContainerResponse createContainer(Broker.DockerConfProcessor dcp);
 
     /**
      * Starts a container.
@@ -54,7 +56,7 @@ public interface ContainerLifecycle {
      * @param con the name or id of the container to stop.
      * @param srv the name of the service offered by the container.
      * @return true if the container stopped.
-     */ 
+     */
     public boolean stopContainer(String con, String srv);
 
     /**
@@ -71,7 +73,7 @@ public interface ContainerLifecycle {
      * @param srv the name of the service offered by the container.
      * @return true if the container was deleted successfully.
      */
-    public boolean deleteContainer(String con , String srv);
+    public boolean deleteContainer(String con, String srv);
 
     /**
      * Pulls container image from docker hub.
@@ -79,5 +81,5 @@ public interface ContainerLifecycle {
      * @param img the name of the image to pull.
      */
     public void pullContainerImg(String img);
-     
+
 }

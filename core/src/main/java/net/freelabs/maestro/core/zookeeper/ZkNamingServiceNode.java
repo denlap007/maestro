@@ -39,7 +39,7 @@ public class ZkNamingServiceNode {
      * Defines the possible service state status values.
      */
     public static enum SRV_STATE_STATUS {
-        INITIALIZED, NOT_INITIALIZED, NOT_RUNNING
+        INITIALIZED, NOT_INITIALIZED, NOT_RUNNING, UPDATED
     };
 
     /**
@@ -60,32 +60,75 @@ public class ZkNamingServiceNode {
     }
 
     /**
-     * 
+     *
      * @return the {@link #status status} of the service.
      */
     public SRV_STATE_STATUS getStatus() {
         return status;
     }
+
     /**
      * Sets node {@link #status status} to INITIALIZED.
      */
     public void setStatusInitialized() {
-        this.status = SRV_STATE_STATUS.INITIALIZED;
+        synchronized (this) {
+            status = SRV_STATE_STATUS.INITIALIZED;
+        }
     }
+
     /**
      * Sets node {@link #status status} to NOT_INITIALIZED.
      */
     public void setStatusNotInitialized() {
-        this.status = SRV_STATE_STATUS.NOT_INITIALIZED;
+        synchronized (this) {
+            status = SRV_STATE_STATUS.NOT_INITIALIZED;
+        }
     }
+
     /**
      * Sets node {@link #status status} to NOT_RUNNING.
      */
     public void setStatusNotRunning() {
-        this.status = SRV_STATE_STATUS.NOT_RUNNING;
+        synchronized (this) {
+            status = SRV_STATE_STATUS.NOT_RUNNING;
+        }
     }
+
     /**
-     * 
+     * Sets node {@link #status status} to UPDATED.
+     */
+    public void setStatusUpdasted() {
+        synchronized (this) {
+            status = SRV_STATE_STATUS.UPDATED;
+        }
+    }
+
+    public boolean isStatusSetToUpdated() {
+        synchronized (this) {
+            return status == SRV_STATE_STATUS.UPDATED;
+        }
+    }
+
+    public boolean isStatusSetToInitialized() {
+        synchronized (this) {
+            return status == SRV_STATE_STATUS.INITIALIZED;
+        }
+    }
+
+    public boolean isStatusSetToNotInitialized() {
+        synchronized (this) {
+            return status == SRV_STATE_STATUS.NOT_INITIALIZED;
+        }
+    }
+
+    public boolean isStatusSetToNotRunning() {
+        synchronized (this) {
+            return status == SRV_STATE_STATUS.NOT_RUNNING;
+        }
+    }
+
+    /**
+     *
      * @return the zNode path of the container offering the service.
      */
     public String getZkContainerPath() {

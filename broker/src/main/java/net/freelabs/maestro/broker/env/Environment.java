@@ -18,8 +18,8 @@ package net.freelabs.maestro.broker.env;
 
 import java.util.HashMap;
 import java.util.Map;
-import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.generated.ContainerEnvironment;
+import net.freelabs.maestro.core.schema.Container;
+import net.freelabs.maestro.core.schema.ContainerEnvironment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,6 +80,23 @@ public class Environment {
             envMap.put(key, value);
         }
         return envMap;
+    }
+
+    public Map<String, String> getEnvMappings(String prefix) {
+        Map<String, String> envMappings = new HashMap<>();
+
+        for (Map.Entry<String, String> entry : conEnv.createEnvMappings().entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            if (!prefix.isEmpty()) {
+                key = (prefix + "_" + key).toUpperCase();
+            } else {
+                key = key.toUpperCase();
+            }
+            // add entry for new key to map 
+            envMappings.put(key, value);
+        }
+        return envMappings;
     }
 
     // Getters

@@ -21,7 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
-import net.freelabs.maestro.core.generated.Container;
+import net.freelabs.maestro.core.schema.Container;
 import net.freelabs.maestro.core.zookeeper.ZkNamingServiceNode.SRV_STATE_STATUS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,12 +47,10 @@ public final class ServiceManager {
      * The service nodes of the required services.
      */
     private final Map<String, ServiceNode> srvNodes = new HashMap<>();
-
     /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(ServiceManager.class);
-
     /**
      * Constructor.
      *
@@ -72,14 +70,25 @@ public final class ServiceManager {
     /**
      * Add a service node to the service manager.
      *
+     * @param srvName the service name
      * @param srvPath the zNode path of the service to the naming service.
-     * @param srvNode the service node.
+     * @param zkContPath the path of the container znode offering this service
      */
-    public void addSrvNode(String srvPath, ServiceNode srvNode) {
+    public void createSrvNode(String srvName, String srvPath, String zkContPath) {
+        ServiceNode srvNode = new ServiceNode(srvName, srvPath, zkContPath);
         srvNodes.put(srvPath, srvNode);
     }
 
-    public boolean areSrvProcessed() {
+    /**
+     * Removes a service node from the service manager.
+     *
+     * @param srvPath the zNode path of the service to the naming service.
+     */
+    public synchronized void deleteSrvNode(String srvPath) {
+        srvNodes.remove(srvPath);
+    }
+
+    public synchronized boolean areSrvProcessed() {
         StringBuilder waitingServices = new StringBuilder();
 
         srvNodes.entrySet().stream().map((entry) -> entry.getValue()).forEach((srvNode) -> {
@@ -91,7 +100,9 @@ public final class ServiceManager {
 
         if (waitingServices.toString().isEmpty()) {
             if (!srvNodes.isEmpty()) {
-                LOG.info("All services PROCESSED.");
+                LOG.info("All required services PROCESSED.");
+            } else {
+                LOG.info("No required services to process.");
             }
             return true;
         } else {
@@ -100,19 +111,22 @@ public final class ServiceManager {
         }
     }
 
-    public boolean areSrvInitialized() {
+    public synchronized boolean areSrvInitialized() {
         StringBuilder waitingServices = new StringBuilder();
 
         srvNodes.entrySet().stream().map((entry) -> entry.getValue()).forEach((srvNode) -> {
             SRV_STATE_STATUS srvStateStatus = srvNode.getSrvStateStatus();
-            if (srvStateStatus != SRV_STATE_STATUS.INITIALIZED) {
+            if (srvStateStatus != SRV_STATE_STATUS.INITIALIZED
+                    && srvStateStatus != SRV_STATE_STATUS.UPDATED) {
                 waitingServices.append(srvNode.getServiceName()).append(" ");
             }
         });
 
         if (waitingServices.toString().isEmpty()) {
             if (!srvNodes.isEmpty()) {
-                LOG.info("All services INITIALIZED.");
+                LOG.info("All required services INITIALIZED.");
+            } else {
+                LOG.info("No required services to wait for initialization.");
             }
             return true;
         } else {
@@ -127,8 +141,22 @@ public final class ServiceManager {
      * @param srvPath the zNode path of the service to the naming service
      * namespace.
      */
-    public void setSrvConfStatusProc(String srvPath) {
-        srvNodes.get(srvPath).setSrvConfStatus(SRV_CONF_STATUS.PROCESSED);
+    public synchronized void setSrvConfStatusProc(String srvPath) {
+        ServiceNode srvNode = srvNodes.get(srvPath);
+        srvNode.setSrvConfStatus(SRV_CONF_STATUS.PROCESSED);
+        LOG.info("Configuration of service {} PROCESSED.", srvNode.getServiceName());
+    }
+
+    /**
+     * Sets the service configuration status to NOT_PROCESSED.
+     *
+     * @param srvPath the zNode path of the service to the naming service
+     * namespace.
+     */
+    public synchronized void setSrvConfStatusNotProc(String srvPath) {
+        ServiceNode srvNode = srvNodes.get(srvPath);
+        srvNode.setSrvConfStatus(SRV_CONF_STATUS.NOT_PROCESSED);
+        LOG.info("Configuration of service {} NOT_PROCESSED.", srvNode.getServiceName());
     }
 
     /**
@@ -136,10 +164,48 @@ public final class ServiceManager {
      *
      * @param srvPath the zNode path of the service to the naming service
      * namespace.
-     * @param srvStateStatus the updated service state status.
+     * @param newSrvStateStatus the updated service state status.
      */
-    public void setSrvStateStatus(String srvPath, SRV_STATE_STATUS srvStateStatus) {
-        srvNodes.get(srvPath).setSrvStateStatus(srvStateStatus);
+    public synchronized void setSrvStateStatus(String srvPath, SRV_STATE_STATUS newSrvStateStatus) {
+        ServiceNode srvNode = srvNodes.get(srvPath);
+        srvNode.setSrvStateStatus(newSrvStateStatus);
+        LOG.info("Status of service {} is {}.", srvNode.getServiceName(), newSrvStateStatus.toString());
+    }
+
+    /**
+     * Sets the service state status to INITIALIZED.
+     *
+     * @param srvPath the zNode path of the service to the naming service
+     * namespace.
+     */
+    public synchronized void setSrvStateStatusInit(String srvPath) {
+        ServiceNode srvNode = srvNodes.get(srvPath);
+        srvNode.setSrvStateStatus(SRV_STATE_STATUS.INITIALIZED);
+        LOG.info("Status of service {} is {}.", srvNode.getServiceName(), SRV_STATE_STATUS.INITIALIZED.toString());
+    }
+
+    /**
+     * Sets the service state status to NOT_RUNNING.
+     *
+     * @param srvPath the zNode path of the service to the naming service
+     * namespace.
+     */
+    public synchronized void setSrvStateStatusNotRun(String srvPath) {
+        ServiceNode srvNode = srvNodes.get(srvPath);
+        srvNode.setSrvStateStatus(SRV_STATE_STATUS.NOT_RUNNING);
+        LOG.info("Status of service {} is {}.", srvNode.getServiceName(), SRV_STATE_STATUS.NOT_RUNNING.toString());
+    }
+
+    /**
+     * Sets the service state status to NOT_INITIALIZED.
+     *
+     * @param srvPath the zNode path of the service to the naming service
+     * namespace.
+     */
+    public synchronized void setSrvStateStatusNotInit(String srvPath) {
+        ServiceNode srvNode = srvNodes.get(srvPath);
+        srvNode.setSrvStateStatus(SRV_STATE_STATUS.NOT_INITIALIZED);
+        LOG.info("Status of service {} is {}.", srvNode.getServiceName(), SRV_STATE_STATUS.NOT_INITIALIZED.toString());
     }
 
     public void getSrvConfStatus(String srvPath) {
@@ -158,7 +224,7 @@ public final class ServiceManager {
         srvNodes.get(srvPath).setZkConPath(zkConPath);
     }
 
-    public boolean hasServices() {
+    public synchronized boolean hasServices() {
         return !srvNodes.isEmpty();
     }
 

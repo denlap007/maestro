@@ -86,9 +86,17 @@
         <xs:attribute name="accessMode" type="accessMode" default="rw"/>
     </xs:complexType>
 
+    <xs:complexType name="copy">
+        <xs:sequence>
+            <xs:element name="hostPath" type="xs:string"/>
+            <xs:element name="containerPath" type="xs:string"/>
+        </xs:sequence>
+        <xs:attribute name="withRootDir" type="xs:boolean" default="false"/>
+    </xs:complexType>
+
       <xs:complexType name="publishPort">
         <xs:sequence>
-            <xs:element name="ip" type="xs:string" minOccurs="0"/>
+            <xs:element name="hostIp" type="xs:string" minOccurs="0"/>
             <xs:element name="hostPort" type="port" minOccurs="0"/>
             <xs:element name="containerPort" type="port"/>
         </xs:sequence>
@@ -115,6 +123,7 @@
                 <xs:element name="volumes" type="stringList" minOccurs="0"/>
                 <xs:element name="volumesFrom" type="stringList" minOccurs="0"/>
                 <xs:element name="bindMnt" type="bindMnt" minOccurs="0" maxOccurs="unbounded"/>
+                <xs:element name="copy" type="copy" minOccurs="0" maxOccurs="unbounded"/>
                 <xs:element name="exposePorts" type="exposePorts" minOccurs="0"/>
                 <xs:element name="publishPort" type="publishPort" minOccurs="0" maxOccurs="unbounded"/>
                 <xs:element name="publishAllPorts" type="xs:boolean" minOccurs="0"/>
@@ -152,11 +161,17 @@
 
     <xs:complexType name="container" abstract="true">
         <xs:sequence>
-            <xs:element name="name" type="xs:token"/>
+            <xs:element name="serviceName" type="xs:token">
+                <xs:annotation>
+                    <xs:appinfo>
+                          <jxb:property name="conSrvName"/>
+                    </xs:appinfo>
+              </xs:annotation>
+            </xs:element>
             <xs:element name="requires" type="stringList" minOccurs="0"/>
             <xs:element name="docker" type="docker"/>
             <xs:element name="start" type="startRes"/>
-            <xs:element name="stop" type="stopRes" minOccurs="0"/>
+            <xs:element name="stop" type="stopRes"/>
             <xs:element name="tasks" type="tasks" minOccurs="0"/>
             <xs:element name="env" type="containerEnvironment"/>
         </xs:sequence>

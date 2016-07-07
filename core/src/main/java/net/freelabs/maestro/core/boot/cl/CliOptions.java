@@ -20,8 +20,6 @@ import com.beust.jcommander.Parameter;
 import com.beust.jcommander.Parameters;
 import com.beust.jcommander.converters.CommaParameterSplitter;
 import java.util.List;
-import java.util.logging.Level;
-import net.freelabs.maestro.core.boot.Main;
 
 /**
  *
@@ -35,8 +33,6 @@ public class CliOptions {
     private int zkTimeout;
 
     private String dockerHost;
-
-    private Boolean dockerRemote;
 
     private Boolean dockerTls;
 
@@ -58,7 +54,7 @@ public class CliOptions {
 
     private static final int ZK_OPTS_NUM = 2;
 
-    private static final String TOKEN_SPLITTER = ":";
+    private static final String TOKEN_SPLITTER = "=";
 
     // --------------------------- Command Line Options ---------------------------
     @Parameter(names = {"-h", "--help"}, description = "Show this help message :).", help = true)
@@ -67,27 +63,24 @@ public class CliOptions {
     @Parameter(names = {"-v", "--version"}, description = "Show program version.")
     private Boolean version;
 
-    @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path to .properties file with program's configuration.", required = false)
+    @Parameter(names = {"-c", "--conf"}, description = "<program conf> Path to .properties file with program configuration.", required = false)
     private String conf;
 
-    @Parameter(names = {"-z", "--zkOpts[]"}, description = "Zookeeper Options "
-            + "in key:value pairs, comma delimited (no space): "
-            + "hosts:<zk host>,"
-            + "timeout:<zk client session timeout>", splitter = CommaParameterSplitter.class, required = false)
+    @Parameter(names = {"-z", "--zkOpts[]"}, description = "Zookeeper options "
+            + "[hosts=<host1:port1,host2:port2...>,"
+            + "timeout=<zk client session timeout>]", splitter = CommaParameterSplitter.class, required = false)
     private List<String> zkOptions;
 
-    @Parameter(names = {"-d", "--dockerOpts[]"}, description = "Docker Options "
-            + "in key:value pairs, comma delimited (no space): "
-            + "host:<docker host uri, with tcp://ip or unix:///socker>,"
-            + "remote:<true for remote host>,"
-            + "tls:<true to enable https>,"
-            + "cert:<path to certs for tls>,"
-            + "config:<path to config like .dockercfg>,"
-            + "api:<api version>,"
-            + "regUrl:<registry url>,"
-            + "regUser:<regisrty username>,"
-            + "regPass:<registry password>,"
-            + "regEmail:<registry email>", splitter = CommaParameterSplitter.class, required = false)
+    @Parameter(names = {"-d", "--dockerOpts[]"}, description = "Docker options "
+            + "[host=<tcp://ip or unix:///socket>,"
+            + "tls=<true to enable https>,"
+            + "cert=<path to certs for tls>,"
+            + "config=<path to config like .dockercfg>,"
+            + "api=<api version>,"
+            + "regUrl=<registry url>,"
+            + "regUser=<regisrty username>,"
+            + "regPass=<registry password>,"
+            + "regEmail=<registry email>]", splitter = CommaParameterSplitter.class, required = false)
     private List<String> dockerOptions;
 
     @Parameter(names = {"-l", "--log"}, description = "<log4j properties> Path to log4j.properties file with log configuration.", required = false)
@@ -131,7 +124,7 @@ public class CliOptions {
         @Parameter(names = {"-h", "--help"}, description = "Help for stop command.", help = true)
         private Boolean help;
 
-        @Parameter(description = "<appId> The Id of the deployed application to stop.", required = true)
+        @Parameter(description = "<app id> The id of the deployed application to stop.", required = true)
         private List<String> args;
 
         // Getters
@@ -154,7 +147,7 @@ public class CliOptions {
         @Parameter(names = {"-h", "--help"}, description = "Help for restart command.", help = true)
         private Boolean help;
 
-        @Parameter(description = "<appId> The Id of the deployed application to restart.", required = true)
+        @Parameter(description = "<app id> The id of the deployed application to restart.", required = true)
         private List<String> args;
 
         // Getters
@@ -177,7 +170,7 @@ public class CliOptions {
         @Parameter(names = {"-h", "--help"}, description = "Help for delete command.", help = true)
         private Boolean help;
 
-        @Parameter(description = "<appId> The Id of the deployed application to delete.", required = true)
+        @Parameter(description = "<app id> The id of the deployed application to delete.", required = true)
         private List<String> args;
 
         // Getters
@@ -197,21 +190,20 @@ public class CliOptions {
     public boolean parseZkOpts() {
         boolean parsedOptions = true;
         if (zkOptions.size() > ZK_OPTS_NUM) {
-            java.util.logging.Logger.getLogger(Main.class.getName())
-                    .log(Level.SEVERE, "Too many zookeeper options defined. See \'maestro --help\'.");
+            System.err.println("ERROR: Too many zookeeper options defined. See \'maestro --help\'.");
         } else if (!zkOptions.isEmpty()) {
             for (int i = 0; i < zkOptions.size(); i++) {
                 boolean parsed = parseAndSetZkOption(zkOptions.get(i));
                 if (!parsed) {
                     parsedOptions = false;
-                    java.util.logging.Logger.getLogger(Main.class.getName())
-                            .log(Level.SEVERE, "Invalid zookeeper option: {0}. See \'maestro --help\'.", zkOptions.get(i));
+                    System.err.println("ERROR: Invalid zookeeper option: "
+                            + zkOptions.get(i)
+                            + ". See \'maestro --help\'.");
                     break;
                 }
             }
         } else {
-            java.util.logging.Logger.getLogger(Main.class.getName())
-                    .log(Level.SEVERE, "No zookeeper option defined. See \'maestro --help\'.");
+            System.err.println("ERROR: No zookeeper option defined. See \'maestro --help\'.");
         }
 
         return parsedOptions;
@@ -279,21 +271,20 @@ public class CliOptions {
     public boolean parseDockerOpts() {
         boolean parsedOptions = true;
         if (dockerOptions.size() > DOCKER_OPTS_NUM) {
-            java.util.logging.Logger.getLogger(Main.class.getName())
-                    .log(Level.SEVERE, "Too many docker options defined. See \'maestro --help\'.");
+            System.err.println("ERROR: Too many docker options defined. See \'maestro --help\'.");
         } else if (!dockerOptions.isEmpty()) {
             for (int i = 0; i < dockerOptions.size(); i++) {
                 boolean parsed = parseAndSetDockerOption(dockerOptions.get(i));
                 if (!parsed) {
                     parsedOptions = false;
-                    java.util.logging.Logger.getLogger(Main.class.getName())
-                            .log(Level.SEVERE, "Invalid docker option: {0}. See \'maestro --help\'.", dockerOptions.get(i));
+                    System.err.println("ERROR: Invalid docker option: "
+                            + dockerOptions.get(i)
+                            + ". See \'maestro --help\'.");
                     break;
                 }
             }
         } else {
-            java.util.logging.Logger.getLogger(Main.class.getName())
-                    .log(Level.SEVERE, "No docker option defined. See \'maestro --help\'.");
+            System.err.println("ERROR: No docker option defined. See \'maestro --help\'.");
         }
         return parsedOptions;
     }
@@ -348,13 +339,6 @@ public class CliOptions {
         switch (key.toLowerCase()) {
             case "host":
                 dockerHost = value;
-                break;
-            case "remote":
-                if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
-                    dockerRemote = Boolean.parseBoolean(value);
-                } else {
-                    set = false;
-                }
                 break;
             case "tls":
                 if (value.equalsIgnoreCase("true") || value.equalsIgnoreCase("false")) {
@@ -432,10 +416,6 @@ public class CliOptions {
 
     public String getDockerHost() {
         return dockerHost;
-    }
-
-    public Boolean getDockerRemote() {
-        return dockerRemote;
     }
 
     public Boolean getDockerTls() {

@@ -19,7 +19,7 @@ package net.freelabs.maestro.broker.process.start;
 import java.util.List;
 import net.freelabs.maestro.broker.process.Resource;
 import net.freelabs.maestro.broker.process.ResourceMapper;
-import net.freelabs.maestro.core.generated.StartElem;
+import net.freelabs.maestro.core.schema.StartElem;
 
 /**
  *

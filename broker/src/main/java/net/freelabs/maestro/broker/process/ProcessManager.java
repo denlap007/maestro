@@ -16,6 +16,7 @@
  */
 package net.freelabs.maestro.broker.process;
 
+import java.util.concurrent.CountDownLatch;
 import net.freelabs.maestro.broker.process.start.StartGroupProcessHandler;
 import net.freelabs.maestro.broker.process.stop.StopGroupProcessHandler;
 import org.slf4j.Logger;
@@ -36,6 +37,15 @@ public final class ProcessManager {
      */
     private StopGroupProcessHandler stopGroupHandler;
     /**
+     * Flag to indicate if start group processes have executed.
+     */
+    private final CountDownLatch statrGroupExecutedSignal = new CountDownLatch(1);
+    /**
+     * Flag that indicates if start group processes have executed.
+     */
+    private volatile boolean statrGroupExecuted;
+
+    /**
      * A Logger object.
      */
     private static final Logger LOG = LoggerFactory.getLogger(ProcessManager.class);
@@ -48,7 +58,9 @@ public final class ProcessManager {
      * startGroupHandler).
      */
     public void setStartGroupHandler(StartGroupProcessHandler startGroupHandler) {
-        this.startGroupHandler = startGroupHandler;
+        synchronized (this) {
+            this.startGroupHandler = startGroupHandler;
+        }
     }
 
     /**
@@ -59,7 +71,9 @@ public final class ProcessManager {
      * stopGroupHandler}.
      */
     public void setStopGroupHandler(StopGroupProcessHandler stopGroupHandler) {
-        this.stopGroupHandler = stopGroupHandler;
+        synchronized (this) {
+            this.stopGroupHandler = stopGroupHandler;
+        }
     }
 
     /**
@@ -75,22 +89,37 @@ public final class ProcessManager {
         } else {
             LOG.error("Start-group processes handler NOT INITIALIZED.");
         }
+        statrGroupExecutedSignal.countDown();
+        statrGroupExecuted = true;
     }
 
     /**
      * Executes processes defined in stop section.
      */
     public void exec_stop_procs() {
-        LOG.info("Executing stop-group processes.");
-        if (isStopHandlerInit()) {
-            boolean success = stopGroupHandler.exec_group_procs();
-            if (success) {
-                LOG.info("Stop-group processes executed SUCCESSFULLY.");
+        if (statrGroupExecuted) {
+            LOG.info("Executing stop-group processes.");
+            if (isStopHandlerInit()) {
+                boolean success = stopGroupHandler.exec_group_procs();
+                if (success) {
+                    LOG.info("Stop-group processes executed SUCCESSFULLY.");
+                } else {
+                    LOG.error("Stop-group processes executed WITH ERRORS.");
+                }
             } else {
-                LOG.error("Stop-group processes executed WITH ERRORS.");
+                LOG.error("Stop-group processes handler NOT INITIALIZED.");
             }
         } else {
-            LOG.error("Stop-group processes handler NOT INITIALIZED.");
+            LOG.info("Stop-group processes queued. Waiting for start-group to finish...");
+            try {
+                statrGroupExecutedSignal.await();
+                exec_stop_procs();
+            } catch (InterruptedException ex) {
+                // log the event
+                LOG.warn("Thread interrupted. Stopping.");
+                // set the interrupt status
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -116,7 +145,9 @@ public final class ProcessManager {
      * @return true if handler for stop process group is initialized.
      */
     public boolean isStopHandlerInit() {
-        return stopGroupHandler != null;
+        synchronized (this) {
+            return stopGroupHandler != null;
+        }
     }
 
     /**
@@ -125,6 +156,8 @@ public final class ProcessManager {
      * @return true if handler for start process group is initialized.
      */
     public boolean isStartHandlerInit() {
-        return startGroupHandler != null;
+        synchronized (this) {
+            return startGroupHandler != null;
+        }
     }
 }

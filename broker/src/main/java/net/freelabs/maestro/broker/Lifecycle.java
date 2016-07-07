@@ -38,6 +38,14 @@ public interface Lifecycle {
      */
     public void stop();
     /**
+     * Handles reconfiguration of container due to a service-dependency update.
+     */
+    public void update();
+    /**
+     * Handles execution in case of fatal errors.
+     */
+    public void error();
+    /**
      * Handles Broker shutdown procedure.
      */
     public void shutdown();

@@ -21,7 +21,7 @@ import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.boot.ProgramConf;
 import net.freelabs.maestro.core.broker.BrokerInit;
 import net.freelabs.maestro.core.docker.DockerInitializer;
-import net.freelabs.maestro.core.handler.ContainerHandler;
+import net.freelabs.maestro.core.handlers.ContainerHandler;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
@@ -95,7 +95,6 @@ public final class RestartCmd extends Command {
             } else {
                 LOG.error("Application with id {} does NOT exist.", appID);
             }
-
         }
 
         master.shutdownMaster();

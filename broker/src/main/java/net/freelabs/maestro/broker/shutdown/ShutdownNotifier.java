@@ -52,18 +52,25 @@ public final class ShutdownNotifier {
     public void shutDown() {
         shutDownSignal.countDown();
     }
+
     /**
-     * 
+     *
      * @return true if user signaled to shutdown.
      */
     public boolean isSignaledShutDown() {
-        return signaledShutDown;
+        synchronized (this) {
+            return signaledShutDown;
+        }
     }
+
     /**
      * Sets flag that indicates if user requested shutdown.
+     *
      * @param signaledShutDown flag that indicates if user requested shutdown.
      */
     public void setSignaledShutDown(boolean signaledShutDown) {
-        this.signaledShutDown = signaledShutDown;
+        synchronized (this) {
+            this.signaledShutDown = signaledShutDown;
+        }
     }
 }

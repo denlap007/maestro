@@ -19,13 +19,14 @@ package net.freelabs.maestro.core.boot;
 import net.freelabs.maestro.core.cmd.CommandHandler;
 import com.beust.jcommander.JCommander;
 import com.beust.jcommander.ParameterException;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Properties;
-import java.util.Scanner;
-import java.util.logging.Level;
 import net.freelabs.maestro.core.boot.cl.CliOptions;
+import net.freelabs.maestro.core.boot.cl.CliOptions.StartCmdOpt;
 import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,11 +48,12 @@ public final class Main {
      * @param args command line arguments.
      */
     public static void main(String[] args) {
-        /* FOR TESTING*/
+        /* FOR TESTING
         Scanner sc = new Scanner(System.in);
         String input = sc.nextLine();
         String[] inputArgs = input.split(" ");
         args = inputArgs;
+        */
         //-------------------------------------------------------------------- 
 
         // create object that holds program's configuration
@@ -85,14 +87,16 @@ public final class Main {
 
         // parse cli arguments
         try {
+            if (args.length == 0) {
+                cl.parse("");
+            }
             cl.parse(args);
         } catch (ParameterException e) {
             // show error msg
-            System.err.print(e.getMessage() + ". See \'maestro --help\'");
+            System.err.print(e.getMessage() + ". See \'maestro --help\'.\n");
             // exit
             errExit();
         }
-
         // get the command, if any, entered by the user
         String parsedCmd = cl.getParsedCommand();
 
@@ -112,12 +116,147 @@ public final class Main {
             }
         }
 
+        boolean error = true;
+
+        if (opts.isHelp()) {
+            // program help
+            cl.usage();
+            error = false;
+        } else if (opts.isVersion()) {
+            // program version
+            System.out.println("Maestro  v" + ProgramConf.getVERSION());
+            error = false;
+        } else if (parsedCmd.equals(start)) {
+            // start command
+            if (startCmdOpt.isHelp()) {
+                cl.usage(start);
+            } else if (programConfExists(pConf, opts)) {
+                // load cli options
+                loadProgramCliOpts(pConf, opts);
+                // load start cli options
+                loadStartCmdOpts(pConf, startCmdOpt);
+                // load unset options from file, if any
+                if (loadFromFileUnsetOpts(pConf, opts)) {
+                    // load log4j properties
+                    if (loadLod4jProperties(pConf.getLog4jPropertiesPath())) {
+                        // check if program configuration is complete
+                        if (pConf.isConfInit()) {
+                            error = false;
+                            // execute START command
+                            cmdExec.exec_start();
+                        } else {
+                            LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                        }
+                    }
+                }
+            }
+        } else if (parsedCmd.equals(stop)) {
+            // stop command
+            if (stopCmdOpt.isHelp()) {
+                cl.usage(stop);
+            } else if (programConfExists(pConf, opts)) {
+                // load cli options
+                loadProgramCliOpts(pConf, opts);
+                // load unset options from file, if any
+                if (loadFromFileUnsetOpts(pConf, opts)) {
+                    // load log4j properties
+                    if (loadLod4jProperties(pConf.getLog4jPropertiesPath())) {
+                        // check if program configuration is complete
+                        if (pConf.isConfInit()) {
+                            error = false;
+                            // execute STOP command
+                            cmdExec.exec_stop(stopCmdOpt.getArgs().get(0));
+                        } else {
+                            LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                        }
+                    }
+                }
+            }
+        } else if (parsedCmd.equals(restart)) {
+            // restart command
+            if (restartCmdOpt.isHelp()) {
+                cl.usage(restart);
+            } else if (programConfExists(pConf, opts)) {
+                // load cli options
+                loadProgramCliOpts(pConf, opts);
+                // load unset options from file, if any
+                if (loadFromFileUnsetOpts(pConf, opts)) {
+                    // load log4j properties
+                    if (loadLod4jProperties(pConf.getLog4jPropertiesPath())) {
+                        // check if program configuration is complete
+                        if (pConf.isConfInit()) {
+                            error = false;
+                            // execute RESTART command
+                            cmdExec.exec_restart(restartCmdOpt.getArgs().get(0));
+                        } else {
+                            LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                        }
+                    }
+                }
+            }
+        } else if (parsedCmd.equals(delete)) {
+            // delete command
+            if (deleteCmdOpt.isHelp()) {
+                cl.usage(delete);
+            } else if (programConfExists(pConf, opts)) {
+                // load cli options
+                loadProgramCliOpts(pConf, opts);
+                // load unset options from file, if any
+                if (loadFromFileUnsetOpts(pConf, opts)) {
+                    // load log4j properties
+                    if (loadLod4jProperties(pConf.getLog4jPropertiesPath())) {
+                        // check if program configuration is complete
+                        if (pConf.isConfInit()) {
+                            error = false;
+                            // execute DELETE command
+                            cmdExec.exec_delete(deleteCmdOpt.getArgs().get(0));
+                        } else {
+                            LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
+                        }
+                    }
+                }
+            }
+        }
+
+        if (error) {
+            errExit();
+        }
+    }
+
+    private static boolean programConfExists(ProgramConf pConf, CliOptions opts) {
+        boolean exists = true;
+        if (opts.getConf() == null) {
+            // check for program's propetries file
+            if (pConf.isProgramPropertiesInRunningDir() == false) {
+                System.err.println("ERROR: Cannot locate maestro.properties file. "
+                        + "Place the file in your running dir, or "
+                        + "specify a custom path with -c command line option. "
+                        + "See \'maestro --help\'.");
+                exists = false;
+            }
+        }
+        return exists;
+    }
+
+    private static boolean loadFromFileUnsetOpts(ProgramConf pConf, CliOptions opts) {
+        boolean loaded;
+        // if custom path for program configuration is set load values
+        // only those not set by the uer
+        if (opts.getConf() != null) {
+            loaded = pConf.loadFromFileUnset(opts.getConf());
+        } else {
+            // load from current running path, if exists, options not set by user
+            loaded = pConf.loadFromFileUnset("");
+        }
+        return loaded;
+    }
+
+    private static void loadProgramCliOpts(ProgramConf pConf, CliOptions opts) {
         // set (if specified) cli options before commands
         pConf.setZkHosts(opts.getZkHosts());
         pConf.setZkSessionTimeout(opts.getZkTimeout());
         // docker
         pConf.setDockerHost(opts.getDockerHost());
-        pConf.setDockerRemote(opts.getDockerRemote());
         pConf.setDockerTlsVerify(opts.getDockerTls());
         pConf.setDockerCertPath(opts.getDockerCertPath());
         pConf.setDockerConfigPath(opts.getDockerConfigPath());
@@ -126,147 +265,84 @@ public final class Main {
         pConf.setDockerRegistryUser(opts.getDockerRegUser());
         pConf.setDockerRegistryPass(opts.getDockerRegPass());
         pConf.setDockerRegistryMail(opts.getDockerRegMail());
+        // log
+        pConf.setLog4jPropertiesPath(opts.getLog4j());
+    }
+
+    private static void loadStartCmdOpts(ProgramConf pConf, StartCmdOpt startCmdOpt) {
         // xml
         pConf.setXmlSchemaPath(startCmdOpt.getSchema());
         pConf.setXmlFilePath(startCmdOpt.getXml());
-        // log
-        pConf.setLog4jPropertiesPath(opts.getLog4j());
-
-        // if custom path for program configuration is set load values
-        // only those not set by the uer
-        if (opts.getConf() != null) {
-            pConf.loadFromFileUnset(opts.getConf());
-        } else {
-            // load from current running path, if exists, options not set by user
-            pConf.loadFromFileUnset("");
-        }
-
-        if (opts.isHelp()) {
-            // program help
-            cl.usage();
-        } else if (opts.isVersion()) {
-            // program version
-            LOG.info("Maestro  v" + ProgramConf.getVERSION());
-        } else if (pConf.getLog4jPropertiesPath() == null) {
-            // no log4j.properties file
-             java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
-                     "FAILED to locate log4j.properties file. Check the program's .properties file and/or user input.");
-            errExit();
-        } else {
-            // load log4j properties file to initialize logging
-            loadLod4jProperties(pConf.getLog4jPropertiesPath());
-
-            if (parsedCmd.equals(start)) {
-                // start command
-                if (startCmdOpt.isHelp()) {
-                    cl.usage(start);
-                } else {
-                    // check if program configuration is complete
-                    boolean confInitialized = pConf.isConfInit();
-                    if (confInitialized) {
-                        // execute START command
-                        cmdExec.exec_start();
-                    } else {
-                        LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
-                        errExit();
-                    }
-                }
-            } else if (parsedCmd.equals(stop)) {
-                // stop command
-                if (stopCmdOpt.isHelp()) {
-                    cl.usage(stop);
-                } else {
-                    // check if program configuration is complete
-                    boolean confInitialized = pConf.isConfInit();
-                    if (confInitialized) {
-                        // execute STOP command
-                        cmdExec.exec_stop(stopCmdOpt.getArgs().get(0));
-                    } else {
-                        LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
-                        errExit();
-                    }
-                }
-            } else if (parsedCmd.equals(restart)) {
-                // restart command
-                if (restartCmdOpt.isHelp()) {
-                    cl.usage(restart);
-                } else {
-                    // check if program configuration is complete
-                    boolean confInitialized = pConf.isConfInit();
-                    if (confInitialized) {
-                        // execute RESTART command
-                        cmdExec.exec_restart(restartCmdOpt.getArgs().get(0));
-                    } else {
-                        LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
-                        errExit();
-                    }
-                }
-            } else if (parsedCmd.equals(delete)) {
-                // delete command
-                if (deleteCmdOpt.isHelp()) {
-                    cl.usage(delete);
-                } else {
-                    // check if program configuration is complete
-                    boolean confInitialized = pConf.isConfInit();
-                    if (confInitialized) {
-                        // execute DELETE command
-                        cmdExec.exec_delete(deleteCmdOpt.getArgs().get(0));
-                    } else {
-                        LOG.error("Program configuration NOT initialized. Check the .properties file and/or user input.");
-                        errExit();
-                    }
-                }
-            }
-        }
     }
 
     /**
      * Exits program due to error using an error code.
      */
     private static void errExit() {
-        System.exit(1);
+        System.exit(-1);
     }
-    
+
     /**
      * Loads the log4j properties file.
      *
      * @param file the path of the log4j properties file.
      */
-    private static void loadLod4jProperties(String file) {
+    private static boolean loadLod4jProperties(String file) {
+        boolean loaded = false;
+        if (file == null) {
+            file = "";
+        }
         // load from file on disk
         Properties logProperties = new Properties();
         try {
             logProperties.load(new FileInputStream(file));
             PropertyConfigurator.configure(logProperties);
+            loaded = true;
             LOG.debug("Loaded log4j properties file: {}", file);
         } catch (IOException ex) {
-            java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.WARNING,
-                    "Could to load log4j properties file: {0}. Trying application workDir. ", ex.getMessage());
-            try {
-                String workDir = System.getProperty("user.dir");
-                file = workDir + "/log4j.properties";
-                logProperties.load(new FileInputStream(file));
-                PropertyConfigurator.configure(logProperties);
-                LOG.info("Loaded log4j properties file: {}", file);
-            } catch (IOException ex1) {
-                java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.WARNING,
-                        "Could to load log4j properties file: {0} {1}. Trying application classpath", new Object[]{file, ex.getMessage()});
-                // load log4j properties file on classpath
-                ClassLoader loader = Thread.currentThread().getContextClassLoader();
-                URL url = loader.getResource("log4j.properties");
-                if (url != null) {
-                    PropertyConfigurator.configure(url);
-                    LOG.info("Loaded log4j properties file: {}", url.toString());
-                } else {
-                    java.util.logging.Logger.getLogger(Main.class.getName()).log(Level.SEVERE,
-                            "FAILED to locate a valid log4j.properties file. Put the file in your workDir, classpath "
-                            + "\n"
-                            + "\tor declare its path to program's .properties file!");
-                    errExit();
-                }
+            if (file.isEmpty()) {
+                System.out.println("WARNING: No log4j.properties file specified. Checking running directory.");
+            } else {
+                System.out.println("WARNING: Could not load log4j.properties file: "
+                        + file
+                        + ". Checking running directory. " + ex.getMessage());
             }
-
         }
+
+        // load from running dir
+        if (!loaded) {
+            try {
+                file = Main.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+                if (file != null) {
+                    String runningFolder = new File(file).getParent();
+                    file = runningFolder + File.separator + "log4j.properties";
+                    logProperties.load(new FileInputStream(file));
+                    PropertyConfigurator.configure(logProperties);
+                    LOG.info("Loaded log4j.properties file: {}", file);
+                    loaded = true;
+                }
+            } catch (IOException | URISyntaxException ex1) {
+                System.out.println("WARNING: Could not load log4j.properties file from running directory: "
+                        + ex1.getMessage()
+                        + ". Checking classpath.");
+            }
+        }
+
+        // load from classpath
+        if (!loaded) {
+            ClassLoader loader = Thread.currentThread().getContextClassLoader();
+            URL url = loader.getResource("log4j.properties");
+            if (url != null) {
+                PropertyConfigurator.configure(url);
+                loaded = true;
+                LOG.info("Loaded log4j.properties file: {}", url.toString());
+            } else {
+                System.out.println("ERROR: FAILED to locate a valid log4j.properties file. "
+                        + "Put the file in your running dirextory, classpath or declare its "
+                        + "path to program's .properties file or through command line!");
+            }
+        }
+        return loaded;
     }
 
 }

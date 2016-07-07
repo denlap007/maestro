@@ -17,6 +17,9 @@
 package net.freelabs.maestro.core.broker;
 
 import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.command.InspectContainerResponse;
+import com.github.dockerjava.api.exception.DockerException;
+import com.github.dockerjava.api.exception.NotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,8 +31,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 import static net.freelabs.maestro.core.broker.Broker.LOG;
-import net.freelabs.maestro.core.handler.ContainerHandler;
-import net.freelabs.maestro.core.handler.NetworkHandler;
+import net.freelabs.maestro.core.schema.Container;
+import net.freelabs.maestro.core.handlers.ContainerHandler;
+import net.freelabs.maestro.core.handlers.NetworkHandler;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
 
@@ -99,24 +103,24 @@ public final class BrokerInit {
     }
 
     public boolean runStart() {
-        LOG.info("Starting application...");
+        LOG.info("Starting application deployment...");
         // execute Brokers for data containers
         handler.listDataContainers().stream().forEach((con) -> {
             Broker broker = new DataBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting handler for %s service...", con.getName());
-            runBroker(broker, Broker::onStart, logMsg, con.getName());
+            String logMsg = String.format("Starting handler for %s service...", con.getConSrvName());
+            runBroker(broker, Broker::onStart, logMsg, con.getConSrvName());
         });
         // execute Brokers for business containers
         handler.listBusinessContainers().stream().forEach((con) -> {
             Broker broker = new BusinessBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting handler for %s service...", con.getName());
-            runBroker(broker, Broker::onStart, logMsg, con.getName());
+            String logMsg = String.format("Starting handler for %s service...", con.getConSrvName());
+            runBroker(broker, Broker::onStart, logMsg, con.getConSrvName());
         });
         // execute Brokers for web containers
         handler.listWebContainers().stream().forEach((con) -> {
             Broker broker = new WebBroker(zkConf, con, docker, master, netHandler);
-            String logMsg = String.format("Starting handler for %s service...", con.getName());
-            runBroker(broker, Broker::onStart, logMsg, con.getName());
+            String logMsg = String.format("Starting handler for %s service...", con.getConSrvName());
+            runBroker(broker, Broker::onStart, logMsg, con.getConSrvName());
         });
         // do not allow new tasks wait for running to finish
         executor.shutdown();
@@ -125,6 +129,33 @@ public final class BrokerInit {
         // shutdown executor normally or force shutdown in case of error
         shutdownExecutor();
         return success;
+    }
+
+    public void cleanupFromFailedStart() {
+        boolean removed = false;
+
+        for (Container con : handler.listContainers()) {
+            String conSrvName = con.getConSrvName();
+            String deplConName = zkConf.getDeplCons().get(conSrvName);
+            try {
+                docker.removeContainerCmd(deplConName)
+                        .withForce(true)
+                        .withRemoveVolumes(true)
+                        .exec();
+                removed = true;
+                // confirm deletion
+                docker.inspectContainerCmd(deplConName).exec();
+                LOG.error("Container for service {} was NOT removed, despite trying!", conSrvName);
+            } catch (NotFoundException e) {
+                if (!removed) {
+                    // Container does NOT exist, not an error 
+                    LOG.info("Container for service {} NOT created.", conSrvName);
+                } else {
+                    LOG.info("Removed container for service {}", conSrvName);
+                    removed = false;
+                }
+            }
+        }
     }
 
     private void runBroker(Broker cb, Predicate<Broker> pred, String logMsg, String conName) {
@@ -141,36 +172,60 @@ public final class BrokerInit {
     }
 
     public boolean runStop() {
-        LOG.info("Stopping application...");
-        // create a broker of any type
-        Broker broker = new DataBroker(zkConf, null, docker, master, netHandler);
-        // runStop services and containers
-        return broker.onStop();
+        boolean success = true;
+        if (!isStopped()) {
+            LOG.info("Stopping application...");
+            // create a broker of any type
+            Broker broker = new DataBroker(zkConf, null, docker, master, netHandler);
+            // runStop services and containers
+            success = broker.onStop();
+        }
+        return success;
+    }
+
+    private boolean isStopped() {
+        boolean stopped = false;
+        LOG.info("Checking application state...");
+        List<String> runningContainers = checkContainersRunning();
+        List<String> deplCons = new ArrayList<>(zkConf.getDeplCons().values());
+
+        if (runningContainers == null) {
+            LOG.warn("State of application containers could not be determined.");
+        } else if (runningContainers.isEmpty()) {
+            LOG.info("Application is stopped.");
+            stopped = true;
+        } else if (deplCons.removeAll(runningContainers)) {
+            if (deplCons.isEmpty()) {
+                LOG.info("Application containers are running...");
+            } else {
+                LOG.warn("Some (not all) application containers are running...");
+            }
+        }
+        return stopped;
     }
 
     public boolean runRestart() {
         boolean success;
-        // stop application if necessary
-        LOG.info("Checking application state...");
-        // stop the application
+        // stop if necessary
         success = runStop();
+
         if (success) {
             // re-start application
             LOG.info("Restarting application...");
             // run Brokers with restart for data containers
             handler.listDataContainers().stream().forEach((con) -> {
                 Broker broker = new DataBroker(zkConf, con, docker, master, netHandler);
-                runBroker(broker, Broker::onRestart, "", con.getName());
+                runBroker(broker, Broker::onRestart, "", con.getConSrvName());
             });
             // run Brokers with restart Brokers for business containers
             handler.listBusinessContainers().stream().forEach((con) -> {
                 Broker broker = new BusinessBroker(zkConf, con, docker, master, netHandler);
-                runBroker(broker, Broker::onRestart, "", con.getName());
+                runBroker(broker, Broker::onRestart, "", con.getConSrvName());
             });
             // run Brokers with restart Brokers for web containers
             handler.listWebContainers().stream().forEach((con) -> {
                 Broker broker = new WebBroker(zkConf, con, docker, master, netHandler);
-                runBroker(broker, Broker::onRestart, "", con.getName());
+                runBroker(broker, Broker::onRestart, "", con.getConSrvName());
             });
             // do not allow new tasks wait for running to finish
             executor.shutdown();
@@ -181,6 +236,46 @@ public final class BrokerInit {
         }
 
         return success;
+    }
+
+    /**
+     *
+     * @return a list with the currently running application services. If no
+     * services are found an empty list is returned. In case of error while
+     * communicating with zookeeper NULL is returned.
+     */
+    private List<String> getRunningServices() {
+        List<String> runningServices = master.getRunningServices();
+        return runningServices;
+    }
+
+    /**
+     * Checks if any containers are running. If a running container is found
+     * then an one element list is returned. If no containers are running then
+     * an empty list is returned. In case of error NULL is returned.
+     *
+     * @return a list with one element of a container is found running, empty if
+     * no running containers found and NULL in case of any error.
+     */
+    private List<String> checkContainersRunning() {
+        List<String> deplConNames = new ArrayList<>(zkConf.getDeplCons().values());
+        List<String> runningContainers = new ArrayList<>();
+
+        for (String deplConName : deplConNames) {
+            try {
+                InspectContainerResponse inspResp = docker.inspectContainerCmd(deplConName).exec();
+                // if container running add to list
+                if (inspResp.getState().getRunning()) {
+                    runningContainers.add(deplConName);
+                }
+            } catch (NotFoundException ex) {
+                // catch exception and check if other containers are running
+            } catch (DockerException ex) {
+                runningContainers = null;
+                break;
+            }
+        }
+        return runningContainers;
     }
 
     public void runUpdate() {
@@ -200,7 +295,7 @@ public final class BrokerInit {
             // delete all but maintain success outcome in case of error
             success = broker.deleteContainer(deplname, defName) && success;
         }
-        if (!success){
+        if (!success) {
             LOG.warn("Could not remove all containers.");
         }
 

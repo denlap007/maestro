@@ -28,28 +28,27 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.broker.process.*;
 import net.freelabs.maestro.broker.process.start.StartGroupProcessHandler;
 import net.freelabs.maestro.broker.process.stop.StopGroupProcessHandler;
 import net.freelabs.maestro.broker.process.stop.StopResMapper;
 import net.freelabs.maestro.broker.services.ServiceManager;
-import net.freelabs.maestro.broker.services.ServiceNode.SRV_CONF_STATUS;
 import net.freelabs.maestro.broker.shutdown.Shutdown;
 import net.freelabs.maestro.broker.shutdown.ShutdownNotifier;
 import net.freelabs.maestro.broker.tasks.TaskHandler;
 import net.freelabs.maestro.broker.tasks.TaskMapper;
-import net.freelabs.maestro.core.generated.BusinessContainer;
-import net.freelabs.maestro.core.generated.Container;
-import net.freelabs.maestro.core.generated.ContainerEnvironment;
-import net.freelabs.maestro.core.generated.DataContainer;
-import net.freelabs.maestro.core.generated.StartRes;
-import net.freelabs.maestro.core.generated.StopRes;
-import net.freelabs.maestro.core.generated.Tasks;
-import net.freelabs.maestro.core.generated.WebContainer;
+import net.freelabs.maestro.core.schema.BusinessContainer;
+import net.freelabs.maestro.core.schema.Container;
+import net.freelabs.maestro.core.schema.ContainerEnvironment;
+import net.freelabs.maestro.core.schema.DataContainer;
+import net.freelabs.maestro.core.schema.StartRes;
+import net.freelabs.maestro.core.schema.StopRes;
+import net.freelabs.maestro.core.schema.Tasks;
+import net.freelabs.maestro.core.schema.WebContainer;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConnectionWatcher;
 import net.freelabs.maestro.core.zookeeper.ZkNamingService;
@@ -104,7 +103,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     /**
      * The name of the container associated with the broker.
      */
-    private String containerName;
+    private final String conSrvName;
     /**
      * The container associated with the broker. Holds the configuration.
      */
@@ -122,10 +121,6 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * Handles the interaction with the naming service.
      */
     private final ZkNamingService ns;
-    /**
-     * Indicates weather the container is initialized.
-     */
-    private volatile boolean conInitialized;
     /**
      * Manages process execution.
      */
@@ -146,6 +141,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * Configuration for the program.
      */
     private final BrokerConf brokerConf;
+    /**
+     * Handles execution of container life-cycles based on events.
+     */
+    private final LifecycleHandler lifecycleHandler = new LifecycleHandler();
+    /**
+     * Defines an action to execute when a dependent service shuts down.
+     */
+    private Executable execOnDependentSrvShutdown;
 
     /**
      * Constructor
@@ -164,15 +167,15 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         this.zkContainerPath = zkContainerPath;
         this.shutdownNode = shutdownNode;
         this.conConfNode = conConfNode;
-        containerName = resolveConPath(zkContainerPath);
+        conSrvName = resolveConPath(zkContainerPath);
         brokerConf = new BrokerConf();
-        brokerConf.brokerDir = BrokerConf.SERVICES_DIR + File.separator + containerName + "-service";
+        brokerConf.brokerDir = BrokerConf.SERVICES_DIR + File.separator + conSrvName + "-service";
         // create a new naming service node
         conZkSrvNode = new ZkNamingServiceNode(zkContainerPath);
         // initialize the naming service object
         ns = new ZkNamingService(zkNamingService);
         // stores the context data of the particular thread for logging
-        MDC.put("id", containerName);
+        MDC.put("id", conSrvName);
     }
 
     /*
@@ -180,20 +183,53 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * BOOTSTRAPPING
      * **************************************************************************
      */
+    public void entrypoint() {
+        // initialize lifecycle handler
+        lifecycleHandler.setExecContainerBootCycle(() -> executorService.execute(() -> {
+            boot();
+        }));
+        lifecycleHandler.setExecContainerInitCycle(() -> executorService.execute(() -> {
+            init();
+        }));
+        lifecycleHandler.setExecContainerStartLifeCycle(() -> executorService.execute(() -> {
+            start();
+        }));
+        lifecycleHandler.setExecContainerShutdownLifeCycle(() -> executorService.execute(() -> {
+            shutdown();
+        }));
+        lifecycleHandler.setExecContainerUpdateLifeCycle(() -> executorService.execute(() -> {
+            update();
+        }));
+        lifecycleHandler.setExecContainerErrorLifeCycle(() -> executorService.execute(() -> {
+            error();
+        }));
+        // send the bootEvent
+        lifecycleHandler.bootEvent();
+    }
+
     /**
      * Bootstraps the broker.
      */
     @Override
     public void boot() {
+        LOG.info("Starting program boot.");
         // connect to zookeeper
         boolean connected = connectToZk();
         // if succeeded
         if (connected) {
             // start initialization
-            init();
+            lifecycleHandler.containerInitEvent();
         } else {
             LOG.error("FAILED to start broker. Terminating.");
+            errExit();
         }
+    }
+
+    /**
+     * Exits with error code -1.
+     */
+    private void errExit() {
+        System.exit(-1);
     }
 
     /**
@@ -205,8 +241,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private boolean connectToZk() {
         boolean connected = false;
         try {
+            LOG.info("Connecting to zk servers...");
             connect();
             connected = true;
+            registerNewZkConnectionWatcher(zkHanleReconnectionWatcher);
         } catch (IOException ex) {
             LOG.error("Something went wrong: " + ex);
         } catch (InterruptedException ex) {
@@ -216,6 +254,94 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         return connected;
     }
 
+    /**
+     * ****************************
+     * SESSION EXPIRED HANDLING
+     * ****************************
+     */
+    /**
+     * A watcher for the zk connection to handle session expired event.
+     */
+    private final Watcher zkHanleReconnectionWatcher = new Watcher() {
+        @Override
+        public void process(WatchedEvent event) {
+            LOG.info("SESSION STATE EVENT: {}", event.getState());
+
+            if (event.getState() == Event.KeeperState.Expired) {
+                // create new session
+                connectToZk();
+                // re-register to naming service
+                String path = ns.resolveSrvName(conSrvName);
+                reCreateZkConSrvNode(path, new byte[0]);
+                // re-set watch for shutdown
+                reSetShutDownWatch();
+            }
+        }
+    };
+
+    /**
+     * Re-creates the service node for this container to the naming service.
+     *
+     * @param path the path of the zNode to the zookeeper namespace.
+     * @param data the data of the zNode.
+     */
+    private void reCreateZkConSrvNode(String path, byte[] data) {
+        zk.create(path, data, OPEN_ACL_UNSAFE,
+                CreateMode.EPHEMERAL, recreateZkConSrvNodeCallback, data);
+    }
+
+    /**
+     * The object to call back with {@link #reCreateZkConSrvNode(java.lang.String, byte[])
+     * createZkConSrvNode} method.
+     */
+    private final StringCallback recreateZkConSrvNodeCallback = (int rc, String path, Object ctx, String name) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                LOG.warn("Connection loss was detected. Retrying...");
+                checkContainerNode(path, (byte[]) ctx);
+                break;
+            case NODEEXISTS:
+                LOG.error("Service zNode already exists: " + path);
+                break;
+            case OK:
+                LOG.info("Re-registered to naming service: " + path);
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
+        }
+    };
+
+    /**
+     * Re-sets a watch on the zookeeper shutdown node. When the shutdown zNode
+     * is created execution is terminated.
+     */
+    private void reSetShutDownWatch() {
+        zk.exists(shutdownNode, shutDownWatcher, resetshutDownCallback, null);
+    }
+
+    /**
+     * Callback to be used with {@link #setShutDownWatch() setShutDownWatch()}
+     * method.
+     */
+    private final StatCallback resetshutDownCallback = (int rc, String path, Object ctx, Stat stat) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                reSetShutDownWatch();
+                break;
+            case NONODE:
+                LOG.info("Watch registered on: " + path);
+                break;
+            case OK:
+                LOG.info("Shutdown node found: " + path);
+                lifecycleHandler.shutdownEvent();
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
+        }
+    };
+
     /*
      * *************************************************************************
      * INITIALIZATION
@@ -223,14 +349,13 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     @Override
     public void init() {
+        LOG.info("Starting container initialization.");
         // set watch for shutdown zNode
         setShutDownWatch();
         // create container zNode
         createZkNodeEphemeral(zkContainerPath, BROKER_ID.getBytes());
         // set watch for the container description
         waitForConDescription();
-        // wait for shutdown
-        waitForShutdown(SHUTDOWN);
     }
 
     /**
@@ -266,10 +391,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * A watcher to process a watch notification for shutdown node.
      */
     private final Watcher shutDownWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
+        LOG.info("WATCH triggered. Type {} for {}", event.getType(), event.getPath());
 
         if (event.getType() == NodeCreated) {
-            shutdown();
+            lifecycleHandler.shutdownEvent();
         }
     };
 
@@ -291,7 +416,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final StringCallback createZkNodeEphemeralCallback = (int rc, String path, Object ctx, String name) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 checkContainerNode(path, (byte[]) ctx);
                 break;
             case NODEEXISTS:
@@ -320,7 +445,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final DataCallback checkContainerNodeCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 checkContainerNode(path, (byte[]) ctx);
                 break;
             case NONODE:
@@ -377,9 +502,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * A watcher to process a watch notification for configuration node.
      */
     private final Watcher waitForConDescriptionWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
-
         if (event.getType() == NodeCreated) {
+            LOG.info("WATCH triggered. Type {} for {}", event.getType(), event.getPath());
             getConDescription();
         }
     };
@@ -398,7 +522,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final DataCallback getConDescriptionCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 getConDescription();
                 break;
             case NONODE:
@@ -411,7 +535,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
 
                 executorService.execute(() -> {
                     // create conf file for container associated with the broker
-                    createConfFile(container, containerName);
+                    createConfFile(container, container.getConSrvName());
                 });
 
                 break;
@@ -431,13 +555,27 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         container = deserializeConType(data);
         /* initialize the services manager to manage services-dependencies
         The dependencies are retrieved from the current cotnainer configuration,
-        from "connectWith" field.        
+        from "requires" field.
          */
         List<String> srvNames = container.getRequires();
         Map<String, String> srvsNamePath = ns.getSrvsNamePath(srvNames);
-        srvMngr = new ServiceManager(srvsNamePath);
+        createServiceManager(srvsNamePath);
+        lifecycleHandler.setSrvMngr(srvMngr);
         // set data to the container zNode 
         setZkConNodeData(data);
+    }
+
+    /**
+     * Creates the {@link #srvMngr service manager}. Guarantees thread
+     * visibility.
+     *
+     * @param srvsNamePath map with service name as key and service path as
+     * value.
+     */
+    private void createServiceManager(Map<String, String> srvsNamePath) {
+        synchronized (Broker.class) {
+            srvMngr = new ServiceManager(srvsNamePath);
+        }
     }
 
     /**
@@ -483,7 +621,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     private void registerToServices() {
         // create the service path for the naming service
-        String path = ns.resolveSrvName(containerName);
+        String path = ns.resolveSrvName(conSrvName);
         // set service status to NOT_INITIALIZED
         conZkSrvNode.setStatusNotInitialized();
         // serialize the node to byte array
@@ -510,7 +648,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final StringCallback createZkConSrvNodeCallback = (int rc, String path, Object ctx, String name) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 checkContainerNode(path, (byte[]) ctx);
                 break;
             case NODEEXISTS:
@@ -527,7 +665,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     });
                 } else {
                     executorService.execute(() -> {
-                        checkInit();
+                        lifecycleHandler.serviceNoneEvent();
                     });
                 }
                 break;
@@ -571,7 +709,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final StatCallback serviceExistsCallback = (int rc, String path, Object ctx, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 serviceExists(path);
                 break;
             case NONODE:
@@ -593,23 +731,27 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * {@link  #serviceExists(java.lang.String) serviceExists} method.
      */
     private final Watcher serviceWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
-
-        if (event.getType() == NodeCreated) {
-            LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
-            // get data from service node
-            getZkSrvData(event.getPath());
-        } else if (event.getType() == NodeDataChanged) {
-            LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
-            //            
-            // CODE TO MONITOR FOR UPDATES ON THE SERVICE NODE
-            // CHANGE OF STATE
-            //  get data from node
-            getZkSrvUpdatedData(event.getPath());
-        } else if (event.getType() == NodeDeleted) {
-            //
-            // ACTION TO TAKE IF SERVICE IS REMOVED
-            //
+        LOG.info("WATCH triggered. Type {} for {}", event.getType(), event.getPath());
+        if (event.getType() != null) {
+            switch (event.getType()) {
+                case NodeCreated:
+                    // get data from service node
+                    getZkSrvData(event.getPath());
+                    break;
+                case NodeDataChanged:
+                    /* MONITOR FOR UPDATES ON THE SERVICE NODES - CHANGE OF STATE*/
+                    getZkSrvUpdatedData(event.getPath());
+                    break;
+                case NodeDeleted:
+                    /* ACTION TO TAKE IF SERVICE NODE IS REMOVED */
+                    LOG.warn("A required service shutdown unexpectedly: {}", event.getPath());
+                    srvMngr.deleteSrvNode(event.getPath());
+                    lifecycleHandler.serviceDeletedEvent();
+                    // re-set watch in case the service comes online
+                    break;
+                default:
+                    break;
+            }
         }
     };
 
@@ -629,7 +771,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final DataCallback getServiceDataCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 getZkSrvData(path);
                 break;
             case NONODE:
@@ -684,7 +826,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final DataCallback getConDataDataCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 getConData(path);
                 break;
             case NONODE:
@@ -723,9 +865,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         srvMngr.setSrvNodeCon(zkConPath, srvCon);
         // set the service conf status of service-dependency to PROCESSED
         srvMngr.setSrvConfStatusProc(ns.resolveSrvName(conName));
-        LOG.info("Service: {}\tStatus: {}.", conName, SRV_CONF_STATUS.PROCESSED.toString());
         // check if container is initialized in order to start processes
-        checkInit();
+        lifecycleHandler.serviceAddedEvent();
     }
 
     /**
@@ -734,68 +875,35 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * *************************************************************************
      */
     /**
-     * <p>
-     * Checks the necessary conditions for the container to be initialized and
-     * for the processes to get started.
-     * <p>
-     * Checks if all container services-dependencies are processed and sets
-     * {@link #conInitialized conInitialized} flag to true.
-     * <p>
-     * If {@link #conInitialized conInitialized} flag is true, checks if all
-     * services-dependencies are initialized and bootstraps the process(es).
-     */
-    private synchronized void checkInit() {
-        if (srvMngr.hasServices()) {
-            // if container is not initialized
-            if (!conInitialized) {
-                // check if srvs are processed
-                if (srvMngr.areSrvProcessed()) {
-                    conInitialized = true;
-                    LOG.info("Container INITIALIZED!");
-                    // check if srvs are initialized
-                    if (srvMngr.areSrvInitialized()) {
-                        // start processes
-                        start();
-                    }
-                }
-            } else // check if srvs are initialized
-            {
-                if (srvMngr.areSrvInitialized()) {
-                    // start processes
-                    executorService.execute(() -> {
-                        start();
-                    });
-                }
-            }
-        } else {
-            conInitialized = true;
-            LOG.info("Container INITIALIZED!");
-            // execute in new thread
-            executorService.execute(() -> {
-                start();
-            });
-        }
-    }
-
-    /**
      * Creates the {@link ProcessManager ProcessManager}, creates the
      * environment for processes, initializes start-stops group processes,
      * executes tasks and start group processes, in that order.
      */
     @Override
     public void start() {
+        LOG.info("Starting container processes initialization.");
         // create the process manager that will start processes
-        procMngr = new ProcessManager();
+        createProcessManager();
         // create the environment for the container processes
         initProcsEnv();
         // initialization of process groups
         initProcGroups();
-        // initialize tasks
-        taskHandler = initTaskHandler();
+        // initialize handler for tasks
+        initTaskHandler();
         // execute tasks
         taskHandler.execPreStartTasks();
         // execute START processes
         procMngr.exec_start_procs();
+    }
+
+    /**
+     * Creates the {@link #procMngr process manager}. Guarantees thread
+     * visibility.
+     */
+    private void createProcessManager() {
+        synchronized (Broker.class) {
+            procMngr = new ProcessManager();
+        }
     }
 
     /**
@@ -842,7 +950,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         startGroupHandler.setExecOnSuccess(() -> {
             // change service status to INITIALIZED
             updateZkSrvStatus(conZkSrvNode::setStatusInitialized);
-            // monitor service and update status accordingly for zk service node
+            // monitor service in case it crashes
             monService();
         });
         // code to execute on failure
@@ -916,14 +1024,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         // get container objs from dependencies
         srvMngr.getConsOfSrvs().stream().forEach((con) -> {
             // get container name
-            String name = con.getName();
+            String name = con.getConSrvName();
             // get the environment obj according to the container type
             ContainerEnvironment env = con.getEnv();
             // add to map
             depConEnvMap.put(name, env);
         });
         // create environment mapper to map declared environments to env objects
-        EnvironmentMapper envMap = new EnvironmentMapper(conEnv, container.getName(), depConEnvMap);
+        EnvironmentMapper envMap = new EnvironmentMapper(conEnv, conSrvName, depConEnvMap);
         // create handler to act on env objects
         envHandler = new EnvironmentHandler(envMap.getConEnv(), envMap.getDepConEnvMap());
         // create environment for processes
@@ -932,16 +1040,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
 
     /**
      * <p>
-     * Creates and initializes an executor for tasks.
+     * Creates and initializes an executor for tasks, the {@link #taskHandler
+     * taskHandler}. Guarantees thread visibility.
      * <p>
      * A task is a function of some type for the application.
-     *
-     * @return an object that will handle task execution.
      */
-    private TaskHandler initTaskHandler() {
+    private void initTaskHandler() {
         Tasks tasks = container.getTasks();
         Map<String, String> env;
-        TaskHandler th;
         // if there are tasks defined
         if (tasks != null) {
             // create Task Mapper
@@ -953,11 +1059,14 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
             }
             TaskMapper tm = new TaskMapper(tasks, env);
             // init Task Handler
-            th = new TaskHandler(tm.getPreStartTasks(), tm.getPostStopTasks());
+            synchronized (Broker.class) {
+                taskHandler = new TaskHandler(tm.getPreStartTasks(), tm.getPostStopTasks());
+            }
         } else {
-            th = new TaskHandler();
+            synchronized (Broker.class) {
+                taskHandler = new TaskHandler();
+            }
         }
-        return th;
     }
 
     /**
@@ -1021,8 +1130,11 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     }
 
     /**
-     * Monitors the running service and updates the zk service node status
-     * accordingly in case it stops.
+     * <p>
+     * Monitors the main process in case it stops abnormally and updates the
+     * service status.
+     * <p>
+     * The method blocks.
      *
      * @param procHandler the {@link MainProcessHandler MainProcessHandler}
      * object.
@@ -1057,7 +1169,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      */
     private void updateZkSrvStatus(Updatable updatableObj) {
         // get the service path
-        String servicePath = ns.resolveSrvName(containerName);
+        String servicePath = ns.resolveSrvName(conSrvName);
         // update status
         updatableObj.updateStatus();
         LOG.info("Updating service status to {}: {}", conZkSrvNode.getStatus(), servicePath);
@@ -1100,10 +1212,9 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * {@link  #setConWatch(java.lang.String) setConWatch(String)} method.
      */
     private final Watcher setConWatcher = (WatchedEvent event) -> {
-        LOG.info(event.getType() + ", " + event.getPath());
+        LOG.info("WATCH triggered. Type {} for {}.", event.getType(), event.getPath());
 
         if (event.getType() == NodeDataChanged) {
-            LOG.info("Watched event: " + event.getType() + " for " + event.getPath() + " ACTIVATED.");
             /**
              *
              * CODE FOR RETRIEVING UPDATES ON CONTAINER STATE REQUIRES
@@ -1131,7 +1242,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private final DataCallback getZkSrvUpdatedDataDataCallback = (int rc, String path, Object ctx, byte[] data, Stat stat) -> {
         switch (KeeperException.Code.get(rc)) {
             case CONNECTIONLOSS:
-                LOG.warn("Connection loss was detected");
+                LOG.warn("Connection loss was detected. Retrying...");
                 getZkSrvUpdatedData(path);
                 break;
             case NONODE:
@@ -1155,14 +1266,27 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         ZkNamingServiceNode srvNode = ns.deserializeZkSrvNode(path, data);
         // set the new service status
         srvMngr.setSrvStateStatus(path, srvNode.getStatus());
-        // log
-        LOG.info("Status of service {} is: {}", path, srvNode.getStatus().toString());
-        /* check if all services are initialized. If the container is already initialized
-        and a status update from a service is received, that means that a service
-        from another container failed OR updated its configurations (NOT IMPLEMENTED
-        YET). Hence, reconfiguring is needed (NOT IMPLEMENTED YET)
-         */
-        checkInit();
+        /*We received a status updated for a required service. The node had its data 
+        changed. It was not created or deleted, because those actions are handled
+        from different methods. Service status may have changed to INITIALIZED
+        NOT_RUNNING, UPDATED*/
+
+        if (srvNode.isStatusSetToUpdated()) {
+            // service was updated so conf of service is reset to NOT_PROCESSED 
+            srvMngr.setSrvConfStatusNotProc(path);
+            /* RE-CONFIGURATION NEEDED!!! NOT IMPLEMENTED YET
+            
+            container node data has changed. Download again and do processing,
+            just like getConData()->processConData(). At the end call
+            lifecycleHandler.serviceUpdatedEvent instead of lifecycleHandler.serviceAddedEvent.
+             */
+        } else if (srvNode.isStatusSetToInitialized()) {
+            lifecycleHandler.serviceInitializedEvent();
+        } else if (srvNode.isStatusSetToNotRunning()) {
+            lifecycleHandler.serviceNotRunnningEvent();
+        } else if (srvNode.isStatusSetToNotInitialized()) {
+            lifecycleHandler.serviceNotInitializedEvent();
+        }
     }
 
     /**
@@ -1305,22 +1429,20 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
                     // run stop group procs
                     stop();
                 } else {
-                    taskHandler = initTaskHandler();
+                    initTaskHandler();
                     stop();
                 }
             } else {
                 initProcsEnv();
                 initStopGroup();
-                taskHandler = initTaskHandler();
+                initTaskHandler();
                 stop();
             }
         }
-        // delete persistent zNode with container description to support restart
-        deleteNode(conConfNode, -1);
         // notify for shutdown objects implementing shutdown interface
         notifier.shutDown();
-        // shut down the executorService to stop any still running threads
-        shutdownExecutor();
+        // delete persistent zNode with container description to support restart
+        deleteNode(conConfNode, -1);
         try {
             // close zk client session
             closeSession();
@@ -1332,29 +1454,109 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         }
         // log event
         LOG.info("Initiating Broker shutdown " + zkContainerPath);
+        // shut down the executorService to stop any still running threads
+        shutdownExecutor();
     }
 
     @Override
     public void shutdown() {
+        LOG.info("Starting container shutdown.");
+        // wait services dependent on the service provided by this container
+        waitDependentSrvsShutdown();
+        // initiate container shutdown
         shutdown(SHUTDOWN);
     }
 
     private void shutdownExecutor() {
-        try {
-            executorService.shutdown();
-            executorService.awaitTermination(2, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // log the event
-            LOG.warn("Tasks interrupted.");
-            // set the interrupt status
-            Thread.currentThread().interrupt();
-        } finally {
-            if (!executorService.isTerminated()) {
-                LOG.warn("Canceling non-finished tasks.");
+        executorService.shutdownNow();
+    }
+
+    /**
+     * Waits for any services that depend on the service provides by this
+     * container to finish shutdown and then initiates container shutdown.
+     */
+    private void waitDependentSrvsShutdown() {
+        if (container != null) {
+            if (!container.getIsRequiredFrom().isEmpty()) {
+                LOG.info("Waiting dependent services shutdown.");
+                int numOfDependentSrvs = container.getIsRequiredFrom().size();
+                CountDownLatch dependentSrvShutdownSignal = new CountDownLatch(numOfDependentSrvs);
+                execOnDependentSrvShutdown = () -> {
+                    dependentSrvShutdownSignal.countDown();
+                };
+                // register watches for dependent services
+                container.getIsRequiredFrom().stream().forEach((dependentSrv) -> {
+                    setWatchOnDependentSrv(ns.resolveSrvName(dependentSrv));
+                });
+                // wait dependent services shutdown
+                try {
+                    dependentSrvShutdownSignal.await();
+                } catch (InterruptedException ex) {
+                    // log the event
+                    LOG.warn("Thread Interruped. Stopping.");
+                    // set the interrupt status
+                    Thread.currentThread().interrupt();
+                }
+            } else {
+                LOG.info("No dependent services.");
             }
-            executorService.shutdownNow();
         }
     }
+
+    /**
+     * Checks if service exists.
+     *
+     * @param servicePath the path of the service under the naming service
+     * namespace.
+     */
+    private void setWatchOnDependentSrv(String servicePath) {
+        zk.exists(servicePath, setWatchOnDependentSrvWatcher, setWatchOnDependentSrvCallback, null);
+    }
+
+    /**
+     * Callback to be used with
+     * {@link  #setWatchOnDependentSrv(java.lang.String) setWatchOnDependentSrv}
+     * method.
+     */
+    private final StatCallback setWatchOnDependentSrvCallback = (int rc, String path, Object ctx, Stat stat) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                LOG.warn("Connection loss was detected. Retrying...");
+                setWatchOnDependentSrv(path);
+                break;
+            case NONODE:
+                LOG.warn("Dependent service does not exist: " + path);
+                execOnDependentSrvShutdown.execute();
+                break;
+            case OK:
+                LOG.info("Watch set for shutdown of dependent service: " + path);
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
+        }
+    };
+
+    /**
+     * Watcher to be used with
+     * {@link  #setWatchOnDependentSrv(java.lang.String) setWatchOnDependentSrv}
+     * method.
+     */
+    private final Watcher setWatchOnDependentSrvWatcher = (WatchedEvent event) -> {
+        LOG.info("WATCH triggered. Type {} for {}", event.getType(), event.getPath());
+        if (event.getType() != null) {
+            switch (event.getType()) {
+                case NodeDeleted:
+                    LOG.info("Dependent service shutdown completed: {}", event.getPath());
+                    execOnDependentSrvShutdown.execute();
+                    break;
+                case NodeDataChanged:
+                    // re-set watch
+                    setWatchOnDependentSrv(event.getPath());
+                    break;
+            }
+        }
+    };
 
     /**
      * Deletes the specified zNode. The zNode mustn't have any children. This
@@ -1363,7 +1565,7 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
      * @param path the zNode to delete.
      * @param version the data version of the zNode.
      */
-    public void deleteNode(String path, int version) {
+    private void deleteNode(String path, int version) {
         while (true) {
             try {
                 zk.delete(path, version);
@@ -1387,4 +1589,13 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         }
     }
 
+    @Override
+    public void update() {
+        LOG.info("Starting container re-configuration.");
+    }
+
+    @Override
+    public void error() {
+        LOG.error("Setting container into ERROR STATE.");
+    }
 }

@@ -27,14 +27,15 @@ import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlTransient;
 import net.freelabs.maestro.core.boot.ProgramConf;
-import net.freelabs.maestro.core.generated.WebApp;
+import net.freelabs.maestro.core.schema.WebApp;
 
 /**
  *
  * Class that provides methods to access configuration information of a web
  * application regarding its interaction with zookeeper service.
  * <p>
- The zookeeper namespace of the app is defined along with upData for the nodes.
+ * The zookeeper namespace of the app is defined along with upData for the
+ * nodes.
  */
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @XmlAccessorType(XmlAccessType.FIELD)
@@ -76,8 +77,9 @@ public final class ZkConf {
      */
     private Map<String, ZkNode> containers;
     /**
-     * Map of zkNodes paths holding upload/download upData about containers. The map 
- key is the name of the container and the value is the zpath to the upData node.
+     * Map of zkNodes paths holding upload/download upData about containers. The
+     * map key is the name of the container and the value is the zpath to the
+     * upData node.
      */
     private Map<String, String> conUpDataNodes;
     /**
@@ -93,20 +95,22 @@ public final class ZkConf {
     @XmlTransient
     private ZkSrvConf zkSrvConf;
     /**
-     * Map of the defined container names to the deployed container names.
+     * Map of the defined container names as key and the deployed container
+     * names as value.
      */
     private Map<String, String> deplCons;
     /**
      * The program's configuration
      */
+    @XmlTransient
     private ProgramConf pConf;
     /**
      * The name of the default network for the application.
      */
     private String appDefaultNetName;
     /**
-     * An id used as upData for nodes without upData. Also, this is the suffix to
-     * the zk root node for the application.
+     * An id used as upData for nodes without upData. Also, this is the suffix
+     * to the zk root node for the application.
      */
     private String suffix;
     /**
@@ -297,6 +301,11 @@ public final class ZkConf {
         return zkSrvConf;
     }
 
+    /**
+     *
+     * @return a Map of the defined container names as key and the deployed
+     * container names as value.
+     */
     public Map<String, String> getDeplCons() {
         return deplCons;
     }
@@ -324,5 +333,5 @@ public final class ZkConf {
     public String getAppDefaultNetName() {
         return appDefaultNetName;
     }
-    
+
 }

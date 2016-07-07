@@ -372,6 +372,38 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     }
 
     /**
+     * Gets all running services of an application.
+     *
+     * @return a list of running services of an application. An empty list in
+     * case there are no services, NULL if an error occurred.
+     */
+    public List<String> getRunningServices() {
+        // make a get children call to leave watch for node's children
+        List<String> children = null;
+        while (true) {
+            try {
+                children = zk.getChildren(zkConf.getServices().getPath(), null);
+                break;
+            } catch (InterruptedException ex) {
+                // log event
+                LOG.warn("Interrupted. Stopping");
+                // set interupt flag
+                Thread.currentThread().interrupt();
+                break;
+            } catch (ConnectionLossException ex) {
+                LOG.warn("Connection loss was detected! Retrying...");
+            } catch (NoNodeException ex) {
+                LOG.error("Node does NOT exist: {}", ex.getMessage());
+                break;
+            } catch (KeeperException ex) {
+                LOG.error("Something went wrong", ex);
+                break;
+            }
+        }
+        return children;
+    }
+
+    /**
      * A watcher to activate when change in registered node's children happens.
      */
     public final Watcher childrenWatcher = (WatchedEvent event) -> {
@@ -394,6 +426,7 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 servicesCache = children;
             }
         } else {
+            LOG.error("Received INVALID list of running services.");
             servicesStopped.countDown();
         }
     };
@@ -425,8 +458,8 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
     }
 
     /**
-     * Waits until all application services have stopped or a timeout occurs, 
-     * whichever happens first. 
+     * Waits until all application services have stopped or a timeout occurs,
+     * whichever happens first.
      *
      * @param services list of services to wait to closeSession.
      * @param timeout the maximum time to wait
@@ -443,8 +476,13 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
             if (!servicesCache.isEmpty()) {
                 try {
                     stopped = servicesStopped.await(timeout, timeUnit);
-                    if (!stopped){
+                    if (!stopped) {
                         LOG.warn("Some services are still running!");
+                    } else {
+                        // sleep for 1s cause if containers's state is checked immediately
+                        // state of the last one may be found running but it will have terminated
+                        // as soon as the stop request is posted
+                        Thread.sleep(1000);
                     }
                 } catch (InterruptedException ex) {
                     masterError = true;
@@ -457,10 +495,10 @@ public final class ZkMaster extends ZkConnectionWatcher implements Runnable {
                 LOG.error("Containers-Services NOT running.");
                 masterError = true;
             }
-        }else{
+        } else {
             LOG.error("An error encountered while waiting for services to stop.");
         }
-        
+
         return !masterError && stopped;
     }
 

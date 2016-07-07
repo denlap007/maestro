@@ -18,7 +18,7 @@ package net.freelabs.maestro.broker.tasks;
 
 import java.util.ArrayList;
 import java.util.List;
-import net.freelabs.maestro.core.generated.Tasks;
+import net.freelabs.maestro.core.schema.Tasks;
 
 /**
  *

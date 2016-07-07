@@ -21,8 +21,8 @@ import javax.xml.bind.JAXBException;
 import net.freelabs.maestro.core.boot.ProgramConf;
 import net.freelabs.maestro.core.broker.BrokerInit;
 import net.freelabs.maestro.core.docker.DockerInitializer;
-import net.freelabs.maestro.core.handler.ContainerHandler;
-import net.freelabs.maestro.core.handler.NetworkHandler;
+import net.freelabs.maestro.core.handlers.ContainerHandler;
+import net.freelabs.maestro.core.handlers.NetworkHandler;
 import net.freelabs.maestro.core.serializer.JAXBSerializer;
 import net.freelabs.maestro.core.zookeeper.ZkConf;
 import net.freelabs.maestro.core.zookeeper.ZkMaster;
@@ -94,7 +94,7 @@ public final class DeleteCmd extends Command {
                     // remove containers
                     success = brokerInit.runDelete() && success;
                     // remove default network
-                    netHandler.deleteNetwork(zkConf.getAppDefaultNetName());
+                    success = netHandler.deleteNetwork(zkConf.getAppDefaultNetName()) && success;
                 }
             } else {
                 LOG.error("Application with id {} does NOT exist.", appID);
@@ -184,7 +184,7 @@ public final class DeleteCmd extends Command {
      */
     @Override
     protected void errExit() {
-        LOG.error("FAILED to delete application with id {}. Exiting...", appID);
+        LOG.error("FAILED to delete application with id {}.", appID);
         System.exit(1);
     }
 
