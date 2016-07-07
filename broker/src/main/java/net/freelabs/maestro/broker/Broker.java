@@ -241,8 +241,10 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
     private boolean connectToZk() {
         boolean connected = false;
         try {
+            LOG.info("Connecting to zk servers...");
             connect();
             connected = true;
+            registerNewZkConnectionWatcher(zkHanleReconnectionWatcher);
         } catch (IOException ex) {
             LOG.error("Something went wrong: " + ex);
         } catch (InterruptedException ex) {
@@ -251,6 +253,94 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
         }
         return connected;
     }
+
+    /**
+     * ****************************
+     * SESSION EXPIRED HANDLING
+     * ****************************
+     */
+    /**
+     * A watcher for the zk connection to handle session expired event.
+     */
+    private final Watcher zkHanleReconnectionWatcher = new Watcher() {
+        @Override
+        public void process(WatchedEvent event) {
+            LOG.info("SESSION STATE EVENT: {}", event.getState());
+
+            if (event.getState() == Event.KeeperState.Expired) {
+                // create new session
+                connectToZk();
+                // re-register to naming service
+                String path = ns.resolveSrvName(conSrvName);
+                reCreateZkConSrvNode(path, new byte[0]);
+                // re-set watch for shutdown
+                reSetShutDownWatch();
+            }
+        }
+    };
+
+    /**
+     * Re-creates the service node for this container to the naming service.
+     *
+     * @param path the path of the zNode to the zookeeper namespace.
+     * @param data the data of the zNode.
+     */
+    private void reCreateZkConSrvNode(String path, byte[] data) {
+        zk.create(path, data, OPEN_ACL_UNSAFE,
+                CreateMode.EPHEMERAL, recreateZkConSrvNodeCallback, data);
+    }
+
+    /**
+     * The object to call back with {@link #reCreateZkConSrvNode(java.lang.String, byte[])
+     * createZkConSrvNode} method.
+     */
+    private final StringCallback recreateZkConSrvNodeCallback = (int rc, String path, Object ctx, String name) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                LOG.warn("Connection loss was detected. Retrying...");
+                checkContainerNode(path, (byte[]) ctx);
+                break;
+            case NODEEXISTS:
+                LOG.error("Service zNode already exists: " + path);
+                break;
+            case OK:
+                LOG.info("Re-registered to naming service: " + path);
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
+        }
+    };
+
+    /**
+     * Re-sets a watch on the zookeeper shutdown node. When the shutdown zNode
+     * is created execution is terminated.
+     */
+    private void reSetShutDownWatch() {
+        zk.exists(shutdownNode, shutDownWatcher, resetshutDownCallback, null);
+    }
+
+    /**
+     * Callback to be used with {@link #setShutDownWatch() setShutDownWatch()}
+     * method.
+     */
+    private final StatCallback resetshutDownCallback = (int rc, String path, Object ctx, Stat stat) -> {
+        switch (KeeperException.Code.get(rc)) {
+            case CONNECTIONLOSS:
+                reSetShutDownWatch();
+                break;
+            case NONODE:
+                LOG.info("Watch registered on: " + path);
+                break;
+            case OK:
+                LOG.info("Shutdown node found: " + path);
+                lifecycleHandler.shutdownEvent();
+                break;
+            default:
+                LOG.error("Something went wrong: ",
+                        KeeperException.create(KeeperException.Code.get(rc), path));
+        }
+    };
 
     /*
      * *************************************************************************
@@ -1041,8 +1131,8 @@ public abstract class Broker extends ZkConnectionWatcher implements Shutdown, Li
 
     /**
      * <p>
-     * Monitors the main process in case it stops abnormally and updates 
-     * the service status.
+     * Monitors the main process in case it stops abnormally and updates the
+     * service status.
      * <p>
      * The method blocks.
      *

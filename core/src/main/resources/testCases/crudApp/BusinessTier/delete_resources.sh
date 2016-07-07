@@ -1,5 +1,5 @@
 #!/bin/bash
 set -e
 
-asadmin delete-jdbc-resource jdbc/consult
-asadmin delete-jdbc-connection-pool mysql_consult_rootPool
+asadmin delete-jdbc-resource ${JDBC_RESOURCE_NAME}
+asadmin delete-jdbc-connection-pool ${JDBC_CONNECTION_POOL_NAME}

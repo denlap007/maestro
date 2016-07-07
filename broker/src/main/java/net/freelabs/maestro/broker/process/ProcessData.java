@@ -93,7 +93,7 @@ public class ProcessData {
     public List<String> getCmdArgs() {
         List<String> cmdArgs = new ArrayList<>();
 
-        LOG.info("Resource BEFORE processing: {}", res.getRes());
+        LOG.debug("Resource BEFORE processing: {}", res.getRes());
         // expands the environment variables found in the execution resource, if any
         boolean expandedEnvVars = substEnvVarsToRes();
         // if no errors split into tokens
@@ -103,7 +103,7 @@ public class ProcessData {
                 LOG.error("NO resource for execution.");
             }
         }
-        LOG.info("Resource AFTER processing: {}", res.getRes());
+        LOG.debug("Resource AFTER processing: {}", res.getRes());
         return cmdArgs;
     }
 
@@ -147,7 +147,7 @@ public class ProcessData {
                 String envVar = regexMatcher.group();
                 resource = resource.replace(envVar, envVarValue);
                 res.setRes(resource);
-                LOG.info("AFTER SUBST_ENV: {}", res.getRes());
+                LOG.debug("AFTER SUBST_ENV: {}", res.getRes());
             } else {
                 LOG.error("FAILED to expand environment variable {}. Variable NOT DECLARED.", regexMatcher.group());
                 success = false;

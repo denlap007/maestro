@@ -163,7 +163,7 @@ public abstract class ProcessHandler {
                 // cleanup
                 cleanup();
             } else {
-                LOG.error("Process start FAILED: {}. NOT INITIALIZED properly.", pData.getResDescription());
+                LOG.error("Process initialization FAILED: {}.", pData.getResDescription());
             }
         } else {
             LOG.error("Process Handler NOT INITIALIZED properly.");

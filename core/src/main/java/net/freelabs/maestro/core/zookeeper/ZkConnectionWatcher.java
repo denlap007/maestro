@@ -23,6 +23,7 @@ import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
 import org.apache.zookeeper.Watcher.Event.KeeperState;
 import org.apache.zookeeper.ZooKeeper;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -44,9 +45,14 @@ public class ZkConnectionWatcher implements Watcher {
     private final int zkSessionTimeout;
     /**
      * A CountDownLatch with a count of one, representing the number of events
-     * that need to occur before it releases all	waiting threads.
+     * that need to occur before it releases all waiting threads.
      */
-    private final CountDownLatch connectedSignal = new CountDownLatch(1);
+    private CountDownLatch connectedSignal;
+
+    /**
+     * A Logger object.
+     */
+    private static final org.slf4j.Logger LOG = LoggerFactory.getLogger(ZkConnectionWatcher.class);
 
     /**
      * Constructor.
@@ -74,6 +80,7 @@ public class ZkConnectionWatcher implements Watcher {
      * @throws InterruptedException if thread is interrupted while waiting.
      */
     public void connect() throws IOException, InterruptedException {
+        connectedSignal = new CountDownLatch(1);
         zk = new ZooKeeper(zkHosts, zkSessionTimeout, this);
         connectedSignal.await(30, TimeUnit.SECONDS);
     }
@@ -87,17 +94,29 @@ public class ZkConnectionWatcher implements Watcher {
      */
     @Override
     public void process(WatchedEvent event) {
+        LOG.info("Session state event: {}", event.getState());
         if (event.getState() == KeeperState.SyncConnected) {
             connectedSignal.countDown();
         }
     }
 
     /**
+     * Register a watcher for the connection (overrides the one specified during
+     * construction).
+     *
+     * @param watcher a watcher for the connection.
+     */
+    public void registerNewZkConnectionWatcher(Watcher watcher) {
+        zk.register(watcher);
+    }
+
+    /**
      * Closes the client session of a {@link org.apache.zookeeper.ZooKeeper
      * zookeeper handle}.
+     *
      * @throws java.lang.InterruptedException if thread is interrupted.
      */
     public void closeSession() throws InterruptedException {
-            zk.close();
+        zk.close();
     }
 }

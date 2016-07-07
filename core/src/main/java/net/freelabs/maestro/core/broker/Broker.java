@@ -475,8 +475,7 @@ public abstract class Broker implements ContainerLifecycle {
                     checkNode(path, (byte[]) ctx);
                     break;
                 case NODEEXISTS:
-                    LOG.error("Node already exists: " + path);
-                    zkError = true;
+                    LOG.warn("Node already exists. Overwriting: " + path);
                     shutdown();
                     break;
                 case OK:
@@ -690,7 +689,7 @@ public abstract class Broker implements ContainerLifecycle {
         } catch (NotFoundException e) {
             LOG.error("FAILED to stop container for service {}. Container does NOT exist.", srv);
         } catch (DockerException ex) {
-            LOG.error("FAILED to stop container for service {}. Something went wrong: {}", srv, ex);
+            LOG.error("FAILED to stop container for service {}. Something went wrong: {}", srv, ex.getMessage());
         }
         return success;
     }
